@@ -75,18 +75,31 @@ final granted = await permissions.requestIOSPermission(IOSPermission.familyContr
 
 ### Why this is needed
 
-`pauseEnforcement(Duration)` is implemented on iOS by clearing managed shields and storing pause state in the App Group.
+`pauseEnforcement(Duration)` on iOS now schedules a `DeviceActivity` interval and clears managed shields immediately.
 
-For **reliable** auto-resume when the host app is backgrounded/terminated, you also need a **Device Activity Monitor Extension** that can re-apply stored restrictions at pause end.
+To make auto-resume reliable while the app is backgrounded/terminated, your host app must include a **Device Activity Monitor Extension** that re-applies stored restrictions when the monitored pause interval ends.
 
-Without this extension, restrictions still resume when plugin code runs again, but timing is best-effort.
-
-### Xcode steps (high level)
+### Required integration steps
 
 1) In Xcode: **File → New → Target**
 2) Choose **Device Activity Monitor Extension**
-3) Enable **App Groups** capability for the extension target (same group ID as Runner)
-4) In the extension implementation, read the stored desired token list + pause state from App Group defaults and re-apply restrictions when pause expires
+3) Enable **App Groups** capability for both targets:
+   - **Runner**
+   - **Device Activity Monitor Extension**
+4) Use the same App Group ID for both targets (for example `group.com.yourcompany.yourapp`)
+5) Add `AppGroupIdentifier` in both `Info.plist` files (Runner + extension) with that same value
+6) Copy template file `docs/templates/PauzaDeviceActivityMonitorExtension.swift` into your extension target
+7) Ensure your extension handles activity name `pauza_pause_auto_resume`
+
+### Shared storage keys used by the plugin
+
+The extension must read these App Group keys:
+- `desiredRestrictedApps`
+- `pausedUntilEpochMs`
+
+### Failure behavior
+
+If iOS cannot start the pause monitor interval, `pauseEnforcement(...)` returns `INTERNAL_FAILURE` with an actionable diagnostic.
 
 ## 5) Create the Shield Configuration extension (optional but recommended)
 
@@ -94,36 +107,19 @@ Without this extension, restrictions still resume when plugin code runs again, b
 
 If you want a custom “shield” UI (the system screen shown when an app is restricted), iOS requires a **Shield Configuration Extension** target.
 
-This plugin contains a ready-to-use data source implementation (`ShieldConfigurationExtension`), but **extensions live in the host app** — you typically copy/adapt this file into your extension target.
+This plugin includes a copy-ready template:
+- `docs/templates/PauzaShieldConfigurationExtension.swift`
 
-### Xcode steps (high level)
+Extensions live in the host app, so copy/adapt that file into your Shield Configuration extension target.
+
+### Xcode steps
 
 1) In Xcode: **File → New → Target**
 2) Choose **Shield Configuration Extension**
 3) Enable **App Groups** capability for the extension target too (same group ID)
-4) Add a Swift file to the extension target implementing:
-   - `ShieldConfigurationDataSource`
-   - reads config from the app group defaults key `shieldConfiguration`
-
-### Minimal Swift example
-
-```swift
-import ManagedSettingsUI
-import ManagedSettings
-import UIKit
-
-@available(iOSApplicationExtension 16.0, *)
-final class ShieldConfigurationExtension: ShieldConfigurationDataSource {
-  override func configuration(shielding application: Application) -> ShieldConfiguration {
-    // Load your stored payload from App Group UserDefaults and map it.
-    // See plugin source: ios/Classes/AppRestriction/ShieldConfigurationExtension.swift
-    return ShieldConfiguration(
-      title: ShieldConfiguration.Label(text: "Restricted", color: .white),
-      subtitle: ShieldConfiguration.Label(text: "Ask for more time.", color: .lightGray)
-    )
-  }
-}
-```
+4) Add `AppGroupIdentifier` in extension `Info.plist` (same value as Runner)
+5) Copy `docs/templates/PauzaShieldConfigurationExtension.swift` into the extension target
+6) Confirm extension reads key `shieldConfiguration` from App Group `UserDefaults`
 
 ## 6) Create the Device Activity Report extension (required for `UsageReportView`)
 
@@ -138,12 +134,16 @@ The Dart widget passes:
 
 The iOS side turns `reportContext` into `DeviceActivityReport.Context(reportContextId)`.
 
-### Xcode steps (high level)
+Template provided:
+- `docs/templates/PauzaDeviceActivityReportExtension.swift`
+
+### Xcode steps
 
 1) In Xcode: **File → New → Target**
 2) Choose **Device Activity Report Extension**
 3) Ensure the extension supports iOS 16+
-4) Configure your report to support the contexts you will pass from Dart (for example `daily`)
+4) Copy `docs/templates/PauzaDeviceActivityReportExtension.swift` into the extension target
+5) Ensure your Dart `reportContext` matches a context implemented by the extension (template provides `daily`)
 
 ### How to verify
 

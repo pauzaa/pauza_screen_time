@@ -122,17 +122,22 @@ One or more tokens you passed to restrictions could not be decoded as iOS `Appli
 
 ### iOS pause did not auto-resume while app was backgrounded
 
-**Likely cause**: missing **Device Activity Monitor extension** setup.
+**Likely causes**:
+- missing **Device Activity Monitor extension** setup
+- extension target does not handle activity name `pauza_pause_auto_resume`
+- Runner and extension do not share the same App Group storage
 
 **Fix**:
 - Follow [iOS setup](ios-setup.md) step “Enable reliable pause auto-resume (Device Activity Monitor extension)”
 - Ensure Runner and monitor extension share the same App Group ID
-- Ensure the extension re-applies stored desired restrictions when pause expires
+- Ensure both `Info.plist` files contain matching `AppGroupIdentifier`
+- Ensure the extension re-applies `desiredRestrictedApps` after `pausedUntilEpochMs` expiry
 
 ### iOS/Android pause call fails with `INVALID_ARGUMENT`
 
 **Likely causes**:
 - duration is missing/zero/negative
+- iOS duration is `>= 24h`
 - enforcement is already paused
 
 **Fix**:

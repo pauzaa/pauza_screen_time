@@ -6,6 +6,7 @@ final class RestrictionsMethodHandler {
     private static let iosFamilyControlsKey = "ios.familyControls"
     private static let featureRestrictions = "restrictions"
     private static let platformIOS = "ios"
+    private static let maxReliablePauseDurationMs: Int64 = 24 * 60 * 60 * 1000
 
     func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
@@ -294,6 +295,8 @@ final class RestrictionsMethodHandler {
             return
         }
 
+        _ = RestrictionStateStore.storePausedUntilEpochMs(0)
+        PauseAutoResumeMonitor.stopMonitoring()
         ShieldManager.shared.clearRestrictions()
         result(nil)
     }
@@ -361,6 +364,14 @@ final class RestrictionsMethodHandler {
             ))
             return
         }
+        if durationMs >= Self.maxReliablePauseDurationMs {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.pauseEnforcement,
+                message: PluginErrorMessage.pauseTooLong
+            ))
+            return
+        }
 
         if RestrictionStateStore.loadPausedUntilEpochMs() > 0 {
             result(PluginErrors.invalidArguments(
@@ -381,6 +392,20 @@ final class RestrictionsMethodHandler {
                 action: MethodNames.pauseEnforcement,
                 message: PluginErrorMessage.appGroupUnavailable,
                 diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+            ))
+            return
+        }
+
+        do {
+            try PauseAutoResumeMonitor.startMonitoring(untilEpochMs: pausedUntilEpochMs)
+        } catch {
+            _ = RestrictionStateStore.storePausedUntilEpochMs(0)
+            applyDesiredRestrictionsIfNeeded()
+            result(PluginErrors.internalFailure(
+                feature: Self.featureRestrictions,
+                action: MethodNames.pauseEnforcement,
+                message: PluginErrorMessage.pauseMonitoringStartFailed,
+                diagnostic: "activityName=\(PauseAutoResumeMonitor.activityNameRaw), error=\(String(describing: error))"
             ))
             return
         }
@@ -412,6 +437,7 @@ final class RestrictionsMethodHandler {
             return
         }
 
+        PauseAutoResumeMonitor.stopMonitoring()
         applyDesiredRestrictionsIfNeeded()
         result(nil)
     }

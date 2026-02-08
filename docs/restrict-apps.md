@@ -136,10 +136,12 @@ await restrictions.resumeEnforcement();
 
 Behavior:
 - Calling pause while already paused returns `INVALID_ARGUMENT`.
+- iOS requires pause duration `< 24h`; longer durations return `INVALID_ARGUMENT`.
 - While paused, `isRestrictionSessionActiveNow()` returns `false`.
 - `isRestrictionSessionConfigured()` can still return `true` during pause.
 - Android resumes enforcement automatically after pause expiry.
-- iOS resumes when plugin/native logic runs; for reliable background-timed resume, set up the monitor extension in [iOS setup](ios-setup.md).
+- iOS schedules a Device Activity pause monitor and resumes after expiry through the host monitor extension.
+- If iOS cannot schedule the monitor interval, pause fails with `INTERNAL_FAILURE`.
 
 ## 7) Fail-safe enforcement errors
 

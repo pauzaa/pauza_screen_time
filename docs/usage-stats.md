@@ -83,6 +83,7 @@ On iOS, Apple does **not** let you read Screen Time usage stats as data. The plu
 You must create a **Device Activity Report extension** target in the host iOS app.
 
 See [iOS setup](ios-setup.md).
+Template file: `docs/templates/PauzaDeviceActivityReportExtension.swift`.
 
 ### Example: embed a report
 
@@ -105,3 +106,4 @@ DeviceActivityReport.Context(reportContextId)
 ```
 
 Your report extension must support the same context identifiers.
+The provided template includes context `daily`.

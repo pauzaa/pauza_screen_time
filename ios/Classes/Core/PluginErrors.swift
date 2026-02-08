@@ -23,6 +23,8 @@ enum PluginErrorMessage {
     static let viewControllerUnavailable = "Could not get root view controller"
     static let restrictionsUnsupported = "App restrictions require iOS 16.0 or later"
     static let usageStatsUnsupported = "Usage stats are only supported on Android. On iOS, use DeviceActivityReport platform view for usage statistics."
+    static let pauseTooLong = "Pause duration must be less than 24 hours on iOS"
+    static let pauseMonitoringStartFailed = "Failed to schedule reliable pause auto-resume. Configure a Device Activity Monitor extension and shared App Group."
 }
 
 enum PluginErrors {
