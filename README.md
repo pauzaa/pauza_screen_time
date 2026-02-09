@@ -84,6 +84,10 @@ try {
 Taxonomy codes:
 `UNSUPPORTED`, `MISSING_PERMISSION`, `PERMISSION_DENIED`, `SYSTEM_RESTRICTED`, `INVALID_ARGUMENT`, `INTERNAL_FAILURE`.
 
+The plugin follows strict fast-failure semantics for channel decoding:
+malformed native payloads throw typed `PauzaInternalFailureError` instead of
+silently defaulting to empty lists or fallback values.
+
 ## Documentation
 
 Start here:

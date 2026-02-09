@@ -15,7 +15,11 @@ final class InstalledAppsMethodHandler {
 
     private func handleShowFamilyActivityPicker(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
-            result([])
+            result(PluginErrors.unsupported(
+                feature: feature,
+                action: MethodNames.showFamilyActivityPicker,
+                message: "FamilyActivityPicker requires iOS 16.0 or later"
+            ))
             return
         }
 

@@ -33,3 +33,9 @@ try {
   // error.details contains structured diagnostics.
 }
 ```
+
+## Fast-failure behavior
+
+Channel payload decoding is strict. Malformed or unexpected payloads from native
+layers are treated as `INTERNAL_FAILURE` and surfaced as typed
+`PauzaInternalFailureError` in Dart.

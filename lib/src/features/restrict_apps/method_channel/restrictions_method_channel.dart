@@ -135,29 +135,24 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
       RestrictionsMethodNames.getRestrictionSession,
     );
     if (result == null) {
-      return const RestrictionSession(
-        isActiveNow: false,
-        isPausedNow: false,
-        isManuallyEnabled: true,
-        isScheduleEnabled: false,
-        isInScheduleNow: false,
-        pausedUntil: null,
-        restrictedApps: [],
+      throw _decodeFailure(
+        action: RestrictionsMethodNames.getRestrictionSession,
+        message: 'Received null restriction session payload from platform',
       );
     }
 
     try {
       final normalized = Map<String, dynamic>.from(result);
       return RestrictionSession.fromMap(normalized);
-    } catch (_) {
-      return const RestrictionSession(
-        isActiveNow: false,
-        isPausedNow: false,
-        isManuallyEnabled: true,
-        isScheduleEnabled: false,
-        isInScheduleNow: false,
-        pausedUntil: null,
-        restrictedApps: [],
+    } on PlatformException {
+      rethrow;
+    } catch (error, stackTrace) {
+      throw _decodeFailure(
+        action: RestrictionsMethodNames.getRestrictionSession,
+        message: 'Failed to decode restriction session payload',
+        payload: result,
+        error: error,
+        stackTrace: stackTrace,
       );
     }
   }
@@ -192,20 +187,50 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
       RestrictionsMethodNames.getScheduledModesConfig,
     );
     if (result == null) {
-      return const RestrictionScheduledModesConfig(
-        enabled: false,
-        scheduledModes: [],
+      throw _decodeFailure(
+        action: RestrictionsMethodNames.getScheduledModesConfig,
+        message: 'Received null scheduled modes config payload from platform',
       );
     }
     try {
       return RestrictionScheduledModesConfig.fromMap(
         Map<String, dynamic>.from(result),
       );
-    } catch (_) {
-      return const RestrictionScheduledModesConfig(
-        enabled: false,
-        scheduledModes: [],
+    } on PlatformException {
+      rethrow;
+    } catch (error, stackTrace) {
+      throw _decodeFailure(
+        action: RestrictionsMethodNames.getScheduledModesConfig,
+        message: 'Failed to decode scheduled modes config payload',
+        payload: result,
+        error: error,
+        stackTrace: stackTrace,
       );
     }
+  }
+
+  PlatformException _decodeFailure({
+    required String action,
+    required String message,
+    Object? payload,
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
+    return PlatformException(
+      code: 'INTERNAL_FAILURE',
+      message: message,
+      details: <String, Object?>{
+        'feature': 'restrictions',
+        'action': action,
+        'platform': 'dart',
+        if (payload != null) 'payloadType': payload.runtimeType.toString(),
+        if (error != null) 'errorType': error.runtimeType.toString(),
+        if (error != null || stackTrace != null)
+          'diagnostic': [
+            if (error != null) error.toString(),
+            if (stackTrace != null) stackTrace.toString(),
+          ].join('\n'),
+      },
+    );
   }
 }

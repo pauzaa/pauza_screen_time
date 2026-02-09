@@ -29,30 +29,21 @@ class InstalledAppsHandler(private val context: Context) {
         includeIcons: Boolean = true
     ): List<Map<String, Any?>> {
         val installedApps = mutableListOf<Map<String, Any?>>()
+        // Get all installed packages
+        val packages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+        }
 
-        try {
-            // Get all installed packages
-            val packages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0))
-            } else {
-                @Suppress("DEPRECATION")
-                packageManager.getInstalledApplications(PackageManager.GET_META_DATA)
+        for (appInfo in packages) {
+            // Skip system apps if not requested
+            if (!includeSystemApps && AppInfoUtils.isSystemApp(appInfo)) {
+                continue
             }
 
-            for (appInfo in packages) {
-                // Skip system apps if not requested
-                if (!includeSystemApps && AppInfoUtils.isSystemApp(appInfo)) {
-                    continue
-                }
-
-                val appData = extractAppInfo(appInfo, includeIcons)
-                if (appData != null) {
-                    installedApps.add(appData)
-                }
-            }
-        } catch (e: Exception) {
-            // Log error but don't crash - return empty list
-            android.util.Log.e("InstalledAppsHandler", "Error getting installed apps", e)
+            installedApps.add(extractAppInfo(appInfo, includeIcons))
         }
 
         return installedApps
@@ -75,9 +66,6 @@ class InstalledAppsHandler(private val context: Context) {
         } catch (e: PackageManager.NameNotFoundException) {
             // App not found
             null
-        } catch (e: Exception) {
-            android.util.Log.e("InstalledAppsHandler", "Error getting app info for $packageId", e)
-            null
         }
     }
 
@@ -91,29 +79,24 @@ class InstalledAppsHandler(private val context: Context) {
     private fun extractAppInfo(
         appInfo: ApplicationInfo,
         includeIcons: Boolean
-    ): Map<String, Any?>? {
-        return try {
-            val packageId = appInfo.packageName
-            val name = appInfo.loadLabel(packageManager).toString()
-            val icon = if (includeIcons) {
-                AppInfoUtils.extractAppIcon(appInfo, packageManager)
-            } else {
-                null
-            }
-            val category = AppInfoUtils.getAppCategory(appInfo)
-            val isSystemApp = AppInfoUtils.isSystemApp(appInfo)
-
-            mapOf(
-                "platform" to "android",
-                "packageId" to packageId,
-                "name" to name,
-                "icon" to icon,
-                "category" to category,
-                "isSystemApp" to isSystemApp
-            )
-        } catch (e: Exception) {
-            android.util.Log.e("InstalledAppsHandler", "Error extracting app info", e)
+    ): Map<String, Any?> {
+        val packageId = appInfo.packageName
+        val name = appInfo.loadLabel(packageManager).toString()
+        val icon = if (includeIcons) {
+            AppInfoUtils.extractAppIcon(appInfo, packageManager)
+        } else {
             null
         }
+        val category = AppInfoUtils.getAppCategory(appInfo)
+        val isSystemApp = AppInfoUtils.isSystemApp(appInfo)
+
+        return mapOf(
+            "platform" to "android",
+            "packageId" to packageId,
+            "name" to name,
+            "icon" to icon,
+            "category" to category,
+            "isSystemApp" to isSystemApp
+        )
     }
 }

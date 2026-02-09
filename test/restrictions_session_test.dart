@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pauza_screen_time/src/core/app_identifier.dart';
+import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/data/app_restriction_manager.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/channel_name.dart';
@@ -82,6 +83,78 @@ void main() {
       expect(session.isInScheduleNow, isFalse);
       expect(session.pausedUntil, isNull);
       expect(session.restrictedApps, isEmpty);
+    });
+
+    test('getRestrictionSession throws on malformed payload', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == RestrictionsMethodNames.getRestrictionSession) {
+              return {
+                'isActiveNow': 'invalid',
+                'restrictedApps': ['x'],
+              };
+            }
+            return null;
+          });
+
+      await expectLater(
+        methodChannel.getRestrictionSession(),
+        throwsA(
+          isA<PlatformException>().having(
+            (error) => error.code,
+            'code',
+            'INTERNAL_FAILURE',
+          ),
+        ),
+      );
+    });
+
+    test('getRestrictionSession throws on null payload', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method == RestrictionsMethodNames.getRestrictionSession) {
+              return null;
+            }
+            return null;
+          });
+
+      await expectLater(
+        methodChannel.getRestrictionSession(),
+        throwsA(
+          isA<PlatformException>().having(
+            (error) => error.code,
+            'code',
+            'INTERNAL_FAILURE',
+          ),
+        ),
+      );
+    });
+
+    test('getScheduledModesConfig throws on malformed payload', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method ==
+                RestrictionsMethodNames.getScheduledModesConfig) {
+              return {
+                'enabled': true,
+                'scheduledModes': [
+                  {'modeId': 123},
+                ],
+              };
+            }
+            return null;
+          });
+
+      await expectLater(
+        methodChannel.getScheduledModesConfig(),
+        throwsA(
+          isA<PlatformException>().having(
+            (error) => error.code,
+            'code',
+            'INTERNAL_FAILURE',
+          ),
+        ),
+      );
     });
 
     test(
@@ -184,6 +257,64 @@ void main() {
         AppIdentifier.android('com.example.app'),
       ]);
     });
+  });
+
+  group('AppRestrictionManager session decode failures', () {
+    const channel = MethodChannel(restrictionsChannelName);
+
+    tearDown(() async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    test(
+      'getRestrictionSession surfaces malformed payload as typed PauzaError',
+      () async {
+        final manager = AppRestrictionManager(
+          platform: RestrictionsMethodChannel(channel: channel),
+        );
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method ==
+                  RestrictionsMethodNames.getRestrictionSession) {
+                return {'isActiveNow': 'not-bool'};
+              }
+              return null;
+            });
+
+        await expectLater(
+          manager.getRestrictionSession(),
+          throwsA(isA<PauzaInternalFailureError>()),
+        );
+      },
+    );
+
+    test(
+      'getScheduledModesConfig surfaces malformed payload as typed PauzaError',
+      () async {
+        final manager = AppRestrictionManager(
+          platform: RestrictionsMethodChannel(channel: channel),
+        );
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method ==
+                  RestrictionsMethodNames.getScheduledModesConfig) {
+                return {
+                  'enabled': true,
+                  'scheduledModes': [
+                    {'modeId': 1},
+                  ],
+                };
+              }
+              return null;
+            });
+
+        await expectLater(
+          manager.getScheduledModesConfig(),
+          throwsA(isA<PauzaInternalFailureError>()),
+        );
+      },
+    );
   });
 }
 

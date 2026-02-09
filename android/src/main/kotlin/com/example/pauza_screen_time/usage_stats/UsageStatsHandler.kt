@@ -125,23 +125,19 @@ class UsageStatsHandler(private val context: Context) {
      */
     private fun calculateLaunchCounts(startTimeMs: Long, endTimeMs: Long): Map<String, Int> {
         val counts = mutableMapOf<String, Int>()
-        try {
-            val events = usageStatsManager.queryEvents(startTimeMs, endTimeMs)
-            val event = UsageEvents.Event()
+        val events = usageStatsManager.queryEvents(startTimeMs, endTimeMs)
+        val event = UsageEvents.Event()
 
-            while (events.hasNextEvent()) {
-                events.getNextEvent(event)
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
 
-                // Count ACTIVITY_RESUMED events (app moved to foreground)
-                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
-                    val pkg = event.packageName
-                    if (!pkg.isNullOrBlank()) {
-                        counts[pkg] = (counts[pkg] ?: 0) + 1
-                    }
+            // Count ACTIVITY_RESUMED events (app moved to foreground)
+            if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED) {
+                val pkg = event.packageName
+                if (!pkg.isNullOrBlank()) {
+                    counts[pkg] = (counts[pkg] ?: 0) + 1
                 }
             }
-        } catch (e: Exception) {
-            android.util.Log.e("UsageStatsHandler", "Error calculating launch counts", e)
         }
 
         return counts
@@ -158,17 +154,13 @@ class UsageStatsHandler(private val context: Context) {
         endTimeMs: Long
     ): Int {
         var launchCount = 0
-        try {
-            val events = usageStatsManager.queryEvents(startTimeMs, endTimeMs)
-            val event = UsageEvents.Event()
-            while (events.hasNextEvent()) {
-                events.getNextEvent(event)
-                if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED && event.packageName == packageName) {
-                    launchCount++
-                }
+        val events = usageStatsManager.queryEvents(startTimeMs, endTimeMs)
+        val event = UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (event.eventType == UsageEvents.Event.ACTIVITY_RESUMED && event.packageName == packageName) {
+                launchCount++
             }
-        } catch (e: Exception) {
-            android.util.Log.e("UsageStatsHandler", "Error calculating launch count for $packageName", e)
         }
         return launchCount
     }
@@ -186,50 +178,48 @@ class UsageStatsHandler(private val context: Context) {
         launchCount: Int,
         includeIcons: Boolean
     ): Map<String, Any?>? {
-        return try {
-            val packageId = usageStats.packageName
+        val packageId = usageStats.packageName
 
-            // Retrieve app metadata from PackageManager
-            val appInfo = try {
-                packageManager.getApplicationInfo(packageId, 0)
-            } catch (e: PackageManager.NameNotFoundException) {
+        // Retrieve app metadata from PackageManager
+        val appInfo = try {
+            packageManager.getApplicationInfo(packageId, 0)
+        } catch (e: Exception) {
+            if (e is PackageManager.NameNotFoundException) {
                 android.util.Log.w("UsageStatsHandler", "App not found: $packageId (likely uninstalled)")
                 return null
             }
+            throw e
+        }
 
-            val appName = appInfo.loadLabel(packageManager).toString()
-            val appIcon = if (includeIcons) {
-                AppInfoUtils.extractAppIcon(appInfo, packageManager)
-            } else {
-                null
-            }
-            val category = AppInfoUtils.getAppCategory(appInfo)
-            val isSystemApp = AppInfoUtils.isSystemApp(appInfo)
-
-            // Build the usage stats map matching the Flutter model
-            val statsMap = mutableMapOf<String, Any?>(
-                "packageId" to packageId,
-                "appName" to appName,
-                "appIcon" to appIcon,
-                "category" to category,
-                "isSystemApp" to isSystemApp,
-                "totalDurationMs" to usageStats.totalTimeInForeground,
-                "totalLaunchCount" to launchCount,
-                "bucketStartMs" to if (usageStats.firstTimeStamp > 0) usageStats.firstTimeStamp else null,
-                "bucketEndMs" to if (usageStats.lastTimeStamp > 0) usageStats.lastTimeStamp else null,
-                "lastTimeUsedMs" to if (usageStats.lastTimeUsed > 0) usageStats.lastTimeUsed else null
-            )
-
-            // Add Android Q+ specific field (lastTimeVisible)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                val lastTimeVisible = usageStats.lastTimeVisible
-                statsMap["lastTimeVisibleMs"] = if (lastTimeVisible > 0) lastTimeVisible else null
-            }
-
-            statsMap
-        } catch (e: Exception) {
-            android.util.Log.e("UsageStatsHandler", "Error extracting usage stats data", e)
+        val appName = appInfo.loadLabel(packageManager).toString()
+        val appIcon = if (includeIcons) {
+            AppInfoUtils.extractAppIcon(appInfo, packageManager)
+        } else {
             null
         }
+        val category = AppInfoUtils.getAppCategory(appInfo)
+        val isSystemApp = AppInfoUtils.isSystemApp(appInfo)
+
+        // Build the usage stats map matching the Flutter model
+        val statsMap = mutableMapOf<String, Any?>(
+            "packageId" to packageId,
+            "appName" to appName,
+            "appIcon" to appIcon,
+            "category" to category,
+            "isSystemApp" to isSystemApp,
+            "totalDurationMs" to usageStats.totalTimeInForeground,
+            "totalLaunchCount" to launchCount,
+            "bucketStartMs" to if (usageStats.firstTimeStamp > 0) usageStats.firstTimeStamp else null,
+            "bucketEndMs" to if (usageStats.lastTimeStamp > 0) usageStats.lastTimeStamp else null,
+            "lastTimeUsedMs" to if (usageStats.lastTimeUsed > 0) usageStats.lastTimeUsed else null
+        )
+
+        // Add Android Q+ specific field (lastTimeVisible)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val lastTimeVisible = usageStats.lastTimeVisible
+            statsMap["lastTimeVisibleMs"] = if (lastTimeVisible > 0) lastTimeVisible else null
+        }
+
+        return statsMap
     }
 }

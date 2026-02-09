@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
+
 import 'package:pauza_screen_time/src/core/cancel_token.dart';
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/installed_apps/installed_apps_platform.dart';
@@ -44,10 +46,24 @@ class InstalledAppsManager {
           timeout: timeout,
         )
         .throwTypedPauzaError();
-    return result
-        .map((item) => AppInfo.fromMap(Map<String, dynamic>.from(item)))
-        .whereType<AndroidAppInfo>()
-        .toList();
+    final apps = <AndroidAppInfo>[];
+    for (var index = 0; index < result.length; index++) {
+      final appInfo = _decodeAppInfo(
+        payload: result[index],
+        action: 'getAndroidInstalledApps',
+        index: index,
+      );
+      if (appInfo is! AndroidAppInfo) {
+        throw _typedDecodeFailure(
+          action: 'getAndroidInstalledApps',
+          message:
+              'Expected Android app payload at index $index, but got ${appInfo.runtimeType}',
+          payload: result[index],
+        );
+      }
+      apps.add(appInfo);
+    }
+    return apps;
   }
 
   /// Returns information about a specific Android app by package ID.
@@ -80,8 +96,18 @@ class InstalledAppsManager {
         .throwTypedPauzaError();
     if (result == null) return null;
 
-    final appInfo = AppInfo.fromMap(Map<String, dynamic>.from(result));
-    return appInfo is AndroidAppInfo ? appInfo : null;
+    final appInfo = _decodeAppInfo(
+      payload: result,
+      action: 'getAndroidAppInfo',
+    );
+    if (appInfo is! AndroidAppInfo) {
+      throw _typedDecodeFailure(
+        action: 'getAndroidAppInfo',
+        message: 'Expected Android app payload, but got ${appInfo.runtimeType}',
+        payload: result,
+      );
+    }
+    return appInfo;
   }
 
   /// Checks if a specific Android app is installed.
@@ -136,9 +162,72 @@ class InstalledAppsManager {
     final result = await _platform
         .showFamilyActivityPicker(preSelectedTokens: preSelectedTokens)
         .throwTypedPauzaError();
-    return result
-        .map((item) => AppInfo.fromMap(Map<String, dynamic>.from(item)))
-        .whereType<IOSAppInfo>()
-        .toList();
+    final apps = <IOSAppInfo>[];
+    for (var index = 0; index < result.length; index++) {
+      final appInfo = _decodeAppInfo(
+        payload: result[index],
+        action: 'selectIOSApps',
+        index: index,
+      );
+      if (appInfo is! IOSAppInfo) {
+        throw _typedDecodeFailure(
+          action: 'selectIOSApps',
+          message:
+              'Expected iOS app payload at index $index, but got ${appInfo.runtimeType}',
+          payload: result[index],
+        );
+      }
+      apps.add(appInfo);
+    }
+    return apps;
+  }
+
+  AppInfo _decodeAppInfo({
+    required Object? payload,
+    required String action,
+    int? index,
+  }) {
+    try {
+      return AppInfo.fromMap(Map<String, dynamic>.from(payload as Map));
+    } on PlatformException catch (exception) {
+      throw PauzaError.fromPlatformException(exception);
+    } catch (error, stackTrace) {
+      throw _typedDecodeFailure(
+        action: action,
+        message: index == null
+            ? 'Failed to decode app info payload'
+            : 'Failed to decode app info payload at index $index',
+        payload: payload,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  PauzaInternalFailureError _typedDecodeFailure({
+    required String action,
+    required String message,
+    Object? payload,
+    Object? error,
+    StackTrace? stackTrace,
+  }) {
+    final exception = PlatformException(
+      code: 'INTERNAL_FAILURE',
+      message: message,
+      details: <String, Object?>{
+        'feature': 'installed_apps',
+        'action': action,
+        'platform': 'dart',
+        if (payload != null) 'payloadType': payload.runtimeType.toString(),
+        if (error != null) 'errorType': error.runtimeType.toString(),
+        if (error != null || stackTrace != null)
+          'diagnostic': [
+            if (error != null) error.toString(),
+            if (stackTrace != null) stackTrace.toString(),
+          ].join('\n'),
+      },
+    );
+    return PauzaError.fromPlatformException(exception)
+        as PauzaInternalFailureError;
   }
 }
