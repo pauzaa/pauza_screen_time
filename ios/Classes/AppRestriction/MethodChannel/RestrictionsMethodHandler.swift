@@ -96,7 +96,7 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        let hasConfig = RestrictionStateStore.loadModes().contains { !$0.blockedAppIds.isEmpty }
+        let hasConfig = !RestrictionStateStore.loadModes().isEmpty
         result(hasConfig)
     }
 
@@ -234,17 +234,39 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        let mode = RestrictionStateStore.loadModes().first { $0.modeId == modeId }
-        guard let mode, mode.isEnabled else {
+        let scheduledMode = RestrictionStateStore.loadModes().first { $0.modeId == modeId }
+        let cachedMode = RestrictionModeUpsertCache.get(modeId: modeId)
+        let blockedAppIds: [String]?
+        if let scheduledMode, scheduledMode.isStartable {
+            blockedAppIds = scheduledMode.blockedAppIds
+        } else if let cachedMode, cachedMode.isEnabled, !cachedMode.blockedAppIds.isEmpty {
+            blockedAppIds = cachedMode.blockedAppIds
+        } else {
+            blockedAppIds = nil
+        }
+        guard let blockedAppIds else {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
                 action: MethodNames.startModeSession,
-                message: "Mode must exist and be enabled to start manual session"
+                message: "Mode must exist and be enabled to start manual session. Call upsertMode first for unscheduled modes."
             ))
             return
         }
 
-        switch RestrictionStateStore.storeManualActiveModeId(mode.modeId) {
+        let decodeResult = ShieldManager.shared.decodeTokens(base64Tokens: blockedAppIds)
+        if !decodeResult.invalidTokens.isEmpty {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.startModeSession,
+                message: PluginErrorMessage.unableToDecodeTokens,
+                diagnostic: "invalidTokens=\(decodeResult.invalidTokens)"
+            ))
+            return
+        }
+
+        switch RestrictionStateStore.storeManualActiveMode(
+            RestrictionStateStore.ManualActiveMode(modeId: modeId, blockedAppIds: blockedAppIds)
+        ) {
         case .success:
             break
         case .appGroupUnavailable(let resolvedGroupId):
@@ -271,7 +293,8 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        switch RestrictionStateStore.storeManualActiveModeId(nil) {
+        let activeManualMode = resolveManualActiveMode()
+        switch RestrictionStateStore.clearManualActiveMode() {
         case .success:
             break
         case .appGroupUnavailable(let resolvedGroupId):
@@ -284,6 +307,9 @@ final class RestrictionsMethodHandler {
             return
         }
 
+        if let activeManualMode {
+            RestrictionModeUpsertCache.remove(modeId: activeManualMode.modeId)
+        }
         applyDesiredRestrictionsIfNeeded()
         result(nil)
     }
@@ -357,8 +383,10 @@ final class RestrictionsMethodHandler {
 
         let existing = RestrictionStateStore.loadModes()
         var nextModes = existing.filter { $0.modeId != mode.modeId }
-        nextModes.append(mode)
-        let schedules = nextModes.filter(\.isEnabled).compactMap(\.schedule)
+        if mode.shouldPersistForScheduleEnforcement {
+            nextModes.append(mode)
+        }
+        let schedules = nextModes.compactMap(\.schedule)
         if !RestrictionScheduleEvaluator.isScheduleShapeValid(schedules) {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
@@ -368,29 +396,77 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        switch RestrictionStateStore.storeModes(nextModes) {
-        case .success:
-            break
-        case .appGroupUnavailable(let resolvedGroupId):
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.upsertMode,
-                message: PluginErrorMessage.appGroupUnavailable,
-                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-            ))
-            return
+        if mode.isStartable {
+            RestrictionModeUpsertCache.upsert(
+                RestrictionCachedMode(
+                    modeId: mode.modeId,
+                    isEnabled: true,
+                    blockedAppIds: mode.blockedAppIds
+                )
+            )
+        } else {
+            RestrictionModeUpsertCache.remove(modeId: mode.modeId)
         }
 
-        do {
-            try RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()
-        } catch {
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.upsertMode,
-                message: "Failed to schedule iOS boundary monitors",
-                diagnostic: "error=\(String(describing: error))"
-            ))
-            return
+        let shouldRescheduleMonitors = scheduleModesSignature(existing) != scheduleModesSignature(nextModes)
+        if shouldRescheduleMonitors {
+            switch RestrictionStateStore.storeModes(nextModes) {
+            case .success:
+                break
+            case .appGroupUnavailable(let resolvedGroupId):
+                result(PluginErrors.internalFailure(
+                    feature: Self.featureRestrictions,
+                    action: MethodNames.upsertMode,
+                    message: PluginErrorMessage.appGroupUnavailable,
+                    diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                ))
+                return
+            }
+
+            do {
+                try RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()
+            } catch {
+                result(PluginErrors.internalFailure(
+                    feature: Self.featureRestrictions,
+                    action: MethodNames.upsertMode,
+                    message: "Failed to schedule iOS boundary monitors",
+                    diagnostic: "error=\(String(describing: error))"
+                ))
+                return
+            }
+        }
+
+        if let activeManualMode = resolveManualActiveMode(),
+           activeManualMode.modeId == mode.modeId {
+            if mode.isStartable {
+                switch RestrictionStateStore.storeManualActiveMode(
+                    RestrictionStateStore.ManualActiveMode(modeId: mode.modeId, blockedAppIds: mode.blockedAppIds)
+                ) {
+                case .success:
+                    break
+                case .appGroupUnavailable(let resolvedGroupId):
+                    result(PluginErrors.internalFailure(
+                        feature: Self.featureRestrictions,
+                        action: MethodNames.upsertMode,
+                        message: PluginErrorMessage.appGroupUnavailable,
+                        diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                    ))
+                    return
+                }
+            } else {
+                switch RestrictionStateStore.clearManualActiveMode() {
+                case .success:
+                    break
+                case .appGroupUnavailable(let resolvedGroupId):
+                    result(PluginErrors.internalFailure(
+                        feature: Self.featureRestrictions,
+                        action: MethodNames.upsertMode,
+                        message: PluginErrorMessage.appGroupUnavailable,
+                        diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                    ))
+                    return
+                }
+            }
         }
 
         applyDesiredRestrictionsIfNeeded()
@@ -427,33 +503,50 @@ final class RestrictionsMethodHandler {
 
         let existing = RestrictionStateStore.loadModes()
         let nextModes = existing.filter { $0.modeId != modeId }
-        switch RestrictionStateStore.storeModes(nextModes) {
-        case .success:
-            break
-        case .appGroupUnavailable(let resolvedGroupId):
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.removeMode,
-                message: PluginErrorMessage.appGroupUnavailable,
-                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-            ))
-            return
+        let shouldRescheduleMonitors = scheduleModesSignature(existing) != scheduleModesSignature(nextModes)
+        if shouldRescheduleMonitors {
+            switch RestrictionStateStore.storeModes(nextModes) {
+            case .success:
+                break
+            case .appGroupUnavailable(let resolvedGroupId):
+                result(PluginErrors.internalFailure(
+                    feature: Self.featureRestrictions,
+                    action: MethodNames.removeMode,
+                    message: PluginErrorMessage.appGroupUnavailable,
+                    diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                ))
+                return
+            }
         }
 
-        if RestrictionStateStore.loadManualActiveModeId() == modeId {
-            _ = RestrictionStateStore.storeManualActiveModeId(nil)
+        RestrictionModeUpsertCache.remove(modeId: modeId)
+        if resolveManualActiveMode()?.modeId == modeId {
+            switch RestrictionStateStore.clearManualActiveMode() {
+            case .success:
+                break
+            case .appGroupUnavailable(let resolvedGroupId):
+                result(PluginErrors.internalFailure(
+                    feature: Self.featureRestrictions,
+                    action: MethodNames.removeMode,
+                    message: PluginErrorMessage.appGroupUnavailable,
+                    diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                ))
+                return
+            }
         }
 
-        do {
-            try RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()
-        } catch {
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.removeMode,
-                message: "Failed to schedule iOS boundary monitors",
-                diagnostic: "error=\(String(describing: error))"
-            ))
-            return
+        if shouldRescheduleMonitors {
+            do {
+                try RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()
+            } catch {
+                result(PluginErrors.internalFailure(
+                    feature: Self.featureRestrictions,
+                    action: MethodNames.removeMode,
+                    message: "Failed to schedule iOS boundary monitors",
+                    diagnostic: "error=\(String(describing: error))"
+                ))
+                return
+            }
         }
 
         applyDesiredRestrictionsIfNeeded()
@@ -553,8 +646,7 @@ final class RestrictionsMethodHandler {
     private func resolveSessionState() -> SessionState {
         let modes = RestrictionStateStore.loadModes()
         let modesEnabled = RestrictionStateStore.loadModesEnabled()
-        let manualModeId = RestrictionStateStore.loadManualActiveModeId()
-        let manualMode = modes.first { $0.modeId == manualModeId && $0.isEnabled }
+        let manualMode = resolveManualActiveMode()
 
         let config = RestrictionScheduledModesConfig(
             enabled: modesEnabled,
@@ -575,7 +667,7 @@ final class RestrictionsMethodHandler {
 
         if resolution.isInScheduleNow {
             return SessionState(
-                isManuallyEnabled: manualModeId != nil,
+                isManuallyEnabled: false,
                 isScheduleEnabled: modesEnabled,
                 isInScheduleNow: true,
                 blockedAppIds: resolution.blockedAppIds,
@@ -585,7 +677,7 @@ final class RestrictionsMethodHandler {
         }
 
         return SessionState(
-            isManuallyEnabled: manualModeId != nil,
+            isManuallyEnabled: false,
             isScheduleEnabled: modesEnabled,
             isInScheduleNow: false,
             blockedAppIds: [],
@@ -601,6 +693,23 @@ final class RestrictionsMethodHandler {
         let blockedAppIds: [String]
         let activeModeId: String?
         let activeModeSource: String
+    }
+
+    @available(iOS 16.0, *)
+    private func resolveManualActiveMode() -> RestrictionStateStore.ManualActiveMode? {
+        return RestrictionStateStore.loadManualActiveMode()
+    }
+
+    private func scheduleModesSignature(_ modes: [RestrictionScheduledMode]) -> String {
+        let sorted = modes
+            .filter(\.shouldPersistForScheduleEnforcement)
+            .sorted { $0.modeId < $1.modeId }
+            .map { $0.toDictionary() }
+        guard let data = try? JSONSerialization.data(withJSONObject: sorted, options: [.sortedKeys]),
+              let encoded = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return encoded
     }
 
     @available(iOS 16.0, *)

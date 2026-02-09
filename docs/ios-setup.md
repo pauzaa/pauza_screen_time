@@ -98,7 +98,7 @@ To make auto-resume reliable while the app is backgrounded/terminated, your host
 
 The extension must read these App Group keys:
 - `pausedUntilEpochMs`
-- `manualActiveModeId`
+- `manualActiveMode`
 - `modesEnabled`
 - `modes`
 

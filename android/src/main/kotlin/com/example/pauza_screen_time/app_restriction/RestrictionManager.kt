@@ -14,7 +14,9 @@ class RestrictionManager private constructor(context: Context) {
         private const val KEY_BLOCKED_APPS = "blocked_apps"
         private const val KEY_BLOCKED_APPS_LIST = "blockedApps"
         private const val KEY_PAUSED_UNTIL_EPOCH_MS = "paused_until_epoch_ms"
-        private const val KEY_MANUAL_ACTIVE_MODE_ID = "manual_active_mode_id"
+        private const val KEY_MANUAL_ACTIVE_MODE = "manual_active_mode"
+        private const val KEY_MANUAL_ACTIVE_MODE_MODE_ID = "modeId"
+        private const val KEY_MANUAL_ACTIVE_MODE_BLOCKED_APPS = "blockedAppIds"
 
         @Volatile
         private var instance: RestrictionManager? = null
@@ -36,6 +38,11 @@ class RestrictionManager private constructor(context: Context) {
     init {
         loadBlockedApps()
     }
+
+    data class ManualActiveMode(
+        val modeId: String,
+        val blockedAppIds: List<String>,
+    )
 
     @Synchronized
     fun setRestrictedApps(packageIds: List<String>) {
@@ -92,22 +99,68 @@ class RestrictionManager private constructor(context: Context) {
     }
 
     @Synchronized
-    fun getManualActiveModeId(): String? {
-        val value = preferences.getString(KEY_MANUAL_ACTIVE_MODE_ID, null)?.trim().orEmpty()
-        return value.ifEmpty { null }
+    fun getManualActiveMode(): ManualActiveMode? {
+        val serialized = preferences.getString(KEY_MANUAL_ACTIVE_MODE, null)?.trim().orEmpty()
+        if (serialized.isEmpty()) {
+            return null
+        }
+        return try {
+            val payload = JSONObject(serialized)
+            val modeId = payload.optString(KEY_MANUAL_ACTIVE_MODE_MODE_ID, "").trim()
+            if (modeId.isEmpty()) {
+                clearManualActiveMode()
+                return null
+            }
+            val blocked = payload.optJSONArray(KEY_MANUAL_ACTIVE_MODE_BLOCKED_APPS)
+            val blockedAppIds = mutableListOf<String>()
+            if (blocked != null) {
+                for (index in 0 until blocked.length()) {
+                    val appId = blocked.optString(index, "").trim()
+                    if (appId.isNotEmpty()) {
+                        blockedAppIds += appId
+                    }
+                }
+            }
+            if (blockedAppIds.isEmpty()) {
+                clearManualActiveMode()
+                return null
+            }
+            ManualActiveMode(
+                modeId = modeId,
+                blockedAppIds = blockedAppIds.distinct(),
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse manual active mode payload", e)
+            clearManualActiveMode()
+            null
+        }
     }
 
     @Synchronized
-    fun setManualActiveModeId(modeId: String?) {
-        val normalized = modeId?.trim().orEmpty().ifEmpty { null }
-        preferences.edit().apply {
-            if (normalized == null) {
-                remove(KEY_MANUAL_ACTIVE_MODE_ID)
-            } else {
-                putString(KEY_MANUAL_ACTIVE_MODE_ID, normalized)
-            }
-        }.apply()
-        Log.d(TAG, "Manual active mode id set to: ${normalized ?: "<none>"}")
+    fun setManualActiveMode(modeId: String, blockedAppIds: List<String>) {
+        val normalizedModeId = modeId.trim()
+        val normalizedBlockedIds = blockedAppIds.map(String::trim).filter { it.isNotEmpty() }.distinct()
+        if (normalizedModeId.isEmpty() || normalizedBlockedIds.isEmpty()) {
+            clearManualActiveMode()
+            return
+        }
+        val blockedPayload = JSONArray()
+        normalizedBlockedIds.forEach(blockedPayload::put)
+        val payload = JSONObject()
+            .put(KEY_MANUAL_ACTIVE_MODE_MODE_ID, normalizedModeId)
+            .put(KEY_MANUAL_ACTIVE_MODE_BLOCKED_APPS, blockedPayload)
+        preferences.edit()
+            .putString(KEY_MANUAL_ACTIVE_MODE, payload.toString())
+            .apply()
+        Log.d(TAG, "Manual active mode set to: $normalizedModeId")
+    }
+
+    @Synchronized
+    fun clearManualActiveMode() {
+        preferences.edit()
+            .remove(KEY_MANUAL_ACTIVE_MODE)
+            .apply()
+        Log.d(TAG, "Manual active mode cleared")
     }
 
     private fun loadBlockedApps() {

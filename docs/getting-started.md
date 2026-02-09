@@ -58,7 +58,13 @@ await restrictions.setModesEnabled(true);
 3. Start manual mode session:
 
 ```dart
-await restrictions.startModeSession('focus-mode');
+await restrictions.startManualModeSession(
+  RestrictionMode(
+    modeId: 'focus-mode',
+    isEnabled: true,
+    blockedAppIds: blocked,
+  ),
+);
 ```
 
 4. Inspect session:

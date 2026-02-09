@@ -65,6 +65,15 @@ class AppRestrictionManager {
     return _platform.startModeSession(modeId).throwTypedPauzaError();
   }
 
+  /// Upserts [mode] and starts it as the active manual session.
+  ///
+  /// This is the recommended entrypoint for manual starts of non-scheduled
+  /// modes, because native storage keeps only enforceable scheduled modes.
+  Future<void> startManualModeSession(RestrictionMode mode) async {
+    await upsertMode(mode);
+    await startModeSession(mode.modeId);
+  }
+
   /// Ends the current manual mode session.
   Future<void> endModeSession() {
     return _platform.endModeSession().throwTypedPauzaError();

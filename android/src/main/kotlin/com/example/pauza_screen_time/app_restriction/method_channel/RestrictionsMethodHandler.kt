@@ -2,7 +2,10 @@ package com.example.pauza_screen_time.app_restriction.method_channel
 
 import android.content.Context
 import com.example.pauza_screen_time.app_restriction.AppMonitoringService
+import com.example.pauza_screen_time.app_restriction.RestrictionCachedMode
+import com.example.pauza_screen_time.app_restriction.RestrictionManualModeResolver
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
+import com.example.pauza_screen_time.app_restriction.RestrictionModeUpsertCache
 import com.example.pauza_screen_time.app_restriction.ShieldOverlayManager
 import com.example.pauza_screen_time.app_restriction.alarm.RestrictionAlarmOrchestrator
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
@@ -173,12 +176,22 @@ class RestrictionsMethodHandler(
                 schedule = schedule,
                 blockedAppIds = blockedAppIds,
             )
+            val isStartableMode = mode.isEnabled && mode.blockedAppIds.isNotEmpty()
+            if (isStartableMode) {
+                RestrictionModeUpsertCache.upsert(
+                    RestrictionCachedMode(
+                        modeId = mode.modeId,
+                        isEnabled = true,
+                        blockedAppIds = mode.blockedAppIds,
+                    ),
+                )
+            } else {
+                RestrictionModeUpsertCache.remove(mode.modeId)
+            }
 
             val nextModes = store.getConfig().modes.toMutableList()
-            val index = nextModes.indexOfFirst { it.modeId == mode.modeId }
-            if (index >= 0) {
-                nextModes[index] = mode
-            } else {
+            nextModes.removeAll { it.modeId == mode.modeId }
+            if (mode.shouldPersistForScheduleEnforcement()) {
                 nextModes += mode
             }
             val scheduleCalculator = RestrictionScheduleCalculator()
@@ -198,7 +211,22 @@ class RestrictionsMethodHandler(
                 return
             }
 
-            store.upsertMode(mode)
+            if (mode.shouldPersistForScheduleEnforcement()) {
+                store.upsertMode(mode)
+            } else {
+                store.removeMode(mode.modeId)
+            }
+            val restrictionManager = RestrictionManager.getInstance(context)
+            val activeManualMode = RestrictionManualModeResolver.resolveActiveManualMode(
+                restrictionManager = restrictionManager,
+            )
+            if (activeManualMode?.modeId == mode.modeId) {
+                if (isStartableMode) {
+                    restrictionManager.setManualActiveMode(mode.modeId, mode.blockedAppIds)
+                } else {
+                    restrictionManager.clearManualActiveMode()
+                }
+            }
             RestrictionAlarmOrchestrator(context).rescheduleAll()
             applyCurrentEnforcementState(context, trigger = "upsert_mode")
             result.success(null)
@@ -238,10 +266,15 @@ class RestrictionsMethodHandler(
         }
 
         try {
-            RestrictionScheduledModesStore(context).removeMode(modeId)
+            val modesStore = RestrictionScheduledModesStore(context)
+            modesStore.removeMode(modeId)
+            RestrictionModeUpsertCache.remove(modeId)
             val restrictionManager = RestrictionManager.getInstance(context)
-            if (restrictionManager.getManualActiveModeId() == modeId) {
-                restrictionManager.setManualActiveModeId(null)
+            val activeManualMode = RestrictionManualModeResolver.resolveActiveManualMode(
+                restrictionManager = restrictionManager,
+            )
+            if (activeManualMode?.modeId == modeId) {
+                restrictionManager.clearManualActiveMode()
             }
             RestrictionAlarmOrchestrator(context).rescheduleAll()
             applyCurrentEnforcementState(context, trigger = "remove_mode")
@@ -501,18 +534,24 @@ class RestrictionsMethodHandler(
 
         try {
             val store = RestrictionScheduledModesStore(context)
-            val mode = store.getMode(modeId)
-            if (mode == null || !mode.isEnabled) {
+            val scheduledMode = store.getMode(modeId)
+            val cachedMode = RestrictionModeUpsertCache.get(modeId)
+            val resolvedBlockedIds = when {
+                scheduledMode != null -> scheduledMode.blockedAppIds
+                cachedMode != null && cachedMode.isEnabled && cachedMode.blockedAppIds.isNotEmpty() -> cachedMode.blockedAppIds
+                else -> null
+            }
+            if (resolvedBlockedIds == null) {
                 PluginErrorHelper.invalidArgument(
                     result = result,
                     feature = FEATURE,
                     action = MethodNames.START_MODE_SESSION,
-                    message = "Mode must exist and be enabled to start manual session",
+                    message = "Mode must exist and be enabled to start manual session. Call upsertMode first for unscheduled modes.",
                 )
                 return
             }
 
-            RestrictionManager.getInstance(context).setManualActiveModeId(modeId)
+            RestrictionManager.getInstance(context).setManualActiveMode(modeId, resolvedBlockedIds)
             RestrictionAlarmOrchestrator(context).rescheduleAll()
             applyCurrentEnforcementState(context, trigger = "start_mode_session")
             result.success(null)
@@ -540,7 +579,12 @@ class RestrictionsMethodHandler(
         }
 
         try {
-            RestrictionManager.getInstance(context).setManualActiveModeId(null)
+            val restrictionManager = RestrictionManager.getInstance(context)
+            val activeManualMode = restrictionManager.getManualActiveMode()
+            restrictionManager.clearManualActiveMode()
+            if (activeManualMode != null) {
+                RestrictionModeUpsertCache.remove(activeManualMode.modeId)
+            }
             RestrictionAlarmOrchestrator(context).rescheduleAll()
             applyCurrentEnforcementState(context, trigger = "end_mode_session")
             result.success(null)
@@ -617,9 +661,11 @@ class RestrictionsMethodHandler(
 
     private fun resolveSessionState(context: Context): SessionState {
         val restrictionManager = RestrictionManager.getInstance(context)
-        val modesConfig = RestrictionScheduledModesStore(context).getConfig()
-        val manualModeId = restrictionManager.getManualActiveModeId()
-        val manualMode = modesConfig.modes.firstOrNull { it.modeId == manualModeId && it.isEnabled }
+        val modesStore = RestrictionScheduledModesStore(context)
+        val modesConfig = modesStore.getConfig()
+        val manualMode = RestrictionManualModeResolver.resolveActiveManualMode(
+            restrictionManager = restrictionManager,
+        )
         val scheduleResolution = RestrictionScheduledModeResolver.resolveNow(modesConfig)
 
         return when {
@@ -632,7 +678,7 @@ class RestrictionsMethodHandler(
                 activeModeSource = "manual",
             )
             scheduleResolution.isInScheduleNow -> SessionState(
-                isManuallyEnabled = manualModeId != null,
+                isManuallyEnabled = false,
                 isScheduleEnabled = modesConfig.enabled,
                 isInScheduleNow = true,
                 blockedAppIds = scheduleResolution.blockedAppIds,
@@ -640,7 +686,7 @@ class RestrictionsMethodHandler(
                 activeModeSource = "schedule",
             )
             else -> SessionState(
-                isManuallyEnabled = manualModeId != null,
+                isManuallyEnabled = false,
                 isScheduleEnabled = modesConfig.enabled,
                 isInScheduleNow = false,
                 blockedAppIds = emptyList(),
@@ -667,4 +713,8 @@ class RestrictionsMethodHandler(
         }
         return listOf(ANDROID_ACCESSIBILITY_KEY)
     }
+}
+
+private fun RestrictionScheduledModeEntry.shouldPersistForScheduleEnforcement(): Boolean {
+    return isEnabled && schedule != null && blockedAppIds.isNotEmpty()
 }

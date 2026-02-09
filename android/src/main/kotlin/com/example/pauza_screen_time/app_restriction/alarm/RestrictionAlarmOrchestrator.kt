@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import com.example.pauza_screen_time.app_restriction.AppMonitoringService
+import com.example.pauza_screen_time.app_restriction.RestrictionManualModeResolver
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
 import com.example.pauza_screen_time.app_restriction.ShieldOverlayManager
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleBoundaryType
@@ -102,8 +103,9 @@ internal class RestrictionAlarmOrchestrator(
 
     private fun applyScheduleBoundaryState(alarmType: RestrictionAlarmType) {
         val modesConfig = modesStore.getConfig()
-        val manualModeId = restrictionManager.getManualActiveModeId()
-        val manualMode = modesConfig.modes.firstOrNull { it.modeId == manualModeId && it.isEnabled }
+        val manualMode = RestrictionManualModeResolver.resolveActiveManualMode(
+            restrictionManager = restrictionManager,
+        )
         val resolution = resolveScheduledModeNow(modesConfig)
 
         val blockedAppIds = when {

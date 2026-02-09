@@ -3,7 +3,7 @@ import Foundation
 /// Shared app-group-backed storage for restriction session state.
 enum RestrictionStateStore {
     static let pausedUntilEpochMsKey = "pausedUntilEpochMs"
-    static let manualActiveModeIdKey = "manualActiveModeId"
+    static let manualActiveModeKey = "manualActiveMode"
     static let scheduleMonitorNamesKey = "scheduleMonitorNames"
     static let modesEnabledKey = "modesEnabled"
     static let modesKey = "modes"
@@ -11,6 +11,35 @@ enum RestrictionStateStore {
     enum StoreResult {
         case success
         case appGroupUnavailable(resolvedGroupId: String)
+    }
+
+    struct ManualActiveMode {
+        let modeId: String
+        let blockedAppIds: [String]
+
+        func toDictionary() -> [String: Any] {
+            [
+                "modeId": modeId,
+                "blockedAppIds": blockedAppIds,
+            ]
+        }
+
+        static func fromDictionary(_ dictionary: [String: Any]) -> ManualActiveMode? {
+            let modeId = (dictionary["modeId"] as? String ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let blockedAppIds = (dictionary["blockedAppIds"] as? [Any] ?? []).compactMap { value -> String? in
+                guard let raw = value as? String else {
+                    return nil
+                }
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                return trimmed.isEmpty ? nil : trimmed
+            }
+            let uniqueBlockedAppIds = Array(NSOrderedSet(array: blockedAppIds)) as? [String] ?? blockedAppIds
+            guard !modeId.isEmpty, !uniqueBlockedAppIds.isEmpty else {
+                return nil
+            }
+            return ManualActiveMode(modeId: modeId, blockedAppIds: uniqueBlockedAppIds)
+        }
     }
 
     static func loadPausedUntilEpochMs(nowEpochMs: Int64 = currentEpochMs()) -> Int64 {
@@ -32,28 +61,37 @@ enum RestrictionStateStore {
         return pausedUntil
     }
 
-    static func loadManualActiveModeId() -> String? {
+    static func loadManualActiveMode() -> ManualActiveMode? {
         guard let defaults = AppGroupStore.sharedDefaults() else {
             return nil
         }
-        let value = (defaults.string(forKey: manualActiveModeIdKey) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.isEmpty ? nil : value
+        guard let raw = defaults.dictionary(forKey: manualActiveModeKey) else {
+            return nil
+        }
+        guard let parsed = ManualActiveMode.fromDictionary(raw) else {
+            _ = clearManualActiveMode()
+            return nil
+        }
+        return parsed
     }
 
     @discardableResult
-    static func storeManualActiveModeId(_ modeId: String?) -> StoreResult {
+    static func storeManualActiveMode(_ mode: ManualActiveMode?) -> StoreResult {
         let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
         guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
             return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
         }
-        let normalized = modeId?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let normalized, !normalized.isEmpty {
-            defaults.set(normalized, forKey: manualActiveModeIdKey)
+        if let mode {
+            defaults.set(mode.toDictionary(), forKey: manualActiveModeKey)
         } else {
-            defaults.removeObject(forKey: manualActiveModeIdKey)
+            defaults.removeObject(forKey: manualActiveModeKey)
         }
         return .success
+    }
+
+    @discardableResult
+    static func clearManualActiveMode() -> StoreResult {
+        return storeManualActiveMode(nil)
     }
 
     static func loadScheduleMonitorNames() -> [String] {
@@ -111,7 +149,12 @@ enum RestrictionStateStore {
         guard let values = defaults.array(forKey: modesKey) as? [[String: Any]] else {
             return []
         }
-        return values.compactMap(RestrictionScheduledMode.init(dictionary:))
+        let parsed = values.compactMap(RestrictionScheduledMode.init(dictionary:))
+        let filtered = parsed.filter(\.shouldPersistForScheduleEnforcement)
+        if filtered.count != parsed.count {
+            _ = storeModes(filtered)
+        }
+        return filtered
     }
 
     @discardableResult
@@ -120,7 +163,12 @@ enum RestrictionStateStore {
         guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
             return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
         }
-        defaults.set(modes.map { $0.toDictionary() }, forKey: modesKey)
+        defaults.set(
+            modes
+                .filter(\.shouldPersistForScheduleEnforcement)
+                .map { $0.toDictionary() },
+            forKey: modesKey
+        )
         return .success
     }
 }

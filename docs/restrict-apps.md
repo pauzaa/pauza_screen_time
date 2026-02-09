@@ -53,12 +53,21 @@ Notes:
 ## 3) Manual mode session
 
 ```dart
-await restrictions.startModeSession('focus-mode');
+await restrictions.startManualModeSession(
+  RestrictionMode(
+    modeId: 'focus-mode',
+    isEnabled: true,
+    blockedAppIds: [
+      AppIdentifier.android('com.instagram.android'),
+    ],
+  ),
+);
 await restrictions.endModeSession();
 ```
 
 Manual session rules:
-- `startModeSession(modeId)` requires mode to exist and be enabled.
+- `startManualModeSession(mode)` performs `upsertMode(mode)` then `startModeSession(modeId)`.
+- `startModeSession(modeId)` requires mode to exist and be enabled. For unscheduled modes, call `upsertMode` first in the same app run.
 - Manual session overrides scheduled activation until `endModeSession()`.
 
 ## 4) Pause / resume
@@ -93,7 +102,9 @@ final config = await restrictions.getModesConfig();
 
 Returns:
 - `enabled`: global schedule engine flag
-- `modes`: list of configured `RestrictionMode`
+- `modes`: only persisted scheduled modes used for background enforcement (`isEnabled && schedule != null && blockedAppIds.isNotEmpty`)
+
+The plugin does not persist every configured mode. Host apps should store the full user mode catalog separately.
 
 ## 7) Remove mode
 

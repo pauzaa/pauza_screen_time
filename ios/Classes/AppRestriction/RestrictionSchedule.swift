@@ -177,6 +177,14 @@ struct RestrictionScheduledMode {
             "blockedAppIds": blockedAppIds,
         ]
     }
+
+    var shouldPersistForScheduleEnforcement: Bool {
+        return isEnabled && schedule != nil && !blockedAppIds.isEmpty
+    }
+
+    var isStartable: Bool {
+        return isEnabled && !blockedAppIds.isEmpty
+    }
 }
 
 struct RestrictionScheduledModesConfig {

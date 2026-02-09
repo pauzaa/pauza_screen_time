@@ -18,9 +18,14 @@ internal class RestrictionScheduledModesStore(
         context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     fun getConfig(): RestrictionScheduledModesConfig {
+        val persistedModes = loadModes()
+        val filteredModes = persistedModes.filter(RestrictionScheduledModeEntry::isEnforceableScheduled)
+        if (persistedModes.size != filteredModes.size) {
+            storeModes(filteredModes)
+        }
         return RestrictionScheduledModesConfig(
             enabled = preferences.getBoolean(KEY_SCHEDULED_MODES_ENABLED, false),
-            modes = loadModes(),
+            modes = filteredModes,
         )
     }
 
@@ -31,7 +36,12 @@ internal class RestrictionScheduledModesStore(
     }
 
     fun upsertMode(mode: RestrictionScheduledModeEntry) {
-        val next = loadModes().toMutableList()
+        if (!mode.isEnforceableScheduled()) {
+            removeMode(mode.modeId)
+            return
+        }
+
+        val next = getConfig().modes.toMutableList()
         val existingIndex = next.indexOfFirst { it.modeId == mode.modeId }
         if (existingIndex >= 0) {
             next[existingIndex] = mode
@@ -42,17 +52,17 @@ internal class RestrictionScheduledModesStore(
     }
 
     fun removeMode(modeId: String) {
-        val filtered = loadModes().filterNot { it.modeId == modeId }
+        val filtered = getConfig().modes.filterNot { it.modeId == modeId }
         storeModes(filtered)
     }
 
     fun getMode(modeId: String): RestrictionScheduledModeEntry? {
-        return loadModes().firstOrNull { it.modeId == modeId }
+        return getConfig().modes.firstOrNull { it.modeId == modeId }
     }
 
     private fun storeModes(modes: List<RestrictionScheduledModeEntry>) {
         preferences.edit()
-            .putString(KEY_SCHEDULED_MODES, serializeModes(modes))
+            .putString(KEY_SCHEDULED_MODES, serializeModes(modes.filter(RestrictionScheduledModeEntry::isEnforceableScheduled)))
             .apply()
     }
 
@@ -153,4 +163,8 @@ internal class RestrictionScheduledModesStore(
             emptyList()
         }
     }
+}
+
+private fun RestrictionScheduledModeEntry.isEnforceableScheduled(): Boolean {
+    return isEnabled && schedule != null && blockedAppIds.isNotEmpty()
 }

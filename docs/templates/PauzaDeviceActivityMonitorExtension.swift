@@ -11,7 +11,7 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
     private let scheduleActivityPrefix = "pauza.schedule.mode."
     private let appGroupInfoPlistKey = "AppGroupIdentifier"
     private let pausedUntilEpochMsKey = "pausedUntilEpochMs"
-    private let manualActiveModeIdKey = "manualActiveModeId"
+    private let manualActiveModeKey = "manualActiveMode"
     private let modesEnabledKey = "modesEnabled"
     private let modesKey = "modes"
 
@@ -99,10 +99,7 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
     private func resolveSessionState(defaults: UserDefaults) -> SessionState {
         let modes = loadModes(defaults: defaults)
         let modesEnabled = defaults.bool(forKey: modesEnabledKey)
-
-        let manualModeId = (defaults.string(forKey: manualActiveModeIdKey) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let manualMode = modes.first { $0.modeId == manualModeId && $0.isEnabled }
+        let manualMode = loadManualMode(defaults: defaults)
 
         let scheduleState = resolveFromScheduledModes(enabled: modesEnabled, modes: modes)
 
@@ -121,6 +118,13 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
         }
 
         return SessionState(activeModeSource: .none, blockedAppIds: [])
+    }
+
+    private func loadManualMode(defaults: UserDefaults) -> RestrictionMode? {
+        if let raw = defaults.dictionary(forKey: manualActiveModeKey) {
+            return RestrictionMode(dictionary: raw)
+        }
+        return nil
     }
 
     private func resolveFromScheduledModes(enabled: Bool, modes: [RestrictionMode]) -> ScheduleState {

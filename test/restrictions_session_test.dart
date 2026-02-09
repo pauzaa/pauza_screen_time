@@ -185,6 +185,25 @@ void main() {
       expect(session.activeModeId, 'focus');
       expect(session.activeModeSource, RestrictionModeSource.manual);
     });
+
+    test('startManualModeSession upserts before starting session', () async {
+      final fakePlatform = _FakeAppRestrictionPlatform();
+      final manager = AppRestrictionManager(platform: fakePlatform);
+      const mode = RestrictionMode(
+        modeId: 'manual-focus',
+        isEnabled: true,
+        blockedAppIds: [AppIdentifier('com.example.social')],
+      );
+
+      await manager.startManualModeSession(mode);
+
+      expect(fakePlatform.upsertModeCalled, isTrue);
+      expect(fakePlatform.startModeSessionCalled, isTrue);
+      expect(
+        fakePlatform.calls,
+        equals(['upsertMode:manual-focus', 'startModeSession:manual-focus']),
+      );
+    });
   });
 
   group('AppRestrictionManager decode failures', () {
@@ -246,6 +265,7 @@ void main() {
 }
 
 class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
+  final List<String> calls = <String>[];
   bool upsertModeCalled = false;
   bool removeModeCalled = false;
   bool setModesEnabledCalled = false;
@@ -295,6 +315,7 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   @override
   Future<void> removeMode(String modeId) async {
     removeModeCalled = true;
+    calls.add('removeMode:$modeId');
   }
 
   @override
@@ -305,20 +326,24 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   @override
   Future<void> endModeSession() async {
     endModeSessionCalled = true;
+    calls.add('endModeSession');
   }
 
   @override
   Future<void> setModesEnabled(bool enabled) async {
     setModesEnabledCalled = true;
+    calls.add('setModesEnabled:$enabled');
   }
 
   @override
   Future<void> startModeSession(String modeId) async {
     startModeSessionCalled = true;
+    calls.add('startModeSession:$modeId');
   }
 
   @override
   Future<void> upsertMode(RestrictionMode mode) async {
     upsertModeCalled = true;
+    calls.add('upsertMode:${mode.modeId}');
   }
 }

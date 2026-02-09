@@ -197,8 +197,9 @@ class AppMonitoringService : AccessibilityService() {
         }
 
         val config = modesStore.getConfig()
-        val manualModeId = restrictionManager.getManualActiveModeId()
-        val manualMode = config.modes.firstOrNull { it.modeId == manualModeId && it.isEnabled }
+        val manualMode = RestrictionManualModeResolver.resolveActiveManualMode(
+            restrictionManager = restrictionManager,
+        )
         val scheduleResolution = resolveScheduledModeNow(config)
 
         val blockedAppIds = when {

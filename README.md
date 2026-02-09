@@ -48,11 +48,19 @@ await restrictions.upsertMode(
   ),
 );
 await restrictions.setModesEnabled(true);
-await restrictions.startModeSession('focus-mode');
+await restrictions.startManualModeSession(
+  RestrictionMode(
+    modeId: 'focus-mode',
+    isEnabled: true,
+    blockedAppIds: blocked,
+  ),
+);
 
 final session = await restrictions.getRestrictionSession();
 // session.activeModeId / session.activeModeSource
 ```
+
+`getModesConfig()` returns only persisted scheduled modes that are needed for background enforcement.
 
 ## Breaking API map (mode redesign)
 
