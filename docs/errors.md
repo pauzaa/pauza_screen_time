@@ -27,7 +27,13 @@ Plugin APIs return the expected value type on success and throw typed `PauzaErro
 ```dart
 final restrictions = AppRestrictionManager();
 try {
-  await restrictions.restrictApps(identifiers);
+  await restrictions.upsertMode(
+    RestrictionMode(
+      modeId: 'focus-mode',
+      isEnabled: true,
+      blockedAppIds: identifiers,
+    ),
+  );
 } on PauzaMissingPermissionError catch (error) {
   // Show permission guidance UI.
   // error.details contains structured diagnostics.

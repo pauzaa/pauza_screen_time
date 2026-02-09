@@ -59,8 +59,8 @@ Performance-oriented detail:
 **Android**
 
 - Restrictions state is stored in `SharedPreferences`:
-  - Restricted apps set, pause deadline, and manual session toggle: `RestrictionManager` (`android/.../app_restriction/RestrictionManager.kt`)
-  - Scheduled modes toggle and modes list: `RestrictionScheduledModesStore` (`android/.../app_restriction/schedule/RestrictionScheduledModesStore.kt`)
+  - Blocked apps list, pause deadline, and active manual `modeId`: `RestrictionManager` (`android/.../app_restriction/RestrictionManager.kt`)
+  - Mode catalog plus schedule toggle: `RestrictionScheduledModesStore` (`android/.../app_restriction/schedule/RestrictionScheduledModesStore.kt`)
 - Enforcement uses:
   - `AccessibilityService` to detect foreground app changes: `AppMonitoringService` (`android/.../app_restriction/AppMonitoringService.kt`)
   - Exact/inexact alarms to enforce pause expiry and schedule boundaries: `RestrictionAlarmOrchestrator` + `RestrictionAlarmScheduler` (`android/.../app_restriction/alarm/*`)
@@ -69,7 +69,7 @@ Performance-oriented detail:
 **iOS**
 
 - Persisted state uses App Group `UserDefaults`:
-  - Desired restricted tokens, pause deadline, manual toggle, scheduled modes: `RestrictionStateStore` (`ios/Classes/AppRestriction/RestrictionStateStore.swift`)
+  - Mode catalog, schedule toggle, manual `modeId`, and pause deadline: `RestrictionStateStore` (`ios/Classes/AppRestriction/RestrictionStateStore.swift`)
   - Shield UI configuration: `ShieldConfigurationStore` (`ios/Classes/AppRestriction/ShieldConfigurationStore.swift`)
 - Enforcement uses:
   - ManagedSettings shield restrictions: `ShieldManager` (`ios/Classes/AppRestriction/ShieldManager.swift`)
@@ -91,34 +91,32 @@ Legend:
 **What exists**
 
 - Dart API:
-  - `AppRestrictionManager.startRestrictionSession()`
-  - `AppRestrictionManager.endRestrictionSession()`
-  - Session snapshot: `getRestrictionSession()`
+  - `upsertMode`, `removeMode`, `setModesEnabled`, `getModesConfig`
+  - `startModeSession(modeId)` / `endModeSession()`
+  - `getRestrictionSession()` now surfaces `activeModeId` / `activeModeSource`
 - Android implementation:
-  - Manual toggle is `manual_enforcement_enabled` in `RestrictionManager`.
-  - `startRestrictionSession` sets it `true`; `endRestrictionSession` sets it `false`.
-  - Foreground enforcement is driven by `AppMonitoringService` and a compose overlay (`ShieldOverlayManager`).
+  - `RestrictionManager` stores `manualActiveModeId` instead of a boolean toggle
+  - Manual session startup validates the mode before writing the `modeId`
+  - Enforcement resolves manual mode first, then scheduled resolution if none
 - iOS implementation:
-  - Manual toggle stored in app group (`manualEnforcementEnabledKey`).
-  - Enforcement applies `ManagedSettingsStore().shield.applications`.
+  - `RestrictionStateStore` keeps the entire mode catalog, toggle, and `manualActiveModeId`
+  - Manual session writes to App Group defaults and re-applies the matching mode blocklist
+  - `RestrictionScheduledModeEvaluator` now returns the matched `modeId` along with blocked apps
 
 **Adherence to `specs/specifications.md`**
 
-- Start/End: ✅ implemented
+- Start/End: ✅ manual session APIs now explicitly target a named mode
 - Persistence across app exit / reboot: ⚠️
-  - Android: ✅ persisted in `SharedPreferences`, alarms rescheduled on boot; relies on AccessibilityService being enabled (user/system can disable it).
-  - iOS: ✅ persisted in app group; restrictions persist via ManagedSettings; relies on Screen Time authorization.
-- “Termination”: ✅ scheduled boundaries do not flip manual state; manual must be ended by `endRestrictionSession()`.
+  - Android: ✅ persisted `modeId`; AccessibilityService re-applies the stored mode when it wakes
+  - iOS: ✅ App Group storage; relies on Device Activity Monitor extension for background enforcement
+- “Termination”: ✅ manual session only ends when `endModeSession()` clears the stored `modeId`
 
 **Gaps / caveats**
 
-- Spec talks about “Mode” as a first-class object. Manual mode here is a **global boolean** + a **global restricted apps set**, not a typed “Mode” with its own identity.
-  - Fixability: ✅ fixable (add a typed Mode concept + store “activeModeId” + mode-specific blocked apps), but it’s an API/design change.
+- Migration risk: the legacy helpers (`restrictApps`, `restrictApp`, `clearAllRestrictions`, scheduled-mode helpers) were removed; hosts must now use the mode-centric APIs documented in README/docs.
+  - Fixability: ⚠️ breaking but documented in README/docs with a clear mapping.
 
-Status vs specs: **⚠️ (meets practical behavior, but Mode concept is not represented as an object)**
-
----
-
+Status vs specs: **⚠️ (behaviorally compliant once migrated; host apps need to adopt the new API surface)**
 ### 2.2 Reliable-Enforced Pause (fixed duration, auto re-enforce, survives reboot)
 
 **What exists**
@@ -162,45 +160,24 @@ Status vs specs: **⚠️**
 
 ### 2.3 Reliable Schedules (auto enable/disable without app running, persists reboot)
 
-Schedule configuration is now **mode-only**:
+Schedule configuration is now **mode-only**: each `RestrictionMode` can optionally include a schedule, and the mode catalog is the single source of truth.
 
-- `upsertScheduledMode(RestrictionScheduledMode)`
-- `removeScheduledMode(modeId)`
-- `setScheduledModesEnabled(bool)`
-- `getScheduledModesConfig()`
-
-There is no legacy schedule API path in Dart or native handlers.
-
-#### 2.3.1 Mode-based schedules (“one mode → one schedule”, only path)
-
-**What exists**
-
-- Dart: `RestrictionScheduledMode` (modeId, enabled flag, schedule, blockedAppIds)
-- Android:
-  - Persisted in `RestrictionScheduledModesStore`.
-  - Overlap is validated at write time (rejects overlap).
-  - Schedule boundary alarms are scheduled/rescheduled by `RestrictionAlarmOrchestrator`.
-  - At enforcement time, `RestrictionScheduledModeResolver.resolveNow(...)` must match **exactly one** active mode; otherwise it resolves to “no schedule active”.
-- iOS:
-  - Persisted in app group (`RestrictionStateStore.storeScheduledModes`).
-  - Overlap is validated (`RestrictionScheduleEvaluator.isScheduleShapeValid`).
-  - Monitoring scheduled via `DeviceActivityCenter` (`RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()`).
+- Modes are stored through `upsertMode(mode)` / `removeMode(modeId)` and a global `setModesEnabled(bool)` toggle.
+- The catalog plus toggle is exposed via `getModesConfig()` (new model `RestrictionModesConfig`).
+- `RestrictionScheduledModeResolver` and `RestrictionScheduledModeEvaluator` now return the active `modeId` and blocked apps when a scheduled mode is currently active.
 
 **Adherence to `specs/specifications.md`**
 
 - “Schedules automatically enable/disable”: ⚠️
-  - Android: ✅ if manual session is disabled (`endRestrictionSession()`), since manual override takes precedence.
-  - iOS: ⚠️ requires a host Device Activity Monitor extension to apply/clear restrictions at boundary times while app is not running.
+  - Android: ✅ mode-based config drives alarms and enforcement when no manual session overrides it.
+  - iOS: ⚠️ background enforcement still depends on the host Device Activity Monitor extension.
 - “Persistence across reboot”: ⚠️
-  - Android: ✅ alarms rescheduled on boot and time changes.
-  - iOS: ⚠️ depends on monitor persistence + host extension + app group state being correct.
-- “No overlapping schedules across modes”: ✅ enforced on both platforms.
-- “Only one mode active at a time”: ✅ by non-overlap enforcement; resolvers fail-safe to “none” if multiple match.
+  - Android: ✅ alarms and stored modes/TL toggle survive reboots.
+  - iOS: ⚠️ App Group storage persists the catalog, but Device Activity monitors must be re-registered on extension startup.
+- “No overlapping schedules across modes”: ✅ enforced via shape validation in `RestrictionModesConfig.isValid` and native validators.
+- “Only one mode active at a time”: ✅ resolver returns `none` when multiple scheduled modes match, preventing ambiguity.
 
-Status vs specs: **⚠️ (Android strong; iOS depends on host extension)**
-
----
-
+Status vs specs: **⚠️ (mode-based behavior is correct; iOS still needs host extension for full reliability)**
 ### 2.4 Shield Configuration (custom appearance/content)
 
 **What exists**
@@ -297,24 +274,12 @@ Status vs specs: **✅**
 
 ### 2.8 Prioritization & Conflict Resolution
 
-**What exists**
+- “Single active mode”: enforced by the combination of `RestrictionModesConfig.isValid` (no overlapping schedules) and the resolver returning a single `modeId`; the new session payload makes it obvious which mode is currently enforcing.
+- “Manual override precedence”: manual `modeId` stored by `startModeSession()` supersedes any scheduled resolution until `endModeSession()` clears it.
+- Conflict detection happens during `upsertMode()` and `setModesEnabled(true)` through native validators, returning `INVALID_ARGUMENT` when overlaps are detected.
+- The `RestrictionSession` now returns `activeModeId` + `activeModeSource` (`none`, `manual`, `schedule`), so hosts no longer need to infer the active mode from `restrictedApps`.
 
-- “Single active mode”: enforced primarily by **non-overlapping schedules** for scheduled modes.
-  - Dart models include `isValid` checks (`RestrictionScheduledModesConfig.isValid`).
-  - Native layers enforce overlap constraints and return `INVALID_ARGUMENT` when violated.
-- “Manual override precedence”:
-  - Both platforms treat manual session as an override: if manual is enabled, schedule-based mode switching is ignored.
-
-**Gaps**
-
-- There is no first-class “active mode id” returned by `RestrictionSession`.
-  - Host can only infer by inspecting `restrictedApps`, not by reading “activeModeId”.
-  - Fixability: ✅ add `activeModeId` / `activeModeSource` to session payloads.
-
-Status vs specs: **⚠️**
-
----
-
+Status vs specs: **✅ (mode identity is first-class and exposed to hosts)**
 ## 3) Technical requirements compliance (`specs/technical_requirements.md`)
 
 ### 3.1 Strong Typization
@@ -335,24 +300,14 @@ Status: **✅ / ⚠️ (good overall; map parsing is the main weak spot)**
 
 ### 3.2 Honest Fast-Failure
 
-Partially compliant; there are several places where errors are **caught and converted into “empty success”** instead of a typed error:
-
-- Dart restrictions method channel:
-  - `getRestrictionSession()` and `getScheduledModesConfig()` swallow parse failures and return default values.
-- Android installed apps and usage stats handlers:
-  - `InstalledAppsHandler.getInstalledApps()` logs and returns `[]` on exception.
-  - `UsageStatsHandler.calculateLaunchCounts()` logs errors and returns partial results.
+✅ Now compliant: decoding failures no longer default to empty objects. `getRestrictionSession()` and `getScheduledModesConfig()` throw typed `INTERNAL_FAILURE` errors when the native payloads are null or malformed, Android installed-apps enumeration surfaces decode/parsing faults as typed errors instead of `[]`, and usage-stats handler failures propagate through `INTERNAL_FAILURE` rather than logging and returning partial results.
 
 Where it *is* compliant:
 
-- Permission preflight and restrictions prerequisites are surfaced as stable taxonomy codes (`MISSING_PERMISSION`, `PERMISSION_DENIED`, etc.).
-- iOS restrictions fail fast on invalid token decoding and on missing authorization (typed errors).
+- Permission preflight and restrictions prerequisites surface stable taxonomy codes (`MISSING_PERMISSION`, `PERMISSION_DENIED`, etc.).
+- iOS restrictions continue to fail fast on invalid token decoding and missing authorization.
 
-Fixability:
-
-- ✅ fixable to make “parse failure” and “native exception” paths throw typed errors instead of returning default/empty results.
-
-Status: **⚠️**
+Status: **✅**
 
 ### 3.3 No God Class
 
@@ -417,16 +372,10 @@ Fixability: ⚠️ depends on product/policy. Technically fixable (reduce scope 
 
 Examples:
 
-- Dart restrictions getters default silently on malformed payloads.
-- Android installed apps handler returns empty list on errors.
+- Dart restrictions getters now throw `INTERNAL_FAILURE` when payloads are missing or malformed instead of silently defaulting.
+- Android installed apps handler surfaces decode errors as typed failures instead of returning empty lists.
 
-Fixability: ✅ fixable by returning typed `PauzaError` consistently.
-
-### 4.7 Stray file in Android sources
-
-- File: `android/src/main/kotlin/com/example/pauza_screen_time/permissions/method_channel/Untitled`
-- Impact: likely harmless (no `.kt` extension), but confusing and should be removed.
-- Fixability: ✅ fixable (delete file).
+Fixability: ✅ resolved by the current strict decode behavior.
 
 ---
 
@@ -450,16 +399,13 @@ Specs define “Mode” as the core object with rules “what/when/how”.
 
 Current state:
 
-- Scheduled modes exist as a typed object (`RestrictionScheduledMode`), but manual mode is a boolean toggle without mode identity.
-- `RestrictionSession` does not expose an “active mode id” or “source” (manual vs schedule vs which scheduled mode).
+- `RestrictionMode` / `RestrictionModesConfig` expose schedules, blocked app ids, and the catalog of configured modes.
+- Manual sessions explicitly store the active `modeId` and schedule resolution returns the currently matched mode.
+- `RestrictionSession` now includes `activeModeId` and `activeModeSource`.
 
-Fixability: ✅ fixable (API/design change): add a typed Mode model (or at least add `activeModeId` + `activeModeSource` to the session snapshot).
-
----
-
+Fixability: ✅ implemented by this release; hosts must migrate to the new mode-based APIs and read the session metadata instead of inferring the active mode indirectly.
 ## 6) Bottom line
 
-- The plugin has a solid feature-based architecture and typed Dart API surface.
-- Android restrictions + pause + scheduled modes are implemented with persistence and background enforcement, but schedule timing may degrade without exact alarms.
-- iOS restrictions APIs exist and are strongly typed around Screen Time authorization and token decoding, but **reliable background schedule/pause enforcement requires host extensions**.
-- Some areas (notably parse fallbacks and “return empty on error”) do not adhere to the “Honest Fast-Failure” technical requirement.
+- The plugin now exposes first-class modes (`RestrictionMode`, `RestrictionModesConfig`) and mode-aware APIs, replacing the old unrestricted-app helpers.
+- Android and iOS persistence layers store the manual `modeId` and resolve scheduled modes with identity metadata, feeding that into `RestrictionSession.activeModeId` / `activeModeSource` plus scheduled alarm enforcement.
+- iOS still depends on host Device Activity extensions for background enforcement and pause auto-resume, while Android timing relies on exact-alarm capability when available.

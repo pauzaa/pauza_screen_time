@@ -6,19 +6,6 @@ import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * Manages the blocklist of restricted applications using SharedPreferences.
- *
- * This singleton class persists the list of blocked package IDs across app restarts
- * and device reboots. The blocklist is stored in SharedPreferences so that the
- * AccessibilityService (AppMonitoringService) can access it even when the Flutter
- * app is not running.
- *
- * Features:
- * - Persistent storage of blocked package IDs
- * - Thread-safe operations using synchronized blocks
- * - Singleton pattern for consistent state across the app
- */
 class RestrictionManager private constructor(context: Context) {
 
     companion object {
@@ -27,17 +14,11 @@ class RestrictionManager private constructor(context: Context) {
         private const val KEY_BLOCKED_APPS = "blocked_apps"
         private const val KEY_BLOCKED_APPS_LIST = "blockedApps"
         private const val KEY_PAUSED_UNTIL_EPOCH_MS = "paused_until_epoch_ms"
-        private const val KEY_MANUAL_ENFORCEMENT_ENABLED = "manual_enforcement_enabled"
+        private const val KEY_MANUAL_ACTIVE_MODE_ID = "manual_active_mode_id"
 
         @Volatile
         private var instance: RestrictionManager? = null
 
-        /**
-         * Gets the singleton instance of RestrictionManager.
-         *
-         * @param context The application context
-         * @return The singleton RestrictionManager instance
-         */
         fun getInstance(context: Context): RestrictionManager {
             return instance ?: synchronized(this) {
                 instance ?: RestrictionManager(context.applicationContext).also {
@@ -50,22 +31,12 @@ class RestrictionManager private constructor(context: Context) {
     private val preferences: SharedPreferences =
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    /**
-     * In-memory cache of blocked apps for fast lookups.
-     * Synchronized with SharedPreferences on every modification.
-     */
     private val blockedApps: MutableSet<String> = mutableSetOf()
 
     init {
-        // Load blocked apps from SharedPreferences on initialization
         loadBlockedApps()
     }
 
-    /**
-     * Sets the complete list of restricted apps, replacing any existing entries.
-     *
-     * @param packageIds List of package IDs to restrict
-     */
     @Synchronized
     fun setRestrictedApps(packageIds: List<String>) {
         blockedApps.clear()
@@ -74,73 +45,11 @@ class RestrictionManager private constructor(context: Context) {
         Log.d(TAG, "Set restricted apps: $blockedApps")
     }
 
-    /**
-     * Adds a single app to the restriction blocklist.
-     *
-     * @param packageId The package ID to add
-     * @return true if the app was added, false if it was already blocked
-     */
-    @Synchronized
-    fun addRestrictedApp(packageId: String): Boolean {
-        if (packageId.isBlank()) {
-            Log.w(TAG, "Attempted to add blank package ID")
-            return false
-        }
-        
-        val added = blockedApps.add(packageId)
-        if (added) {
-            persistBlockedApps()
-            Log.d(TAG, "Added restricted app: $packageId")
-        } else {
-            Log.d(TAG, "App already restricted: $packageId")
-        }
-        return added
-    }
-
-    /**
-     * Removes a single app from the restriction blocklist.
-     *
-     * @param packageId The package ID to remove
-     * @return true if the app was removed, false if it wasn't in the blocklist
-     */
-    @Synchronized
-    fun removeRestriction(packageId: String): Boolean {
-        val removed = blockedApps.remove(packageId)
-        if (removed) {
-            persistBlockedApps()
-            Log.d(TAG, "Removed restriction for: $packageId")
-        } else {
-            Log.d(TAG, "App was not restricted: $packageId")
-        }
-        return removed
-    }
-
-    /**
-     * Removes all apps from the restriction blocklist.
-     */
-    @Synchronized
-    fun removeAllRestrictions() {
-        blockedApps.clear()
-        persistBlockedApps()
-        Log.d(TAG, "Removed all restrictions")
-    }
-
-    /**
-     * Gets the current list of restricted package IDs.
-     *
-     * @return List of currently restricted package IDs
-     */
     @Synchronized
     fun getRestrictedApps(): List<String> {
         return blockedApps.toList()
     }
 
-    /**
-     * Checks if a specific app is currently restricted.
-     *
-     * @param packageId The package ID to check
-     * @return true if the app is restricted, false otherwise
-     */
     @Synchronized
     fun isRestricted(packageId: String): Boolean {
         return blockedApps.contains(packageId)
@@ -183,21 +92,24 @@ class RestrictionManager private constructor(context: Context) {
     }
 
     @Synchronized
-    fun isManualEnforcementEnabled(): Boolean {
-        return preferences.getBoolean(KEY_MANUAL_ENFORCEMENT_ENABLED, true)
+    fun getManualActiveModeId(): String? {
+        val value = preferences.getString(KEY_MANUAL_ACTIVE_MODE_ID, null)?.trim().orEmpty()
+        return value.ifEmpty { null }
     }
 
     @Synchronized
-    fun setManualEnforcementEnabled(enabled: Boolean) {
-        preferences.edit()
-            .putBoolean(KEY_MANUAL_ENFORCEMENT_ENABLED, enabled)
-            .apply()
-        Log.d(TAG, "Manual restriction enforcement set to: $enabled")
+    fun setManualActiveModeId(modeId: String?) {
+        val normalized = modeId?.trim().orEmpty().ifEmpty { null }
+        preferences.edit().apply {
+            if (normalized == null) {
+                remove(KEY_MANUAL_ACTIVE_MODE_ID)
+            } else {
+                putString(KEY_MANUAL_ACTIVE_MODE_ID, normalized)
+            }
+        }.apply()
+        Log.d(TAG, "Manual active mode id set to: ${normalized ?: "<none>"}")
     }
 
-    /**
-     * Loads the blocked apps from SharedPreferences into the in-memory cache.
-     */
     private fun loadBlockedApps() {
         val storedApps = preferences.getString(KEY_BLOCKED_APPS, null)
         if (storedApps.isNullOrEmpty()) {
@@ -213,9 +125,6 @@ class RestrictionManager private constructor(context: Context) {
         }
     }
 
-    /**
-     * Persists the current blocklist to SharedPreferences.
-     */
     private fun persistBlockedApps() {
         val payload = JSONObject()
             .put(KEY_BLOCKED_APPS_LIST, JSONArray(blockedApps.toList()))

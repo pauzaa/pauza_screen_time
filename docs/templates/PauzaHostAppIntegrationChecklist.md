@@ -50,7 +50,7 @@ Use this checklist in your iOS host app repo when integrating `pauza_screen_time
 
 - [ ] `requestIOSPermission(IOSPermission.familyControls)` succeeds
 - [ ] `selectIOSApps()` returns tokens
-- [ ] `restrictApps(...)` applies shields to selected apps
+- [ ] `upsertMode(...)` + `startModeSession(...)` applies shields to selected apps
 - [ ] `pauseEnforcement(Duration(minutes: 1))` clears restrictions immediately
 - [ ] At pause expiry, shield is re-applied automatically without reopening host app
 - [ ] `IOSUsageReportView(reportContext: 'daily', ...)` renders successfully

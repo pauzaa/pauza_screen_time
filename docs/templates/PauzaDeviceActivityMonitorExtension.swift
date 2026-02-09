@@ -8,13 +8,12 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
     private let store = ManagedSettingsStore()
 
     private let pauseActivityName = DeviceActivityName("pauza_pause_auto_resume")
-    private let scheduleActivityPrefix = "pauza_schedule_"
+    private let scheduleActivityPrefix = "pauza.schedule.mode."
     private let appGroupInfoPlistKey = "AppGroupIdentifier"
-    private let desiredRestrictedAppsKey = "desiredRestrictedApps"
     private let pausedUntilEpochMsKey = "pausedUntilEpochMs"
-    private let manualEnforcementEnabledKey = "manualEnforcementEnabled"
-    private let scheduledModesEnabledKey = "scheduledModesEnabled"
-    private let scheduledModesKey = "scheduledModes"
+    private let manualActiveModeIdKey = "manualActiveModeId"
+    private let modesEnabledKey = "modesEnabled"
+    private let modesKey = "modes"
 
     override func intervalDidStart(for activity: DeviceActivityName) {
         super.intervalDidStart(for: activity)
@@ -47,29 +46,15 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
             defaults.set(Int64(0), forKey: pausedUntilEpochMsKey)
         }
 
-        let manualEnabled: Bool
-        if defaults.object(forKey: manualEnforcementEnabledKey) == nil {
-            manualEnabled = true
-        } else {
-            manualEnabled = defaults.bool(forKey: manualEnforcementEnabledKey)
-        }
-        let scheduleState = resolveScheduleState(defaults: defaults)
-        let shouldEnforceSession = manualEnabled || scheduleState.isInScheduleNow
-        if !shouldEnforceSession {
+        let sessionState = resolveSessionState(defaults: defaults)
+        guard sessionState.activeModeSource != .none,
+              !sessionState.blockedAppIds.isEmpty else {
             clearRestrictions()
             return
         }
 
-        let tokensToApply = manualEnabled
-            ? (defaults.array(forKey: desiredRestrictedAppsKey) as? [String] ?? [])
-            : scheduleState.blockedAppIds
-        if tokensToApply.isEmpty {
-            clearRestrictions()
-            return
-        }
-
-        let decodedTokens = decodeTokens(tokensToApply)
-        if decodedTokens.count != tokensToApply.count {
+        let decodedTokens = decodeTokens(sessionState.blockedAppIds)
+        if decodedTokens.count != sessionState.blockedAppIds.count {
             clearRestrictions()
             return
         }
@@ -104,24 +89,50 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
         return decoded
     }
 
-    private func loadScheduledModes(defaults: UserDefaults) -> [RestrictionScheduledMode] {
-        guard let raw = defaults.array(forKey: scheduledModesKey) as? [[String: Any]] else {
+    private func loadModes(defaults: UserDefaults) -> [RestrictionMode] {
+        guard let raw = defaults.array(forKey: modesKey) as? [[String: Any]] else {
             return []
         }
-        return raw.compactMap(RestrictionScheduledMode.init(dictionary:))
+        return raw.compactMap(RestrictionMode.init(dictionary:))
     }
 
-    private func resolveScheduleState(defaults: UserDefaults) -> ScheduleState {
-        let scheduledModes = loadScheduledModes(defaults: defaults)
-        let enabled = defaults.bool(forKey: scheduledModesEnabledKey)
-        return resolveFromScheduledModes(enabled: enabled, modes: scheduledModes)
+    private func resolveSessionState(defaults: UserDefaults) -> SessionState {
+        let modes = loadModes(defaults: defaults)
+        let modesEnabled = defaults.bool(forKey: modesEnabledKey)
+
+        let manualModeId = (defaults.string(forKey: manualActiveModeIdKey) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let manualMode = modes.first { $0.modeId == manualModeId && $0.isEnabled }
+
+        let scheduleState = resolveFromScheduledModes(enabled: modesEnabled, modes: modes)
+
+        if let manualMode {
+            return SessionState(
+                activeModeSource: .manual,
+                blockedAppIds: manualMode.blockedAppIds
+            )
+        }
+
+        if scheduleState.isInScheduleNow {
+            return SessionState(
+                activeModeSource: .schedule,
+                blockedAppIds: scheduleState.blockedAppIds
+            )
+        }
+
+        return SessionState(activeModeSource: .none, blockedAppIds: [])
     }
 
-    private func resolveFromScheduledModes(enabled: Bool, modes: [RestrictionScheduledMode]) -> ScheduleState {
+    private func resolveFromScheduledModes(enabled: Bool, modes: [RestrictionMode]) -> ScheduleState {
         guard enabled else {
             return ScheduleState(isInScheduleNow: false, blockedAppIds: [])
         }
-        let activeModes = modes.filter { $0.isEnabled }.filter { isInScheduleNow(schedules: [$0.schedule], enabled: true) }
+        let activeModes = modes.filter { mode in
+            guard mode.isEnabled, let schedule = mode.schedule else {
+                return false
+            }
+            return isInScheduleNow(schedules: [schedule], enabled: true)
+        }
         guard activeModes.count == 1 else {
             return ScheduleState(isInScheduleNow: false, blockedAppIds: [])
         }
@@ -201,22 +212,28 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
         }
     }
 
-    private struct RestrictionScheduledMode {
+    private struct RestrictionMode {
         let modeId: String
         let isEnabled: Bool
-        let schedule: RestrictionSchedule
+        let schedule: RestrictionSchedule?
         let blockedAppIds: [String]
 
         init?(dictionary: [String: Any]) {
             let modeId = (dictionary["modeId"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !modeId.isEmpty,
-                  let scheduleDictionary = dictionary["schedule"] as? [String: Any],
-                  let schedule = RestrictionSchedule(dictionary: scheduleDictionary) else {
+            guard !modeId.isEmpty else {
                 return nil
+            }
+            let schedule: RestrictionSchedule?
+            if let scheduleDictionary = dictionary["schedule"] as? [String: Any] {
+                guard let parsed = RestrictionSchedule(dictionary: scheduleDictionary) else {
+                    return nil
+                }
+                schedule = parsed
+            } else {
+                schedule = nil
             }
             self.modeId = modeId
             self.isEnabled = dictionary["isEnabled"] as? Bool ?? true
-            self.schedule = schedule
             self.blockedAppIds = (dictionary["blockedAppIds"] as? [Any] ?? []).compactMap { value in
                 guard let raw = value as? String else {
                     return nil
@@ -225,6 +242,17 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
                 return trimmed.isEmpty ? nil : trimmed
             }
         }
+    }
+
+    private enum ModeSource {
+        case none
+        case manual
+        case schedule
+    }
+
+    private struct SessionState {
+        let activeModeSource: ModeSource
+        let blockedAppIds: [String]
     }
 
     private struct ScheduleState {

@@ -39,7 +39,11 @@ class RestrictionSchedule {
       _ => -1,
     };
 
-    return RestrictionSchedule(daysOfWeekIso: days, startMinutes: start, endMinutes: end);
+    return RestrictionSchedule(
+      daysOfWeekIso: days,
+      startMinutes: start,
+      endMinutes: end,
+    );
   }
 
   /// Serializes this schedule to method-channel payload.

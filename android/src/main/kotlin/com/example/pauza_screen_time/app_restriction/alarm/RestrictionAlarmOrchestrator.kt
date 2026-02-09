@@ -10,6 +10,7 @@ import com.example.pauza_screen_time.app_restriction.schedule.RestrictionSchedul
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleConfig
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeResolver
+import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesConfig
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
 
 internal class RestrictionAlarmOrchestrator(
@@ -22,7 +23,7 @@ internal class RestrictionAlarmOrchestrator(
     private val appContext = context.applicationContext
     private val scheduler = RestrictionAlarmScheduler(appContext)
     private val restrictionManager = RestrictionManager.getInstance(appContext)
-    private val scheduledModesStore = RestrictionScheduledModesStore(appContext)
+    private val modesStore = RestrictionScheduledModesStore(appContext)
     private val scheduleCalculator = RestrictionScheduleCalculator()
 
     fun onAlarmFired(alarmType: RestrictionAlarmType) {
@@ -79,13 +80,13 @@ internal class RestrictionAlarmOrchestrator(
         scheduler.cancel(RestrictionAlarmType.SCHEDULE_SESSION_START)
         scheduler.cancel(RestrictionAlarmType.SCHEDULE_SESSION_END)
 
-        val scheduledModesConfig = scheduledModesStore.getConfig()
+        val modesConfig = modesStore.getConfig()
         val config = RestrictionScheduleConfig(
-            enabled = scheduledModesConfig.enabled,
-            schedules = scheduledModesConfig
-                .scheduledModes
-                .filter { it.isEnabled }
-                .map { it.schedule },
+            enabled = modesConfig.enabled,
+            schedules = modesConfig
+                .modes
+                .filter { it.isEnabled && it.schedule != null }
+                .mapNotNull { it.schedule },
         )
         val boundary = scheduleCalculator.nextBoundary(config) ?: return
         val alarmType = when (boundary.type) {
@@ -100,12 +101,21 @@ internal class RestrictionAlarmOrchestrator(
     }
 
     private fun applyScheduleBoundaryState(alarmType: RestrictionAlarmType) {
-        val manualEnabled = restrictionManager.isManualEnforcementEnabled()
-        val resolution = resolveScheduledModeNow()
-        if (!manualEnabled) {
-            restrictionManager.setRestrictedApps(resolution.blockedAppIds)
+        val modesConfig = modesStore.getConfig()
+        val manualModeId = restrictionManager.getManualActiveModeId()
+        val manualMode = modesConfig.modes.firstOrNull { it.modeId == manualModeId && it.isEnabled }
+        val resolution = resolveScheduledModeNow(modesConfig)
+
+        val blockedAppIds = when {
+            manualMode != null -> manualMode.blockedAppIds
+            else -> resolution.blockedAppIds
         }
-        val shouldEnforce = manualEnabled || resolution.isInScheduleNow
+        restrictionManager.setRestrictedApps(blockedAppIds)
+
+        val shouldEnforce = when {
+            manualMode != null -> true
+            else -> resolution.isInScheduleNow
+        }
         if (shouldEnforce) {
             AppMonitoringService.getInstance()?.enforceCurrentForegroundNow(
                 trigger = "schedule_boundary_${alarmType.value}",
@@ -115,9 +125,9 @@ internal class RestrictionAlarmOrchestrator(
         ShieldOverlayManager.getInstanceOrNull()?.hideShield()
     }
 
-    private fun resolveScheduledModeNow(): RestrictionScheduledModeResolver.Resolution {
+    private fun resolveScheduledModeNow(config: RestrictionScheduledModesConfig): RestrictionScheduledModeResolver.Resolution {
         return RestrictionScheduledModeResolver.resolveNow(
-            config = scheduledModesStore.getConfig(),
+            config = config,
             scheduleCalculator = scheduleCalculator,
         )
     }

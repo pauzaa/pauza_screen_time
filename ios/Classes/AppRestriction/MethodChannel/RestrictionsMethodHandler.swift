@@ -12,18 +12,14 @@ final class RestrictionsMethodHandler {
         switch call.method {
         case MethodNames.configureShield:
             handleConfigureShield(call: call, result: result)
-        case MethodNames.setRestrictedApps:
-            handleSetRestrictedApps(call: call, result: result)
-        case MethodNames.addRestrictedApp:
-            handleAddRestrictedApp(call: call, result: result)
-        case MethodNames.removeRestriction:
-            handleRemoveRestriction(call: call, result: result)
-        case MethodNames.isRestricted:
-            handleIsRestricted(call: call, result: result)
-        case MethodNames.removeAllRestrictions:
-            handleRemoveAllRestrictions(call: call, result: result)
-        case MethodNames.getRestrictedApps:
-            handleGetRestrictedApps(call: call, result: result)
+        case MethodNames.upsertMode:
+            handleUpsertMode(call: call, result: result)
+        case MethodNames.removeMode:
+            handleRemoveMode(call: call, result: result)
+        case MethodNames.setModesEnabled:
+            handleSetModesEnabled(call: call, result: result)
+        case MethodNames.getModesConfig:
+            handleGetModesConfig(result: result)
         case MethodNames.isRestrictionSessionActiveNow:
             handleIsRestrictionSessionActiveNow(result: result)
         case MethodNames.isRestrictionSessionConfigured:
@@ -32,20 +28,12 @@ final class RestrictionsMethodHandler {
             handlePauseEnforcement(call: call, result: result)
         case MethodNames.resumeEnforcement:
             handleResumeEnforcement(result: result)
-        case MethodNames.startRestrictionSession:
-            handleStartRestrictionSession(result: result)
-        case MethodNames.endRestrictionSession:
-            handleEndRestrictionSession(result: result)
+        case MethodNames.startModeSession:
+            handleStartModeSession(call: call, result: result)
+        case MethodNames.endModeSession:
+            handleEndModeSession(result: result)
         case MethodNames.getRestrictionSession:
             handleGetRestrictionSession(result: result)
-        case MethodNames.upsertScheduledMode:
-            handleUpsertScheduledMode(call: call, result: result)
-        case MethodNames.removeScheduledMode:
-            handleRemoveScheduledMode(call: call, result: result)
-        case MethodNames.setScheduledModesEnabled:
-            handleSetScheduledModesEnabled(call: call, result: result)
-        case MethodNames.getScheduledModesConfig:
-            handleGetScheduledModesConfig(result: result)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -88,256 +76,18 @@ final class RestrictionsMethodHandler {
         }
     }
 
-    private func handleSetRestrictedApps(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(iOS 16.0, *) else {
-            result(PluginErrors.unsupported(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictedApps,
-                message: PluginErrorMessage.restrictionsUnsupported
-            ))
-            return
-        }
-        guard let args = call.arguments as? [String: Any],
-              let tokens = args["identifiers"] as? [String] else {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictedApps,
-                message: PluginErrorMessage.missingIdentifiers
-            ))
-            return
-        }
-        if !tokens.isEmpty, let preflightError = restrictionPreflightError(action: MethodNames.setRestrictedApps) {
-            result(preflightError)
-            return
-        }
-        let decodeResult = ShieldManager.shared.decodeTokens(base64Tokens: tokens)
-        if !decodeResult.invalidTokens.isEmpty {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictedApps,
-                message: PluginErrorMessage.unableToDecodeTokens,
-                diagnostic: "invalidTokens=\(decodeResult.invalidTokens)"
-            ))
-            return
-        }
-
-        switch RestrictionStateStore.storeDesiredRestrictedApps(decodeResult.appliedBase64Tokens) {
-        case .success:
-            break
-        case .appGroupUnavailable(let resolvedGroupId):
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictedApps,
-                message: PluginErrorMessage.appGroupUnavailable,
-                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-            ))
-            return
-        }
-
-        applyDesiredRestrictionsIfNeeded()
-        result(decodeResult.appliedBase64Tokens)
-    }
-
-    private func handleAddRestrictedApp(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(iOS 16.0, *) else {
-            result(PluginErrors.unsupported(
-                feature: Self.featureRestrictions,
-                action: MethodNames.addRestrictedApp,
-                message: PluginErrorMessage.restrictionsUnsupported
-            ))
-            return
-        }
-        guard let args = call.arguments as? [String: Any],
-              let token = args["identifier"] as? String else {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.addRestrictedApp,
-                message: PluginErrorMessage.missingIdentifier
-            ))
-            return
-        }
-        if let preflightError = restrictionPreflightError(action: MethodNames.addRestrictedApp) {
-            result(preflightError)
-            return
-        }
-
-        let decodeResult = ShieldManager.shared.decodeTokens(base64Tokens: [token])
-        if !decodeResult.invalidTokens.isEmpty {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.addRestrictedApp,
-                message: PluginErrorMessage.unableToDecodeToken,
-                diagnostic: "invalidTokens=\(decodeResult.invalidTokens)"
-            ))
-            return
-        }
-
-        ensureDesiredRestrictionsInitializedFromManagedStore()
-        var desired = RestrictionStateStore.loadDesiredRestrictedApps()
-        if desired.contains(token) {
-            result(false)
-            return
-        }
-        desired.append(token)
-
-        switch RestrictionStateStore.storeDesiredRestrictedApps(desired) {
-        case .success:
-            break
-        case .appGroupUnavailable(let resolvedGroupId):
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.addRestrictedApp,
-                message: PluginErrorMessage.appGroupUnavailable,
-                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-            ))
-            return
-        }
-
-        applyDesiredRestrictionsIfNeeded()
-        result(true)
-    }
-
-    private func handleRemoveRestriction(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(iOS 16.0, *) else {
-            result(PluginErrors.unsupported(
-                feature: Self.featureRestrictions,
-                action: MethodNames.removeRestriction,
-                message: PluginErrorMessage.restrictionsUnsupported
-            ))
-            return
-        }
-        guard let args = call.arguments as? [String: Any],
-              let token = args["identifier"] as? String else {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.removeRestriction,
-                message: PluginErrorMessage.missingIdentifier
-            ))
-            return
-        }
-
-        let decodeResult = ShieldManager.shared.decodeTokens(base64Tokens: [token])
-        if !decodeResult.invalidTokens.isEmpty {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.removeRestriction,
-                message: PluginErrorMessage.unableToDecodeToken,
-                diagnostic: "invalidTokens=\(decodeResult.invalidTokens)"
-            ))
-            return
-        }
-
-        ensureDesiredRestrictionsInitializedFromManagedStore()
-        var desired = RestrictionStateStore.loadDesiredRestrictedApps()
-        let previousCount = desired.count
-        desired.removeAll { $0 == token }
-        let changed = desired.count != previousCount
-
-        switch RestrictionStateStore.storeDesiredRestrictedApps(desired) {
-        case .success:
-            break
-        case .appGroupUnavailable(let resolvedGroupId):
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.removeRestriction,
-                message: PluginErrorMessage.appGroupUnavailable,
-                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-            ))
-            return
-        }
-
-        applyDesiredRestrictionsIfNeeded()
-        result(changed)
-    }
-
-    private func handleIsRestricted(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(iOS 16.0, *) else {
-            result(PluginErrors.unsupported(
-                feature: Self.featureRestrictions,
-                action: MethodNames.isRestricted,
-                message: PluginErrorMessage.restrictionsUnsupported
-            ))
-            return
-        }
-        guard let args = call.arguments as? [String: Any],
-              let token = args["identifier"] as? String else {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.isRestricted,
-                message: PluginErrorMessage.missingIdentifier
-            ))
-            return
-        }
-
-        let decodeResult = ShieldManager.shared.decodeTokens(base64Tokens: [token])
-        if !decodeResult.invalidTokens.isEmpty {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.isRestricted,
-                message: PluginErrorMessage.unableToDecodeToken,
-                diagnostic: "invalidTokens=\(decodeResult.invalidTokens)"
-            ))
-            return
-        }
-        ensureDesiredRestrictionsInitializedFromManagedStore()
-        let restricted = RestrictionStateStore.loadDesiredRestrictedApps().contains(token)
-        result(restricted)
-    }
-
-    private func handleRemoveAllRestrictions(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(iOS 16.0, *) else {
-            result(PluginErrors.unsupported(
-                feature: Self.featureRestrictions,
-                action: MethodNames.removeAllRestrictions,
-                message: PluginErrorMessage.restrictionsUnsupported
-            ))
-            return
-        }
-
-        switch RestrictionStateStore.storeDesiredRestrictedApps([]) {
-        case .success:
-            break
-        case .appGroupUnavailable(let resolvedGroupId):
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.removeAllRestrictions,
-                message: PluginErrorMessage.appGroupUnavailable,
-                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-            ))
-            return
-        }
-
-        _ = RestrictionStateStore.storePausedUntilEpochMs(0)
-        PauseAutoResumeMonitor.stopMonitoring()
-        ShieldManager.shared.clearRestrictions()
-        result(nil)
-    }
-
-    private func handleGetRestrictedApps(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(iOS 16.0, *) else {
-            result([])
-            return
-        }
-        ensureDesiredRestrictionsInitializedFromManagedStore()
-        let tokens = RestrictionStateStore.loadDesiredRestrictedApps()
-        result(tokens)
-    }
-
     private func handleIsRestrictionSessionActiveNow(result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(false)
             return
         }
 
-        ensureDesiredRestrictionsInitializedFromManagedStore()
         applyDesiredRestrictionsIfNeeded()
-        let isManuallyEnabled = RestrictionStateStore.loadManualEnforcementEnabled()
-        let scheduleState = resolveScheduleState()
-        let restrictedApps = isManuallyEnabled ? RestrictionStateStore.loadDesiredRestrictedApps() : scheduleState.blockedAppIds
+        let state = resolveSessionState()
         let isPausedNow = RestrictionStateStore.loadPausedUntilEpochMs() > 0
         let isPrerequisitesMet = restrictionMissingPrerequisites().isEmpty
-        let shouldEnforceSession = isManuallyEnabled || scheduleState.isInScheduleNow
-        result(!restrictedApps.isEmpty && !isPausedNow && isPrerequisitesMet && shouldEnforceSession)
+        let shouldEnforceSession = state.activeModeSource != "none"
+        result(!state.blockedAppIds.isEmpty && !isPausedNow && isPrerequisitesMet && shouldEnforceSession)
     }
 
     private func handleIsRestrictionSessionConfigured(result: @escaping FlutterResult) {
@@ -346,9 +96,8 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        ensureDesiredRestrictionsInitializedFromManagedStore()
-        let restrictedApps = RestrictionStateStore.loadDesiredRestrictedApps()
-        result(!restrictedApps.isEmpty)
+        let hasConfig = RestrictionStateStore.loadModes().contains { !$0.blockedAppIds.isEmpty }
+        result(hasConfig)
     }
 
     private func handlePauseEnforcement(call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -457,23 +206,51 @@ final class RestrictionsMethodHandler {
         result(nil)
     }
 
-    private func handleStartRestrictionSession(result: @escaping FlutterResult) {
+    private func handleStartModeSession(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(PluginErrors.unsupported(
                 feature: Self.featureRestrictions,
-                action: MethodNames.startRestrictionSession,
+                action: MethodNames.startModeSession,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
             return
         }
+        guard let args = call.arguments as? [String: Any],
+              let modeIdRaw = args["modeId"] as? String else {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.startModeSession,
+                message: "Missing or invalid 'modeId' argument"
+            ))
+            return
+        }
+        let modeId = modeIdRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if modeId.isEmpty {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.startModeSession,
+                message: "Missing or invalid 'modeId' argument"
+            ))
+            return
+        }
 
-        switch RestrictionStateStore.storeManualEnforcementEnabled(true) {
+        let mode = RestrictionStateStore.loadModes().first { $0.modeId == modeId }
+        guard let mode, mode.isEnabled else {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.startModeSession,
+                message: "Mode must exist and be enabled to start manual session"
+            ))
+            return
+        }
+
+        switch RestrictionStateStore.storeManualActiveModeId(mode.modeId) {
         case .success:
             break
         case .appGroupUnavailable(let resolvedGroupId):
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
-                action: MethodNames.startRestrictionSession,
+                action: MethodNames.startModeSession,
                 message: PluginErrorMessage.appGroupUnavailable,
                 diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
             ))
@@ -484,23 +261,23 @@ final class RestrictionsMethodHandler {
         result(nil)
     }
 
-    private func handleEndRestrictionSession(result: @escaping FlutterResult) {
+    private func handleEndModeSession(result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(PluginErrors.unsupported(
                 feature: Self.featureRestrictions,
-                action: MethodNames.endRestrictionSession,
+                action: MethodNames.endModeSession,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
             return
         }
 
-        switch RestrictionStateStore.storeManualEnforcementEnabled(false) {
+        switch RestrictionStateStore.storeManualActiveModeId(nil) {
         case .success:
             break
         case .appGroupUnavailable(let resolvedGroupId):
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
-                action: MethodNames.endRestrictionSession,
+                action: MethodNames.endModeSession,
                 message: PluginErrorMessage.appGroupUnavailable,
                 diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
             ))
@@ -516,40 +293,41 @@ final class RestrictionsMethodHandler {
             result([
                 "isActiveNow": false,
                 "isPausedNow": false,
-                "isManuallyEnabled": true,
+                "isManuallyEnabled": false,
                 "isScheduleEnabled": false,
                 "isInScheduleNow": false,
                 "pausedUntilEpochMs": NSNull(),
-                "restrictedApps": [String]()
+                "restrictedApps": [String](),
+                "activeModeId": NSNull(),
+                "activeModeSource": "none",
             ])
             return
         }
 
-        ensureDesiredRestrictionsInitializedFromManagedStore()
         applyDesiredRestrictionsIfNeeded()
-        let isManuallyEnabled = RestrictionStateStore.loadManualEnforcementEnabled()
-        let scheduleState = resolveScheduleState()
-        let restrictedApps = isManuallyEnabled ? RestrictionStateStore.loadDesiredRestrictedApps() : scheduleState.blockedAppIds
+        let state = resolveSessionState()
         let pausedUntilEpochMs = RestrictionStateStore.loadPausedUntilEpochMs()
         let isPausedNow = pausedUntilEpochMs > 0
         let isPrerequisitesMet = restrictionMissingPrerequisites().isEmpty
-        let shouldEnforceSession = isManuallyEnabled || scheduleState.isInScheduleNow
+        let shouldEnforceSession = state.activeModeSource != "none"
         result([
-            "isActiveNow": !restrictedApps.isEmpty && !isPausedNow && isPrerequisitesMet && shouldEnforceSession,
+            "isActiveNow": !state.blockedAppIds.isEmpty && !isPausedNow && isPrerequisitesMet && shouldEnforceSession,
             "isPausedNow": isPausedNow,
-            "isManuallyEnabled": isManuallyEnabled,
-            "isScheduleEnabled": scheduleState.isScheduleEnabled,
-            "isInScheduleNow": scheduleState.isInScheduleNow,
+            "isManuallyEnabled": state.isManuallyEnabled,
+            "isScheduleEnabled": state.isScheduleEnabled,
+            "isInScheduleNow": state.isInScheduleNow,
             "pausedUntilEpochMs": isPausedNow ? pausedUntilEpochMs : NSNull(),
-            "restrictedApps": restrictedApps
+            "restrictedApps": state.blockedAppIds,
+            "activeModeId": state.activeModeId ?? NSNull(),
+            "activeModeSource": state.activeModeSource,
         ])
     }
 
-    private func handleUpsertScheduledMode(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    private func handleUpsertMode(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(PluginErrors.unsupported(
                 feature: Self.featureRestrictions,
-                action: MethodNames.upsertScheduledMode,
+                action: MethodNames.upsertMode,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
             return
@@ -558,8 +336,8 @@ final class RestrictionsMethodHandler {
               let mode = RestrictionScheduledMode(dictionary: args) else {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.upsertScheduledMode,
-                message: "Missing or invalid scheduled mode payload"
+                action: MethodNames.upsertMode,
+                message: "Missing or invalid mode payload"
             ))
             return
         }
@@ -569,7 +347,7 @@ final class RestrictionsMethodHandler {
             if !decodeResult.invalidTokens.isEmpty {
                 result(PluginErrors.invalidArguments(
                     feature: Self.featureRestrictions,
-                    action: MethodNames.upsertScheduledMode,
+                    action: MethodNames.upsertMode,
                     message: PluginErrorMessage.unableToDecodeTokens,
                     diagnostic: "invalidTokens=\(decodeResult.invalidTokens)"
                 ))
@@ -577,25 +355,26 @@ final class RestrictionsMethodHandler {
             }
         }
 
-        let existing = RestrictionStateStore.loadScheduledModes()
+        let existing = RestrictionStateStore.loadModes()
         var nextModes = existing.filter { $0.modeId != mode.modeId }
         nextModes.append(mode)
-        if !RestrictionScheduleEvaluator.isScheduleShapeValid(nextModes.filter(\.isEnabled).map(\.schedule)) {
+        let schedules = nextModes.filter(\.isEnabled).compactMap(\.schedule)
+        if !RestrictionScheduleEvaluator.isScheduleShapeValid(schedules) {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.upsertScheduledMode,
-                message: "Scheduled mode overlaps with an existing schedule"
+                action: MethodNames.upsertMode,
+                message: "Mode schedule overlaps with an existing schedule"
             ))
             return
         }
 
-        switch RestrictionStateStore.storeScheduledModes(nextModes) {
+        switch RestrictionStateStore.storeModes(nextModes) {
         case .success:
             break
         case .appGroupUnavailable(let resolvedGroupId):
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
-                action: MethodNames.upsertScheduledMode,
+                action: MethodNames.upsertMode,
                 message: PluginErrorMessage.appGroupUnavailable,
                 diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
             ))
@@ -607,7 +386,7 @@ final class RestrictionsMethodHandler {
         } catch {
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
-                action: MethodNames.upsertScheduledMode,
+                action: MethodNames.upsertMode,
                 message: "Failed to schedule iOS boundary monitors",
                 diagnostic: "error=\(String(describing: error))"
             ))
@@ -618,11 +397,11 @@ final class RestrictionsMethodHandler {
         result(nil)
     }
 
-    private func handleRemoveScheduledMode(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    private func handleRemoveMode(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(PluginErrors.unsupported(
                 feature: Self.featureRestrictions,
-                action: MethodNames.removeScheduledMode,
+                action: MethodNames.removeMode,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
             return
@@ -631,7 +410,7 @@ final class RestrictionsMethodHandler {
               let modeIdRaw = args["modeId"] as? String else {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.removeScheduledMode,
+                action: MethodNames.removeMode,
                 message: "Missing or invalid 'modeId' argument"
             ))
             return
@@ -640,25 +419,29 @@ final class RestrictionsMethodHandler {
         if modeId.isEmpty {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.removeScheduledMode,
+                action: MethodNames.removeMode,
                 message: "Missing or invalid 'modeId' argument"
             ))
             return
         }
 
-        let existing = RestrictionStateStore.loadScheduledModes()
+        let existing = RestrictionStateStore.loadModes()
         let nextModes = existing.filter { $0.modeId != modeId }
-        switch RestrictionStateStore.storeScheduledModes(nextModes) {
+        switch RestrictionStateStore.storeModes(nextModes) {
         case .success:
             break
         case .appGroupUnavailable(let resolvedGroupId):
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
-                action: MethodNames.removeScheduledMode,
+                action: MethodNames.removeMode,
                 message: PluginErrorMessage.appGroupUnavailable,
                 diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
             ))
             return
+        }
+
+        if RestrictionStateStore.loadManualActiveModeId() == modeId {
+            _ = RestrictionStateStore.storeManualActiveModeId(nil)
         }
 
         do {
@@ -666,7 +449,7 @@ final class RestrictionsMethodHandler {
         } catch {
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
-                action: MethodNames.removeScheduledMode,
+                action: MethodNames.removeMode,
                 message: "Failed to schedule iOS boundary monitors",
                 diagnostic: "error=\(String(describing: error))"
             ))
@@ -677,11 +460,11 @@ final class RestrictionsMethodHandler {
         result(nil)
     }
 
-    private func handleSetScheduledModesEnabled(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    private func handleSetModesEnabled(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(PluginErrors.unsupported(
                 feature: Self.featureRestrictions,
-                action: MethodNames.setScheduledModesEnabled,
+                action: MethodNames.setModesEnabled,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
             return
@@ -690,19 +473,19 @@ final class RestrictionsMethodHandler {
               let enabled = args["enabled"] as? Bool else {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.setScheduledModesEnabled,
+                action: MethodNames.setModesEnabled,
                 message: "Missing or invalid 'enabled' argument"
             ))
             return
         }
 
-        switch RestrictionStateStore.storeScheduledModesEnabled(enabled) {
+        switch RestrictionStateStore.storeModesEnabled(enabled) {
         case .success:
             break
         case .appGroupUnavailable(let resolvedGroupId):
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
-                action: MethodNames.setScheduledModesEnabled,
+                action: MethodNames.setModesEnabled,
                 message: PluginErrorMessage.appGroupUnavailable,
                 diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
             ))
@@ -714,7 +497,7 @@ final class RestrictionsMethodHandler {
         } catch {
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
-                action: MethodNames.setScheduledModesEnabled,
+                action: MethodNames.setModesEnabled,
                 message: "Failed to schedule iOS boundary monitors",
                 diagnostic: "error=\(String(describing: error))"
             ))
@@ -725,23 +508,22 @@ final class RestrictionsMethodHandler {
         result(nil)
     }
 
-    private func handleGetScheduledModesConfig(result: @escaping FlutterResult) {
+    private func handleGetModesConfig(result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result([
                 "enabled": false,
-                "scheduledModes": [[String: Any]](),
+                "modes": [[String: Any]](),
             ])
             return
         }
         result([
-            "enabled": RestrictionStateStore.loadScheduledModesEnabled(),
-            "scheduledModes": RestrictionStateStore.loadScheduledModes().map { $0.toDictionary() },
+            "enabled": RestrictionStateStore.loadModesEnabled(),
+            "modes": RestrictionStateStore.loadModes().map { $0.toDictionary() },
         ])
     }
 
     @available(iOS 16.0, *)
     private func applyDesiredRestrictionsIfNeeded() {
-        ensureDesiredRestrictionsInitializedFromManagedStore()
         guard restrictionMissingPrerequisites().isEmpty else {
             ShieldManager.shared.clearRestrictions()
             return
@@ -753,21 +535,13 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        let isManualEnabled = RestrictionStateStore.loadManualEnforcementEnabled()
-        let scheduleState = resolveScheduleState()
-        let blockedAppIds = isManualEnabled ? RestrictionStateStore.loadDesiredRestrictedApps() : scheduleState.blockedAppIds
-        if blockedAppIds.isEmpty {
+        let state = resolveSessionState()
+        if state.activeModeSource == "none" || state.blockedAppIds.isEmpty {
             ShieldManager.shared.clearRestrictions()
             return
         }
 
-        let shouldEnforceSession = isManualEnabled || scheduleState.isInScheduleNow
-        if !shouldEnforceSession {
-            ShieldManager.shared.clearRestrictions()
-            return
-        }
-
-        let decodeResult = ShieldManager.shared.decodeTokens(base64Tokens: blockedAppIds)
+        let decodeResult = ShieldManager.shared.decodeTokens(base64Tokens: state.blockedAppIds)
         if !decodeResult.invalidTokens.isEmpty {
             ShieldManager.shared.clearRestrictions()
             return
@@ -776,39 +550,57 @@ final class RestrictionsMethodHandler {
     }
 
     @available(iOS 16.0, *)
-    private func resolveScheduleState() -> ScheduleState {
-        let scheduledModes = RestrictionStateStore.loadScheduledModes()
+    private func resolveSessionState() -> SessionState {
+        let modes = RestrictionStateStore.loadModes()
+        let modesEnabled = RestrictionStateStore.loadModesEnabled()
+        let manualModeId = RestrictionStateStore.loadManualActiveModeId()
+        let manualMode = modes.first { $0.modeId == manualModeId && $0.isEnabled }
+
         let config = RestrictionScheduledModesConfig(
-            enabled: RestrictionStateStore.loadScheduledModesEnabled(),
-            scheduledModes: scheduledModes
+            enabled: modesEnabled,
+            modes: modes
         )
         let resolution = RestrictionScheduledModeEvaluator.resolveNow(config: config)
-        return ScheduleState(
-            isScheduleEnabled: config.enabled,
-            isInScheduleNow: resolution.isInScheduleNow,
-            blockedAppIds: resolution.blockedAppIds
+
+        if let manualMode {
+            return SessionState(
+                isManuallyEnabled: true,
+                isScheduleEnabled: modesEnabled,
+                isInScheduleNow: resolution.isInScheduleNow,
+                blockedAppIds: manualMode.blockedAppIds,
+                activeModeId: manualMode.modeId,
+                activeModeSource: "manual"
+            )
+        }
+
+        if resolution.isInScheduleNow {
+            return SessionState(
+                isManuallyEnabled: manualModeId != nil,
+                isScheduleEnabled: modesEnabled,
+                isInScheduleNow: true,
+                blockedAppIds: resolution.blockedAppIds,
+                activeModeId: resolution.activeModeId,
+                activeModeSource: "schedule"
+            )
+        }
+
+        return SessionState(
+            isManuallyEnabled: manualModeId != nil,
+            isScheduleEnabled: modesEnabled,
+            isInScheduleNow: false,
+            blockedAppIds: [],
+            activeModeId: nil,
+            activeModeSource: "none"
         )
     }
 
-    private struct ScheduleState {
+    private struct SessionState {
+        let isManuallyEnabled: Bool
         let isScheduleEnabled: Bool
         let isInScheduleNow: Bool
         let blockedAppIds: [String]
-    }
-
-    @available(iOS 16.0, *)
-    private func ensureDesiredRestrictionsInitializedFromManagedStore() {
-        let desiredRestrictedApps = RestrictionStateStore.loadDesiredRestrictedApps()
-        if !desiredRestrictedApps.isEmpty {
-            return
-        }
-
-        let currentlyApplied = ShieldManager.shared.getRestrictedApps()
-        if currentlyApplied.isEmpty {
-            return
-        }
-
-        _ = RestrictionStateStore.storeDesiredRestrictedApps(currentlyApplied)
+        let activeModeId: String?
+        let activeModeSource: String
     }
 
     @available(iOS 16.0, *)

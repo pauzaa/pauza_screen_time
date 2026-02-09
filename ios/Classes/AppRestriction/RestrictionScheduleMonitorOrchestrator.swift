@@ -3,90 +3,71 @@ import Foundation
 
 @available(iOS 16.0, *)
 enum RestrictionScheduleMonitorOrchestrator {
-    private static let scheduleActivityPrefix = "pauza_schedule_"
+    private static let monitorPrefix = "pauza.schedule.mode."
 
     static func rescheduleMonitors() throws {
         let center = DeviceActivityCenter()
-        let previousNames = RestrictionStateStore.loadScheduleMonitorNames()
-        if !previousNames.isEmpty {
-            center.stopMonitoring(Set(previousNames.map(DeviceActivityName.init)))
+
+        let existing = RestrictionStateStore.loadScheduleMonitorNames()
+        for name in existing {
+            center.stopMonitoring(DeviceActivityName(name))
         }
 
-        let scheduledModes = RestrictionStateStore.loadScheduledModes()
-        let schedules = scheduledModes.filter { $0.isEnabled }.map { $0.schedule }
-        let scheduleEnabled = RestrictionStateStore.loadScheduledModesEnabled()
-        guard scheduleEnabled, !schedules.isEmpty else {
+        let modes = RestrictionStateStore.loadModes()
+        let schedules = modes.filter { $0.isEnabled }.compactMap { $0.schedule }
+        let enabled = RestrictionStateStore.loadModesEnabled()
+
+        guard enabled else {
             _ = RestrictionStateStore.storeScheduleMonitorNames([])
             return
         }
 
-        var createdNames: [String] = []
-        let calendar = Calendar.current
+        let validSchedules = schedules.filter(\.isValidBasic)
+        var names: [String] = []
+        names.reserveCapacity(validSchedules.count)
 
-        for (index, schedule) in schedules.enumerated() {
-            let segments = splitSchedule(schedule)
-            for (segmentIndex, segment) in segments.enumerated() {
-                let activityNameRaw = "\(scheduleActivityPrefix)\(index)_\(segmentIndex)_\(segment.day)"
-                let activityName = DeviceActivityName(activityNameRaw)
-                let startComponents = dateComponents(
-                    weekdayIso: segment.day,
-                    minutesFromMidnight: segment.startMinutes,
-                    calendar: calendar
-                )
-                let endDay = segment.endMinutes == RestrictionSchedule.minutesPerDay
-                    ? (segment.day == 7 ? 1 : segment.day + 1)
-                    : segment.day
-                let endMinutes = segment.endMinutes == RestrictionSchedule.minutesPerDay ? 0 : segment.endMinutes
-                let endComponents = dateComponents(
-                    weekdayIso: endDay,
-                    minutesFromMidnight: endMinutes,
-                    calendar: calendar
-                )
-                let scheduleConfig = DeviceActivitySchedule(
-                    intervalStart: startComponents,
-                    intervalEnd: endComponents,
-                    repeats: true
-                )
-                try center.startMonitoring(activityName, during: scheduleConfig)
-                createdNames.append(activityNameRaw)
-            }
+        for (index, schedule) in validSchedules.enumerated() {
+            let nameRaw = "\(monitorPrefix)\(index)"
+            let name = DeviceActivityName(nameRaw)
+            let eventName = DeviceActivityEvent.Name("\(nameRaw).event")
+            let scheduleConfig = makeDeviceActivitySchedule(from: schedule)
+            let events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [
+                eventName: DeviceActivityEvent(
+                    applications: [],
+                    categories: .all,
+                    threshold: DateComponents(minute: 1)
+                ),
+            ]
+            try center.startMonitoring(name, during: scheduleConfig, events: events)
+            names.append(nameRaw)
         }
 
-        _ = RestrictionStateStore.storeScheduleMonitorNames(createdNames)
+        _ = RestrictionStateStore.storeScheduleMonitorNames(names)
     }
 
-    private static func splitSchedule(_ schedule: RestrictionSchedule) -> [(day: Int, startMinutes: Int, endMinutes: Int)] {
+    private static func makeDeviceActivitySchedule(from schedule: RestrictionSchedule) -> DeviceActivitySchedule {
+        var start = DateComponents()
+        start.hour = schedule.startMinutes / 60
+        start.minute = schedule.startMinutes % 60
+
+        var end = DateComponents()
+        end.hour = schedule.endMinutes / 60
+        end.minute = schedule.endMinutes % 60
+
         if schedule.endMinutes > schedule.startMinutes {
-            return schedule.daysOfWeekIso.map { day in
-                (day: day, startMinutes: schedule.startMinutes, endMinutes: schedule.endMinutes)
-            }
+            return DeviceActivitySchedule(
+                intervalStart: start,
+                intervalEnd: end,
+                repeats: true,
+                warningTime: nil
+            )
         }
 
-        var segments: [(day: Int, startMinutes: Int, endMinutes: Int)] = []
-        for day in schedule.daysOfWeekIso {
-            segments.append((day: day, startMinutes: schedule.startMinutes, endMinutes: RestrictionSchedule.minutesPerDay))
-            let nextDay = day == 7 ? 1 : day + 1
-            segments.append((day: nextDay, startMinutes: 0, endMinutes: schedule.endMinutes))
-        }
-        return segments
-    }
-
-    private static func dateComponents(
-        weekdayIso: Int,
-        minutesFromMidnight: Int,
-        calendar: Calendar
-    ) -> DateComponents {
-        var components = DateComponents()
-        components.calendar = calendar
-        components.timeZone = calendar.timeZone
-        components.weekday = isoToCalendarWeekday(weekdayIso)
-        components.hour = minutesFromMidnight / 60
-        components.minute = minutesFromMidnight % 60
-        components.second = 0
-        return components
-    }
-
-    private static func isoToCalendarWeekday(_ isoDay: Int) -> Int {
-        isoDay == 7 ? 1 : isoDay + 1
+        return DeviceActivitySchedule(
+            intervalStart: start,
+            intervalEnd: end,
+            repeats: true,
+            warningTime: nil
+        )
     }
 }

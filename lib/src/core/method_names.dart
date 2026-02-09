@@ -19,10 +19,8 @@ class MethodNames {
 
   // Restrictions
   static const String configureShield = 'configureShield';
-  static const String setRestrictedApps = 'setRestrictedApps';
-  static const String addRestrictedApp = 'addRestrictedApp';
-  static const String removeRestriction = 'removeRestriction';
-  static const String removeAllRestrictions = 'removeAllRestrictions';
-  static const String getRestrictedApps = 'getRestrictedApps';
-  static const String isRestricted = 'isRestricted';
+  static const String upsertMode = 'upsertMode';
+  static const String removeMode = 'removeMode';
+  static const String setModesEnabled = 'setModesEnabled';
+  static const String getModesConfig = 'getModesConfig';
 }

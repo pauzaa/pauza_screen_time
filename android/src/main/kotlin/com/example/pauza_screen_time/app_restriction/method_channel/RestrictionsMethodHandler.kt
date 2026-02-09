@@ -10,7 +10,6 @@ import com.example.pauza_screen_time.app_restriction.schedule.RestrictionSchedul
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleEntry
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeEntry
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeResolver
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesConfig
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
 import com.example.pauza_screen_time.core.MethodNames
 import com.example.pauza_screen_time.core.PluginErrorHelper
@@ -20,7 +19,7 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 
 class RestrictionsMethodHandler(
-    private val contextProvider: () -> Context?
+    private val contextProvider: () -> Context?,
 ) : MethodCallHandler {
     companion object {
         private const val ANDROID_ACCESSIBILITY_KEY = "android.accessibility"
@@ -31,23 +30,17 @@ class RestrictionsMethodHandler(
         try {
             when (call.method) {
                 MethodNames.CONFIGURE_SHIELD -> handleConfigureShield(call, result)
-                MethodNames.SET_RESTRICTED_APPS -> handleSetRestrictedApps(call, result)
-                MethodNames.ADD_RESTRICTED_APP -> handleAddRestrictedApp(call, result)
-                MethodNames.REMOVE_RESTRICTION -> handleRemoveRestriction(call, result)
-                MethodNames.REMOVE_ALL_RESTRICTIONS -> handleRemoveAllRestrictions(result)
-                MethodNames.GET_RESTRICTED_APPS -> handleGetRestrictedApps(result)
-                MethodNames.IS_RESTRICTED -> handleIsRestricted(call, result)
+                MethodNames.UPSERT_MODE -> handleUpsertMode(call, result)
+                MethodNames.REMOVE_MODE -> handleRemoveMode(call, result)
+                MethodNames.SET_MODES_ENABLED -> handleSetModesEnabled(call, result)
+                MethodNames.GET_MODES_CONFIG -> handleGetModesConfig(result)
                 MethodNames.IS_RESTRICTION_SESSION_ACTIVE_NOW -> handleIsRestrictionSessionActiveNow(result)
                 MethodNames.IS_RESTRICTION_SESSION_CONFIGURED -> handleIsRestrictionSessionConfigured(result)
                 MethodNames.PAUSE_ENFORCEMENT -> handlePauseEnforcement(call, result)
                 MethodNames.RESUME_ENFORCEMENT -> handleResumeEnforcement(result)
-                MethodNames.START_RESTRICTION_SESSION -> handleStartRestrictionSession(result)
-                MethodNames.END_RESTRICTION_SESSION -> handleEndRestrictionSession(result)
+                MethodNames.START_MODE_SESSION -> handleStartModeSession(call, result)
+                MethodNames.END_MODE_SESSION -> handleEndModeSession(result)
                 MethodNames.GET_RESTRICTION_SESSION -> handleGetRestrictionSession(result)
-                MethodNames.UPSERT_SCHEDULED_MODE -> handleUpsertScheduledMode(call, result)
-                MethodNames.REMOVE_SCHEDULED_MODE -> handleRemoveScheduledMode(call, result)
-                MethodNames.SET_SCHEDULED_MODES_ENABLED -> handleSetScheduledModesEnabled(call, result)
-                MethodNames.GET_SCHEDULED_MODES_CONFIG -> handleGetScheduledModesConfig(result)
                 else -> result.notImplemented()
             }
         } catch (e: Exception) {
@@ -98,270 +91,251 @@ class RestrictionsMethodHandler(
         }
     }
 
-    private fun handleSetRestrictedApps(call: MethodCall, result: Result) {
+    private fun handleUpsertMode(call: MethodCall, result: Result) {
         val context = contextProvider()
         if (context == null) {
             PluginErrorHelper.internalFailure(
                 result = result,
                 feature = FEATURE,
-                action = MethodNames.SET_RESTRICTED_APPS,
+                action = MethodNames.UPSERT_MODE,
                 message = "Application context is not available",
             )
             return
         }
 
-        val args = call.arguments
-        val identifiers: List<String>? = when (args) {
-            is Map<*, *> -> {
-                val raw = args["identifiers"]
-                if (raw is List<*>) {
-                    val list = raw.filterIsInstance<String>()
-                    if (list.size == raw.size) list else null
-                } else {
-                    null
-                }
-            }
-            is List<*> -> {
-                val list = args.filterIsInstance<String>()
-                if (list.size == args.size) list else null
-            }
-            else -> null
-        }
-
-        if (identifiers == null) {
+        val payload = call.arguments as? Map<*, *>
+        if (payload == null) {
             PluginErrorHelper.invalidArgument(
                 result = result,
                 feature = FEATURE,
-                action = MethodNames.SET_RESTRICTED_APPS,
-                message = "Missing or invalid 'identifiers' argument",
+                action = MethodNames.UPSERT_MODE,
+                message = "Missing or invalid mode payload",
             )
             return
         }
 
-        try {
-            val trimmed = identifiers.map { it.trim() }
-            val hasBlank = trimmed.any { it.isBlank() }
-            if (hasBlank) {
+        val modeId = (payload["modeId"] as? String)?.trim().orEmpty()
+        val isEnabled = payload["isEnabled"] as? Boolean ?: true
+        val blockedAppIdsRaw = payload["blockedAppIds"] as? List<*>
+        if (modeId.isEmpty() || blockedAppIdsRaw == null) {
+            PluginErrorHelper.invalidArgument(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.UPSERT_MODE,
+                message = "Mode requires 'modeId' and 'blockedAppIds'",
+            )
+            return
+        }
+
+        val blockedAppIds = blockedAppIdsRaw.mapNotNull { (it as? String)?.trim() }.filter { it.isNotEmpty() }.distinct()
+        val scheduleMap = payload["schedule"] as? Map<*, *>
+        val schedule = if (scheduleMap == null) {
+            null
+        } else {
+            val rawDays = scheduleMap["daysOfWeekIso"] as? List<*>
+            val startMinutes = (scheduleMap["startMinutes"] as? Number)?.toInt()
+            val endMinutes = (scheduleMap["endMinutes"] as? Number)?.toInt()
+            if (rawDays == null || startMinutes == null || endMinutes == null) {
                 PluginErrorHelper.invalidArgument(
                     result = result,
                     feature = FEATURE,
-                    action = MethodNames.SET_RESTRICTED_APPS,
-                    message = "Identifiers must be non-blank strings",
+                    action = MethodNames.UPSERT_MODE,
+                    message = "Schedule requires 'daysOfWeekIso', 'startMinutes', and 'endMinutes'",
                 )
                 return
             }
-
-            val applied = LinkedHashSet<String>()
-            for (identifier in trimmed) {
-                applied.add(identifier)
-            }
-            val appliedList = applied.toList()
-
-            if (appliedList.isNotEmpty()) {
-                val missingPrerequisites = getMissingPrerequisites(context)
-                if (missingPrerequisites.isNotEmpty()) {
-                    PluginErrorHelper.missingPermission(
-                        result = result,
-                        feature = FEATURE,
-                        action = MethodNames.SET_RESTRICTED_APPS,
-                        message = "Restriction prerequisites are not satisfied",
-                        missing = missingPrerequisites,
-                        status = mapOf(
-                            ANDROID_ACCESSIBILITY_KEY to PermissionHandler(context)
-                                .checkPermission(PermissionHandler.ACCESSIBILITY_KEY),
-                        ),
-                    )
-                    return
-                }
-            }
-
-            RestrictionManager.getInstance(context).setRestrictedApps(appliedList)
-            result.success(appliedList)
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_RESTRICTED_APPS,
-                message = "Failed to set restricted apps: ${e.message}",
-                error = e,
+            val days = rawDays.mapNotNull { (it as? Number)?.toInt() }.toSet()
+            RestrictionScheduleEntry(
+                daysOfWeekIso = days,
+                startMinutes = startMinutes,
+                endMinutes = endMinutes,
             )
         }
-    }
 
-    private fun handleAddRestrictedApp(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.ADD_RESTRICTED_APP,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        val identifier = call.argument<String>("identifier")
-        if (identifier == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.ADD_RESTRICTED_APP,
-                message = "Missing or invalid 'identifier' argument",
-            )
-            return
-        }
-
-        try {
-            val missingPrerequisites = getMissingPrerequisites(context)
-            if (missingPrerequisites.isNotEmpty()) {
-                PluginErrorHelper.missingPermission(
+        if (schedule != null) {
+            val scheduleCalculator = RestrictionScheduleCalculator()
+            if (!scheduleCalculator.isScheduleShapeValid(RestrictionScheduleConfig(enabled = true, schedules = listOf(schedule)))) {
+                PluginErrorHelper.invalidArgument(
                     result = result,
                     feature = FEATURE,
-                    action = MethodNames.ADD_RESTRICTED_APP,
-                    message = "Restriction prerequisites are not satisfied",
-                    missing = missingPrerequisites,
-                    status = mapOf(
-                        ANDROID_ACCESSIBILITY_KEY to PermissionHandler(context)
-                            .checkPermission(PermissionHandler.ACCESSIBILITY_KEY),
-                    ),
+                    action = MethodNames.UPSERT_MODE,
+                    message = "Mode schedule payload is invalid",
+                )
+                return
+            }
+        }
+
+        try {
+            val store = RestrictionScheduledModesStore(context)
+            val mode = RestrictionScheduledModeEntry(
+                modeId = modeId,
+                isEnabled = isEnabled,
+                schedule = schedule,
+                blockedAppIds = blockedAppIds,
+            )
+
+            val nextModes = store.getConfig().modes.toMutableList()
+            val index = nextModes.indexOfFirst { it.modeId == mode.modeId }
+            if (index >= 0) {
+                nextModes[index] = mode
+            } else {
+                nextModes += mode
+            }
+            val scheduleCalculator = RestrictionScheduleCalculator()
+            val shapeIsValid = scheduleCalculator.isScheduleShapeValid(
+                RestrictionScheduleConfig(
+                    enabled = true,
+                    schedules = nextModes.filter { it.isEnabled && it.schedule != null }.mapNotNull { it.schedule },
+                ),
+            )
+            if (!shapeIsValid) {
+                PluginErrorHelper.invalidArgument(
+                    result = result,
+                    feature = FEATURE,
+                    action = MethodNames.UPSERT_MODE,
+                    message = "Mode schedule overlaps with an existing schedule",
                 )
                 return
             }
 
-            val added = RestrictionManager.getInstance(context).addRestrictedApp(identifier)
-            result.success(added)
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.ADD_RESTRICTED_APP,
-                message = "Failed to add restricted app: ${e.message}",
-                error = e,
-            )
-        }
-    }
-
-    private fun handleRemoveRestriction(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.REMOVE_RESTRICTION,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        val identifier = call.argument<String>("identifier")
-        if (identifier == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.REMOVE_RESTRICTION,
-                message = "Missing or invalid 'identifier' argument",
-            )
-            return
-        }
-
-        try {
-            val removed = RestrictionManager.getInstance(context).removeRestriction(identifier)
-            result.success(removed)
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.REMOVE_RESTRICTION,
-                message = "Failed to remove restriction: ${e.message}",
-                error = e,
-            )
-        }
-    }
-
-    private fun handleRemoveAllRestrictions(result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.REMOVE_ALL_RESTRICTIONS,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        try {
-            RestrictionManager.getInstance(context).removeAllRestrictions()
+            store.upsertMode(mode)
+            RestrictionAlarmOrchestrator(context).rescheduleAll()
+            applyCurrentEnforcementState(context, trigger = "upsert_mode")
             result.success(null)
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
                 result = result,
                 feature = FEATURE,
-                action = MethodNames.REMOVE_ALL_RESTRICTIONS,
-                message = "Failed to remove all restrictions: ${e.message}",
+                action = MethodNames.UPSERT_MODE,
+                message = "Failed to save mode: ${e.message}",
                 error = e,
             )
         }
     }
 
-    private fun handleGetRestrictedApps(result: Result) {
+    private fun handleRemoveMode(call: MethodCall, result: Result) {
         val context = contextProvider()
         if (context == null) {
             PluginErrorHelper.internalFailure(
                 result = result,
                 feature = FEATURE,
-                action = MethodNames.GET_RESTRICTED_APPS,
+                action = MethodNames.REMOVE_MODE,
                 message = "Application context is not available",
             )
             return
         }
 
-        try {
-            val apps = RestrictionManager.getInstance(context).getRestrictedApps()
-            result.success(apps)
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_RESTRICTED_APPS,
-                message = "Failed to get restricted apps: ${e.message}",
-                error = e,
-            )
-        }
-    }
-
-    private fun handleIsRestricted(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.IS_RESTRICTED,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        val identifier = call.argument<String>("identifier")
-        if (identifier == null) {
+        val payload = call.arguments as? Map<*, *>
+        val modeId = (payload?.get("modeId") as? String)?.trim().orEmpty()
+        if (modeId.isEmpty()) {
             PluginErrorHelper.invalidArgument(
                 result = result,
                 feature = FEATURE,
-                action = MethodNames.IS_RESTRICTED,
-                message = "Missing or invalid 'identifier' argument",
+                action = MethodNames.REMOVE_MODE,
+                message = "Missing or invalid 'modeId' argument",
             )
             return
         }
 
         try {
-            val isRestricted = RestrictionManager.getInstance(context).isRestricted(identifier)
-            result.success(isRestricted)
+            RestrictionScheduledModesStore(context).removeMode(modeId)
+            val restrictionManager = RestrictionManager.getInstance(context)
+            if (restrictionManager.getManualActiveModeId() == modeId) {
+                restrictionManager.setManualActiveModeId(null)
+            }
+            RestrictionAlarmOrchestrator(context).rescheduleAll()
+            applyCurrentEnforcementState(context, trigger = "remove_mode")
+            result.success(null)
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
                 result = result,
                 feature = FEATURE,
-                action = MethodNames.IS_RESTRICTED,
-                message = "Failed to check if app is restricted: ${e.message}",
+                action = MethodNames.REMOVE_MODE,
+                message = "Failed to remove mode: ${e.message}",
+                error = e,
+            )
+        }
+    }
+
+    private fun handleSetModesEnabled(call: MethodCall, result: Result) {
+        val context = contextProvider()
+        if (context == null) {
+            PluginErrorHelper.internalFailure(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.SET_MODES_ENABLED,
+                message = "Application context is not available",
+            )
+            return
+        }
+
+        val payload = call.arguments as? Map<*, *>
+        val enabled = payload?.get("enabled") as? Boolean
+        if (enabled == null) {
+            PluginErrorHelper.invalidArgument(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.SET_MODES_ENABLED,
+                message = "Missing or invalid 'enabled' argument",
+            )
+            return
+        }
+
+        try {
+            RestrictionScheduledModesStore(context).setEnabled(enabled)
+            RestrictionAlarmOrchestrator(context).rescheduleAll()
+            applyCurrentEnforcementState(context, trigger = "set_modes_enabled")
+            result.success(null)
+        } catch (e: Exception) {
+            PluginErrorHelper.internalFailure(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.SET_MODES_ENABLED,
+                message = "Failed to update modes toggle: ${e.message}",
+                error = e,
+            )
+        }
+    }
+
+    private fun handleGetModesConfig(result: Result) {
+        val context = contextProvider()
+        if (context == null) {
+            PluginErrorHelper.internalFailure(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.GET_MODES_CONFIG,
+                message = "Application context is not available",
+            )
+            return
+        }
+
+        try {
+            val config = RestrictionScheduledModesStore(context).getConfig()
+            result.success(
+                mapOf(
+                    "enabled" to config.enabled,
+                    "modes" to config.modes.map { mode ->
+                        mapOf(
+                            "modeId" to mode.modeId,
+                            "isEnabled" to mode.isEnabled,
+                            "schedule" to mode.schedule?.let {
+                                mapOf(
+                                    "daysOfWeekIso" to it.daysOfWeekIso.sorted(),
+                                    "startMinutes" to it.startMinutes,
+                                    "endMinutes" to it.endMinutes,
+                                )
+                            },
+                            "blockedAppIds" to mode.blockedAppIds,
+                        )
+                    },
+                ),
+            )
+        } catch (e: Exception) {
+            PluginErrorHelper.internalFailure(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.GET_MODES_CONFIG,
+                message = "Failed to load modes config: ${e.message}",
                 error = e,
             )
         }
@@ -380,12 +354,11 @@ class RestrictionsMethodHandler(
         }
 
         try {
-            val restrictionManager = RestrictionManager.getInstance(context)
-            val restrictedApps = restrictionManager.getRestrictedApps()
-            val isPausedNow = restrictionManager.isPausedNow()
+            val sessionState = resolveSessionState(context)
+            val isPausedNow = RestrictionManager.getInstance(context).isPausedNow()
             val isPrerequisitesMet = areRestrictionPrerequisitesMet(context)
-            val shouldEnforceSession = shouldEnforceSessionNow(context, restrictionManager)
-            result.success(restrictedApps.isNotEmpty() && !isPausedNow && isPrerequisitesMet && shouldEnforceSession)
+            val shouldEnforceSession = sessionState.activeModeSource != "none"
+            result.success(sessionState.blockedAppIds.isNotEmpty() && !isPausedNow && isPrerequisitesMet && shouldEnforceSession)
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
                 result = result,
@@ -410,8 +383,8 @@ class RestrictionsMethodHandler(
         }
 
         try {
-            val restrictedApps = RestrictionManager.getInstance(context).getRestrictedApps()
-            result.success(restrictedApps.isNotEmpty())
+            val hasConfig = RestrictionScheduledModesStore(context).getConfig().modes.any { it.blockedAppIds.isNotEmpty() }
+            result.success(hasConfig)
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
                 result = result,
@@ -503,57 +476,80 @@ class RestrictionsMethodHandler(
         }
     }
 
-    private fun handleStartRestrictionSession(result: Result) {
+    private fun handleStartModeSession(call: MethodCall, result: Result) {
         val context = contextProvider()
         if (context == null) {
             PluginErrorHelper.internalFailure(
                 result = result,
                 feature = FEATURE,
-                action = MethodNames.START_RESTRICTION_SESSION,
+                action = MethodNames.START_MODE_SESSION,
                 message = "Application context is not available",
             )
             return
         }
 
+        val modeId = call.argument<String>("modeId")?.trim().orEmpty()
+        if (modeId.isEmpty()) {
+            PluginErrorHelper.invalidArgument(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.START_MODE_SESSION,
+                message = "Missing or invalid 'modeId' argument",
+            )
+            return
+        }
+
         try {
-            RestrictionManager.getInstance(context).setManualEnforcementEnabled(true)
+            val store = RestrictionScheduledModesStore(context)
+            val mode = store.getMode(modeId)
+            if (mode == null || !mode.isEnabled) {
+                PluginErrorHelper.invalidArgument(
+                    result = result,
+                    feature = FEATURE,
+                    action = MethodNames.START_MODE_SESSION,
+                    message = "Mode must exist and be enabled to start manual session",
+                )
+                return
+            }
+
+            RestrictionManager.getInstance(context).setManualActiveModeId(modeId)
             RestrictionAlarmOrchestrator(context).rescheduleAll()
-            applyCurrentEnforcementState(context, trigger = "start_restriction_session")
+            applyCurrentEnforcementState(context, trigger = "start_mode_session")
             result.success(null)
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
                 result = result,
                 feature = FEATURE,
-                action = MethodNames.START_RESTRICTION_SESSION,
-                message = "Failed to start restriction session: ${e.message}",
+                action = MethodNames.START_MODE_SESSION,
+                message = "Failed to start mode session: ${e.message}",
                 error = e,
             )
         }
     }
 
-    private fun handleEndRestrictionSession(result: Result) {
+    private fun handleEndModeSession(result: Result) {
         val context = contextProvider()
         if (context == null) {
             PluginErrorHelper.internalFailure(
                 result = result,
                 feature = FEATURE,
-                action = MethodNames.END_RESTRICTION_SESSION,
+                action = MethodNames.END_MODE_SESSION,
                 message = "Application context is not available",
             )
             return
         }
 
         try {
-            RestrictionManager.getInstance(context).setManualEnforcementEnabled(false)
+            RestrictionManager.getInstance(context).setManualActiveModeId(null)
             RestrictionAlarmOrchestrator(context).rescheduleAll()
-            applyCurrentEnforcementState(context, trigger = "end_restriction_session")
+            applyCurrentEnforcementState(context, trigger = "end_mode_session")
             result.success(null)
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
                 result = result,
                 feature = FEATURE,
-                action = MethodNames.END_RESTRICTION_SESSION,
-                message = "Failed to end restriction session: ${e.message}",
+                action = MethodNames.END_MODE_SESSION,
+                message = "Failed to end mode session: ${e.message}",
                 error = e,
             )
         }
@@ -576,24 +572,20 @@ class RestrictionsMethodHandler(
             val pausedUntilEpochMs = restrictionManager.getPausedUntilEpochMs()
             val isPausedNow = pausedUntilEpochMs > 0L
             val isPrerequisitesMet = areRestrictionPrerequisitesMet(context)
-            val isManuallyEnabled = restrictionManager.isManualEnforcementEnabled()
-            val scheduleState = resolveScheduleState(context)
-            val restrictedApps = if (isManuallyEnabled) {
-                restrictionManager.getRestrictedApps()
-            } else {
-                scheduleState.blockedAppIds
-            }
-            val shouldEnforceSession = isManuallyEnabled || scheduleState.isInScheduleNow
+            val state = resolveSessionState(context)
+            val shouldEnforceSession = state.activeModeSource != "none"
             result.success(
                 mapOf(
-                    "isActiveNow" to (restrictedApps.isNotEmpty() && !isPausedNow && isPrerequisitesMet && shouldEnforceSession),
+                    "isActiveNow" to (state.blockedAppIds.isNotEmpty() && !isPausedNow && isPrerequisitesMet && shouldEnforceSession),
                     "isPausedNow" to isPausedNow,
-                    "isManuallyEnabled" to isManuallyEnabled,
-                    "isScheduleEnabled" to scheduleState.isScheduleEnabled,
-                    "isInScheduleNow" to scheduleState.isInScheduleNow,
+                    "isManuallyEnabled" to state.isManuallyEnabled,
+                    "isScheduleEnabled" to state.isScheduleEnabled,
+                    "isInScheduleNow" to state.isInScheduleNow,
                     "pausedUntilEpochMs" to if (isPausedNow) pausedUntilEpochMs else null,
-                    "restrictedApps" to restrictedApps,
-                )
+                    "restrictedApps" to state.blockedAppIds,
+                    "activeModeId" to state.activeModeId,
+                    "activeModeSource" to state.activeModeSource,
+                ),
             )
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
@@ -610,24 +602,12 @@ class RestrictionsMethodHandler(
         return getMissingPrerequisites(context).isEmpty()
     }
 
-    private fun shouldEnforceSessionNow(
-        context: Context,
-        restrictionManager: RestrictionManager = RestrictionManager.getInstance(context),
-    ): Boolean {
-        val isManualEnabled = restrictionManager.isManualEnforcementEnabled()
-        if (isManualEnabled) {
-            return true
-        }
-        return resolveScheduleState(context).isInScheduleNow
-    }
-
     private fun applyCurrentEnforcementState(context: Context, trigger: String) {
         val restrictionManager = RestrictionManager.getInstance(context)
-        if (!restrictionManager.isManualEnforcementEnabled()) {
-            val scheduleState = resolveScheduleState(context)
-            restrictionManager.setRestrictedApps(scheduleState.blockedAppIds)
-        }
-        val shouldEnforce = shouldEnforceSessionNow(context)
+        val state = resolveSessionState(context)
+        restrictionManager.setRestrictedApps(state.blockedAppIds)
+
+        val shouldEnforce = state.activeModeSource != "none"
         if (shouldEnforce) {
             AppMonitoringService.getInstance()?.enforceCurrentForegroundNow(trigger = trigger)
             return
@@ -635,255 +615,48 @@ class RestrictionsMethodHandler(
         ShieldOverlayManager.getInstanceOrNull()?.hideShield()
     }
 
-    private fun handleUpsertScheduledMode(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.UPSERT_SCHEDULED_MODE,
-                message = "Application context is not available",
-            )
-            return
-        }
+    private fun resolveSessionState(context: Context): SessionState {
+        val restrictionManager = RestrictionManager.getInstance(context)
+        val modesConfig = RestrictionScheduledModesStore(context).getConfig()
+        val manualModeId = restrictionManager.getManualActiveModeId()
+        val manualMode = modesConfig.modes.firstOrNull { it.modeId == manualModeId && it.isEnabled }
+        val scheduleResolution = RestrictionScheduledModeResolver.resolveNow(modesConfig)
 
-        val payload = call.arguments as? Map<*, *>
-        if (payload == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.UPSERT_SCHEDULED_MODE,
-                message = "Missing or invalid scheduled mode payload",
+        return when {
+            manualMode != null -> SessionState(
+                isManuallyEnabled = true,
+                isScheduleEnabled = modesConfig.enabled,
+                isInScheduleNow = scheduleResolution.isInScheduleNow,
+                blockedAppIds = manualMode.blockedAppIds,
+                activeModeId = manualMode.modeId,
+                activeModeSource = "manual",
             )
-            return
-        }
-
-        val modeId = (payload["modeId"] as? String)?.trim().orEmpty()
-        val isEnabled = payload["isEnabled"] as? Boolean ?: true
-        val scheduleMap = payload["schedule"] as? Map<*, *>
-        val blockedAppIdsRaw = payload["blockedAppIds"] as? List<*>
-        if (modeId.isEmpty() || scheduleMap == null || blockedAppIdsRaw == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.UPSERT_SCHEDULED_MODE,
-                message = "Scheduled mode requires 'modeId', 'schedule', and 'blockedAppIds'",
+            scheduleResolution.isInScheduleNow -> SessionState(
+                isManuallyEnabled = manualModeId != null,
+                isScheduleEnabled = modesConfig.enabled,
+                isInScheduleNow = true,
+                blockedAppIds = scheduleResolution.blockedAppIds,
+                activeModeId = scheduleResolution.activeModeId,
+                activeModeSource = "schedule",
             )
-            return
-        }
-        val rawDays = scheduleMap["daysOfWeekIso"] as? List<*>
-        val startMinutes = (scheduleMap["startMinutes"] as? Number)?.toInt()
-        val endMinutes = (scheduleMap["endMinutes"] as? Number)?.toInt()
-        if (rawDays == null || startMinutes == null || endMinutes == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.UPSERT_SCHEDULED_MODE,
-                message = "Schedule requires 'daysOfWeekIso', 'startMinutes', and 'endMinutes'",
-            )
-            return
-        }
-        val days = rawDays.mapNotNull { (it as? Number)?.toInt() }.toSet()
-        val blockedAppIds = blockedAppIdsRaw.mapNotNull { (it as? String)?.trim() }.filter { it.isNotEmpty() }.distinct()
-        val mode = RestrictionScheduledModeEntry(
-            modeId = modeId,
-            isEnabled = isEnabled,
-            schedule = RestrictionScheduleEntry(
-                daysOfWeekIso = days,
-                startMinutes = startMinutes,
-                endMinutes = endMinutes,
-            ),
-            blockedAppIds = blockedAppIds,
-        )
-
-        val scheduleCalculator = RestrictionScheduleCalculator()
-        if (!scheduleCalculator.isScheduleShapeValid(RestrictionScheduleConfig(enabled = true, schedules = listOf(mode.schedule)))) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.UPSERT_SCHEDULED_MODE,
-                message = "Scheduled mode payload is invalid",
-            )
-            return
-        }
-
-        try {
-            val store = RestrictionScheduledModesStore(context)
-            val current = store.getConfig()
-            val nextModes = current.scheduledModes.toMutableList()
-            val index = nextModes.indexOfFirst { it.modeId == mode.modeId }
-            if (index >= 0) {
-                nextModes[index] = mode
-            } else {
-                nextModes += mode
-            }
-            val shapeIsValid = scheduleCalculator.isScheduleShapeValid(
-                RestrictionScheduleConfig(
-                    enabled = true,
-                    schedules = nextModes.filter { it.isEnabled }.map { it.schedule },
-                ),
-            )
-            if (!shapeIsValid) {
-                PluginErrorHelper.invalidArgument(
-                    result = result,
-                    feature = FEATURE,
-                    action = MethodNames.UPSERT_SCHEDULED_MODE,
-                    message = "Scheduled mode overlaps with an existing schedule",
-                )
-                return
-            }
-
-            store.upsertMode(mode)
-            RestrictionAlarmOrchestrator(context).rescheduleAll()
-            applyCurrentEnforcementState(context, trigger = "upsert_scheduled_mode")
-            result.success(null)
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.UPSERT_SCHEDULED_MODE,
-                message = "Failed to save scheduled mode: ${e.message}",
-                error = e,
+            else -> SessionState(
+                isManuallyEnabled = manualModeId != null,
+                isScheduleEnabled = modesConfig.enabled,
+                isInScheduleNow = false,
+                blockedAppIds = emptyList(),
+                activeModeId = null,
+                activeModeSource = "none",
             )
         }
     }
 
-    private fun handleRemoveScheduledMode(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.REMOVE_SCHEDULED_MODE,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        val payload = call.arguments as? Map<*, *>
-        val modeId = (payload?.get("modeId") as? String)?.trim().orEmpty()
-        if (modeId.isEmpty()) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.REMOVE_SCHEDULED_MODE,
-                message = "Missing or invalid 'modeId' argument",
-            )
-            return
-        }
-
-        try {
-            RestrictionScheduledModesStore(context).removeMode(modeId)
-            RestrictionAlarmOrchestrator(context).rescheduleAll()
-            applyCurrentEnforcementState(context, trigger = "remove_scheduled_mode")
-            result.success(null)
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.REMOVE_SCHEDULED_MODE,
-                message = "Failed to remove scheduled mode: ${e.message}",
-                error = e,
-            )
-        }
-    }
-
-    private fun handleSetScheduledModesEnabled(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_SCHEDULED_MODES_ENABLED,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        val payload = call.arguments as? Map<*, *>
-        val enabled = payload?.get("enabled") as? Boolean
-        if (enabled == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_SCHEDULED_MODES_ENABLED,
-                message = "Missing or invalid 'enabled' argument",
-            )
-            return
-        }
-
-        try {
-            RestrictionScheduledModesStore(context).setEnabled(enabled)
-            RestrictionAlarmOrchestrator(context).rescheduleAll()
-            applyCurrentEnforcementState(context, trigger = "set_scheduled_modes_enabled")
-            result.success(null)
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_SCHEDULED_MODES_ENABLED,
-                message = "Failed to update scheduled modes toggle: ${e.message}",
-                error = e,
-            )
-        }
-    }
-
-    private fun handleGetScheduledModesConfig(result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_SCHEDULED_MODES_CONFIG,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        try {
-            val config = RestrictionScheduledModesStore(context).getConfig()
-            result.success(
-                mapOf(
-                    "enabled" to config.enabled,
-                    "scheduledModes" to config.scheduledModes.map { mode ->
-                        mapOf(
-                            "modeId" to mode.modeId,
-                            "isEnabled" to mode.isEnabled,
-                            "schedule" to mapOf(
-                                "daysOfWeekIso" to mode.schedule.daysOfWeekIso.sorted(),
-                                "startMinutes" to mode.schedule.startMinutes,
-                                "endMinutes" to mode.schedule.endMinutes,
-                            ),
-                            "blockedAppIds" to mode.blockedAppIds,
-                        )
-                    },
-                ),
-            )
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_SCHEDULED_MODES_CONFIG,
-                message = "Failed to load scheduled modes config: ${e.message}",
-                error = e,
-            )
-        }
-    }
-
-    private fun resolveScheduleState(context: Context): ScheduleState {
-        val scheduledModesConfig = RestrictionScheduledModesStore(context).getConfig()
-        val resolution = RestrictionScheduledModeResolver.resolveNow(scheduledModesConfig)
-        return ScheduleState(
-            isScheduleEnabled = scheduledModesConfig.enabled,
-            isInScheduleNow = resolution.isInScheduleNow,
-            blockedAppIds = resolution.blockedAppIds,
-        )
-    }
-
-    private data class ScheduleState(
+    private data class SessionState(
+        val isManuallyEnabled: Boolean,
         val isScheduleEnabled: Boolean,
         val isInScheduleNow: Boolean,
         val blockedAppIds: List<String>,
+        val activeModeId: String?,
+        val activeModeSource: String,
     )
 
     private fun getMissingPrerequisites(context: Context): List<String> {
@@ -894,5 +667,4 @@ class RestrictionsMethodHandler(
         }
         return listOf(ANDROID_ACCESSIBILITY_KEY)
     }
-
 }

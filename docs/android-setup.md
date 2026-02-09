@@ -123,6 +123,6 @@ If exact alarms are not allowed, the plugin falls back to `setAndAllowWhileIdle`
 
 If blocking doesn’t work:
 - Confirm **Accessibility** is enabled (step 3)
-- Confirm you called `AppRestrictionManager.restrictApps()` with valid `AppIdentifier.android(packageId)` values
+- Confirm you called `AppRestrictionManager.upsertMode(...)` with valid `AppIdentifier.android(packageId)` values and started/activated a mode
 
 See [Troubleshooting](troubleshooting.md) for more.

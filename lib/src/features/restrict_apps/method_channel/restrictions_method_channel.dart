@@ -1,12 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'package:pauza_screen_time/src/core/app_identifier.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/channel_name.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/method_names.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_mode.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_modes_config.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
 
 /// Method-channel implementation for the Restrict Apps feature.
@@ -26,62 +25,51 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   }
 
   @override
-  Future<List<AppIdentifier>> setRestrictedApps(
-    List<AppIdentifier> identifiers,
-  ) async {
-    final result = await channel.invokeMethod<List<dynamic>>(
-      RestrictionsMethodNames.setRestrictedApps,
-      {
-        'identifiers': identifiers
-            .map((identifier) => identifier.value)
-            .toList(),
-      },
-    );
-    if (result == null) return [];
-    return result.cast<String>().map(AppIdentifier.new).toList();
-  }
-
-  @override
-  Future<bool> addRestrictedApp(AppIdentifier identifier) async {
-    final result = await channel.invokeMethod<bool>(
-      RestrictionsMethodNames.addRestrictedApp,
-      {'identifier': identifier.value},
-    );
-    return result ?? false;
-  }
-
-  @override
-  Future<bool> removeRestriction(AppIdentifier identifier) async {
-    final result = await channel.invokeMethod<bool>(
-      RestrictionsMethodNames.removeRestriction,
-      {'identifier': identifier.value},
-    );
-    return result ?? false;
-  }
-
-  @override
-  Future<bool> isRestricted(AppIdentifier identifier) async {
-    final result = await channel.invokeMethod<bool>(
-      RestrictionsMethodNames.isRestricted,
-      {'identifier': identifier.value},
-    );
-    return result ?? false;
-  }
-
-  @override
-  Future<void> removeAllRestrictions() {
+  Future<void> upsertMode(RestrictionMode mode) {
     return channel.invokeMethod<void>(
-      RestrictionsMethodNames.removeAllRestrictions,
+      RestrictionsMethodNames.upsertMode,
+      mode.toMap(),
     );
   }
 
   @override
-  Future<List<AppIdentifier>> getRestrictedApps() async {
-    final result = await channel.invokeMethod<List<dynamic>>(
-      RestrictionsMethodNames.getRestrictedApps,
+  Future<void> removeMode(String modeId) {
+    return channel.invokeMethod<void>(RestrictionsMethodNames.removeMode, {
+      'modeId': modeId,
+    });
+  }
+
+  @override
+  Future<void> setModesEnabled(bool enabled) {
+    return channel.invokeMethod<void>(RestrictionsMethodNames.setModesEnabled, {
+      'enabled': enabled,
+    });
+  }
+
+  @override
+  Future<RestrictionModesConfig> getModesConfig() async {
+    final result = await channel.invokeMethod<Map<dynamic, dynamic>>(
+      RestrictionsMethodNames.getModesConfig,
     );
-    if (result == null) return [];
-    return result.cast<String>().map(AppIdentifier.new).toList();
+    if (result == null) {
+      throw _decodeFailure(
+        action: RestrictionsMethodNames.getModesConfig,
+        message: 'Received null modes config payload from platform',
+      );
+    }
+    try {
+      return RestrictionModesConfig.fromMap(Map<String, dynamic>.from(result));
+    } on PlatformException {
+      rethrow;
+    } catch (error, stackTrace) {
+      throw _decodeFailure(
+        action: RestrictionsMethodNames.getModesConfig,
+        message: 'Failed to decode modes config payload',
+        payload: result,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   @override
@@ -116,17 +104,16 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> startRestrictionSession() {
+  Future<void> startModeSession(String modeId) {
     return channel.invokeMethod<void>(
-      RestrictionsMethodNames.startRestrictionSession,
+      RestrictionsMethodNames.startModeSession,
+      {'modeId': modeId},
     );
   }
 
   @override
-  Future<void> endRestrictionSession() {
-    return channel.invokeMethod<void>(
-      RestrictionsMethodNames.endRestrictionSession,
-    );
+  Future<void> endModeSession() {
+    return channel.invokeMethod<void>(RestrictionsMethodNames.endModeSession);
   }
 
   @override
@@ -150,58 +137,6 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
       throw _decodeFailure(
         action: RestrictionsMethodNames.getRestrictionSession,
         message: 'Failed to decode restriction session payload',
-        payload: result,
-        error: error,
-        stackTrace: stackTrace,
-      );
-    }
-  }
-
-  @override
-  Future<void> upsertScheduledMode(RestrictionScheduledMode mode) {
-    return channel.invokeMethod<void>(
-      RestrictionsMethodNames.upsertScheduledMode,
-      mode.toMap(),
-    );
-  }
-
-  @override
-  Future<void> removeScheduledMode(String modeId) {
-    return channel.invokeMethod<void>(
-      RestrictionsMethodNames.removeScheduledMode,
-      {'modeId': modeId},
-    );
-  }
-
-  @override
-  Future<void> setScheduledModesEnabled(bool enabled) {
-    return channel.invokeMethod<void>(
-      RestrictionsMethodNames.setScheduledModesEnabled,
-      {'enabled': enabled},
-    );
-  }
-
-  @override
-  Future<RestrictionScheduledModesConfig> getScheduledModesConfig() async {
-    final result = await channel.invokeMethod<Map<dynamic, dynamic>>(
-      RestrictionsMethodNames.getScheduledModesConfig,
-    );
-    if (result == null) {
-      throw _decodeFailure(
-        action: RestrictionsMethodNames.getScheduledModesConfig,
-        message: 'Received null scheduled modes config payload from platform',
-      );
-    }
-    try {
-      return RestrictionScheduledModesConfig.fromMap(
-        Map<String, dynamic>.from(result),
-      );
-    } on PlatformException {
-      rethrow;
-    } catch (error, stackTrace) {
-      throw _decodeFailure(
-        action: RestrictionsMethodNames.getScheduledModesConfig,
-        message: 'Failed to decode scheduled modes config payload',
         payload: result,
         error: error,
         stackTrace: stackTrace,

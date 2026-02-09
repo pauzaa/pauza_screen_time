@@ -1,158 +1,127 @@
 # Getting started
 
-This guide shows the recommended **end-to-end flow** for both platforms and points you to the platform setup guides you must complete first.
+This guide shows the mode-based restriction flow on Android and iOS.
 
 ## 0) Install
-
-Add the dependency:
 
 ```bash
 flutter pub add pauza_screen_time
 ```
 
-Import the library:
-
 ```dart
 import 'package:pauza_screen_time/pauza_screen_time.dart';
 ```
 
-## 1) Do platform setup first
+## 1) Platform setup first
 
-- **Android**: follow [Android setup](android-setup.md) (Usage Access + Accessibility + Exact Alarms for precise timing).
-- **iOS**: follow [iOS setup](ios-setup.md) (Screen Time authorization + App Groups + required extensions).
-- For a host-app implementation checklist, see `docs/templates/PauzaHostAppIntegrationChecklist.md`.
-
-If you skip these, calls may succeed but features won’t work (for example: blocking won’t trigger if the accessibility service is not enabled).
+- Android: [android-setup.md](android-setup.md)
+- iOS: [ios-setup.md](ios-setup.md)
 
 ## 2) Instantiate managers
 
 ```dart
-final core = CoreManager();
 final permissions = PermissionManager();
 final installedApps = InstalledAppsManager();
 final restrictions = AppRestrictionManager();
 final usage = UsageStatsManager();
 ```
 
-## 3) Common flows
+## 3) Android flow
 
-### Android flow (recommended)
-
-1) Request/enable required permissions (opens Settings screens):
+1. Request permissions:
 
 ```dart
-final permissions = PermissionManager();
-
 await permissions.requestAndroidPermission(AndroidPermission.usageStats);
 await permissions.requestAndroidPermission(AndroidPermission.accessibility);
 await permissions.requestAndroidPermission(AndroidPermission.exactAlarm);
 ```
 
-These calls open Settings screens and do not synchronously confirm granted status. Re-check permissions after the user returns.
-If exact alarms are not allowed on Android 12+, schedule/pause timing still works but may be delayed.
-
-2) Pick apps to restrict (package names) and apply restrictions:
+2. Build blocked ids and upsert mode:
 
 ```dart
-final installedApps = InstalledAppsManager();
-final restrictions = AppRestrictionManager();
-
 final apps = await installedApps.getAndroidInstalledApps(includeSystemApps: false);
-final identifiersToBlock = apps
+final blocked = apps
     .take(3)
     .map((a) => AppIdentifier.android(a.packageId))
     .toList();
 
-await restrictions.configureShield(const ShieldConfiguration(
-  title: 'Time for a break',
-  subtitle: 'This app is blocked right now.',
-));
-
-await restrictions.restrictApps(identifiersToBlock);
-```
-
-3) Read usage stats as data (Android only):
-
-```dart
-final usage = UsageStatsManager();
-
-final now = DateTime.now();
-final stats = await usage.getUsageStats(
-  startDate: now.subtract(const Duration(days: 7)),
-  endDate: now,
+await restrictions.upsertMode(
+  RestrictionMode(
+    modeId: 'focus-mode',
+    isEnabled: true,
+    blockedAppIds: blocked,
+  ),
 );
+await restrictions.setModesEnabled(true);
 ```
 
-4) Pause and inspect restriction session state:
+3. Start manual mode session:
 
 ```dart
-await restrictions.pauseEnforcement(const Duration(minutes: 5));
-final isActiveNow = await restrictions.isRestrictionSessionActiveNow();
-final isConfigured = await restrictions.isRestrictionSessionConfigured();
+await restrictions.startModeSession('focus-mode');
+```
+
+4. Inspect session:
+
+```dart
 final session = await restrictions.getRestrictionSession();
-await restrictions.resumeEnforcement();
 ```
 
-### iOS flow (recommended)
+## 4) iOS flow
 
-1) Request Screen Time authorization (system dialog):
+1. Request Screen Time authorization:
 
 ```dart
-final permissions = PermissionManager();
 final granted = await permissions.requestIOSPermission(IOSPermission.familyControls);
-if (!granted) {
-  // Explain to the user how to enable Screen Time permissions in Settings.
-  return;
-}
+if (!granted) return;
 ```
 
-2) Pick apps (returns opaque tokens) and restrict them:
+2. Pick tokens and upsert mode:
 
 ```dart
-final installedApps = InstalledAppsManager();
-final restrictions = AppRestrictionManager();
-
 final picked = await installedApps.selectIOSApps();
-final identifiers = picked
+final blocked = picked
     .map((a) => AppIdentifier.ios(a.applicationToken))
     .toList();
 
-await restrictions.configureShield(const ShieldConfiguration(
-  // Optional but recommended when using extensions.
-  // Also see docs/ios-setup.md (Info.plist key AppGroupIdentifier).
-  appGroupId: 'group.com.yourcompany.yourapp',
-  title: 'Restricted',
-  subtitle: 'Ask a parent for more time.',
-));
-
-await restrictions.restrictApps(identifiers);
+await restrictions.upsertMode(
+  RestrictionMode(
+    modeId: 'focus-mode',
+    isEnabled: true,
+    blockedAppIds: blocked,
+  ),
+);
 ```
 
-3) Show usage reports as UI (iOS only):
+3. Optional schedule:
 
 ```dart
-IOSUsageReportView(
-  reportContext: 'daily',
-  startDate: DateTime.now().subtract(const Duration(days: 7)),
-  endDate: DateTime.now(),
-)
+await restrictions.upsertMode(
+  RestrictionMode(
+    modeId: 'focus-mode',
+    isEnabled: true,
+    schedule: const RestrictionSchedule(
+      daysOfWeekIso: {1, 2, 3, 4, 5},
+      startMinutes: 9 * 60,
+      endMinutes: 12 * 60,
+    ),
+    blockedAppIds: blocked,
+  ),
+);
+await restrictions.setModesEnabled(true);
 ```
 
-This requires the **Device Activity Report extension** in the host iOS app. See [iOS setup](ios-setup.md).
-
-4) Pause restrictions temporarily:
+4. Pause and resume:
 
 ```dart
 await restrictions.pauseEnforcement(const Duration(minutes: 5));
 await restrictions.resumeEnforcement();
 ```
 
-For reliable timed auto-resume while app is backgrounded/terminated, add a **Device Activity Monitor extension** as described in [iOS setup](ios-setup.md).
-
 ## Next
 
-- [Permissions](permissions.md)
-- [Restrict / block apps](restrict-apps.md)
-- [Installed apps](installed-apps.md)
-- [Usage stats](usage-stats.md)
-- [Troubleshooting](troubleshooting.md)
+- [restrict-apps.md](restrict-apps.md)
+- [permissions.md](permissions.md)
+- [installed-apps.md](installed-apps.md)
+- [usage-stats.md](usage-stats.md)
+- [troubleshooting.md](troubleshooting.md)

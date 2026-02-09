@@ -138,7 +138,7 @@ enum RestrictionScheduleEvaluator {
 struct RestrictionScheduledMode {
     let modeId: String
     let isEnabled: Bool
-    let schedule: RestrictionSchedule
+    let schedule: RestrictionSchedule?
     let blockedAppIds: [String]
 
     init?(dictionary: [String: Any]) {
@@ -147,9 +147,14 @@ struct RestrictionScheduledMode {
             return nil
         }
         let isEnabled = dictionary["isEnabled"] as? Bool ?? true
-        guard let scheduleDictionary = dictionary["schedule"] as? [String: Any],
-              let schedule = RestrictionSchedule(dictionary: scheduleDictionary) else {
-            return nil
+        let schedule: RestrictionSchedule?
+        if let scheduleDictionary = dictionary["schedule"] as? [String: Any] {
+            guard let parsedSchedule = RestrictionSchedule(dictionary: scheduleDictionary) else {
+                return nil
+            }
+            schedule = parsedSchedule
+        } else {
+            schedule = nil
         }
         let blocked = (dictionary["blockedAppIds"] as? [Any] ?? []).compactMap { value -> String? in
             guard let raw = value as? String else {
@@ -168,7 +173,7 @@ struct RestrictionScheduledMode {
         [
             "modeId": modeId,
             "isEnabled": isEnabled,
-            "schedule": schedule.toDictionary(),
+            "schedule": schedule?.toDictionary() as Any,
             "blockedAppIds": blockedAppIds,
         ]
     }
@@ -176,12 +181,13 @@ struct RestrictionScheduledMode {
 
 struct RestrictionScheduledModesConfig {
     let enabled: Bool
-    let scheduledModes: [RestrictionScheduledMode]
+    let modes: [RestrictionScheduledMode]
 }
 
 enum RestrictionScheduledModeEvaluator {
     struct Resolution {
         let isInScheduleNow: Bool
+        let activeModeId: String?
         let blockedAppIds: [String]
     }
 
@@ -191,19 +197,26 @@ enum RestrictionScheduledModeEvaluator {
         calendar: Calendar = .current
     ) -> Resolution {
         guard config.enabled else {
-            return Resolution(isInScheduleNow: false, blockedAppIds: [])
+            return Resolution(isInScheduleNow: false, activeModeId: nil, blockedAppIds: [])
         }
-        let activeModes = config.scheduledModes.filter { $0.isEnabled }.filter { mode in
-            RestrictionScheduleEvaluator.isInScheduleNow(
+        let activeModes = config.modes.filter { mode in
+            guard mode.isEnabled, let schedule = mode.schedule else {
+                return false
+            }
+            return RestrictionScheduleEvaluator.isInScheduleNow(
                 enabled: true,
-                schedules: [mode.schedule],
+                schedules: [schedule],
                 now: now,
                 calendar: calendar
             )
         }
         guard activeModes.count == 1 else {
-            return Resolution(isInScheduleNow: false, blockedAppIds: [])
+            return Resolution(isInScheduleNow: false, activeModeId: nil, blockedAppIds: [])
         }
-        return Resolution(isInScheduleNow: true, blockedAppIds: activeModes[0].blockedAppIds)
+        return Resolution(
+            isInScheduleNow: true,
+            activeModeId: activeModes[0].modeId,
+            blockedAppIds: activeModes[0].blockedAppIds
+        )
     }
 }

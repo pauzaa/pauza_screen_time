@@ -10,8 +10,8 @@ internal class RestrictionScheduledModesStore(
 ) {
     companion object {
         private const val PREFS_NAME = "app_restriction_schedule_prefs"
-        private const val KEY_SCHEDULED_MODES_ENABLED = "scheduled_modes_enabled"
-        private const val KEY_SCHEDULED_MODES = "scheduled_modes"
+        private const val KEY_SCHEDULED_MODES_ENABLED = "modes_enabled"
+        private const val KEY_SCHEDULED_MODES = "modes"
     }
 
     private val preferences: SharedPreferences =
@@ -20,7 +20,7 @@ internal class RestrictionScheduledModesStore(
     fun getConfig(): RestrictionScheduledModesConfig {
         return RestrictionScheduledModesConfig(
             enabled = preferences.getBoolean(KEY_SCHEDULED_MODES_ENABLED, false),
-            scheduledModes = loadModes(),
+            modes = loadModes(),
         )
     }
 
@@ -46,6 +46,10 @@ internal class RestrictionScheduledModesStore(
         storeModes(filtered)
     }
 
+    fun getMode(modeId: String): RestrictionScheduledModeEntry? {
+        return loadModes().firstOrNull { it.modeId == modeId }
+    }
+
     private fun storeModes(modes: List<RestrictionScheduledModeEntry>) {
         preferences.edit()
             .putString(KEY_SCHEDULED_MODES, serializeModes(modes))
@@ -63,23 +67,24 @@ internal class RestrictionScheduledModesStore(
     private fun serializeModes(modes: List<RestrictionScheduledModeEntry>): String {
         val payload = JSONArray()
         modes.forEach { mode ->
-            val days = JSONArray()
-            mode.schedule.daysOfWeekIso.sorted().forEach(days::put)
             val blockedAppIds = JSONArray()
             mode.blockedAppIds.forEach(blockedAppIds::put)
-            payload.put(
-                JSONObject()
-                    .put("modeId", mode.modeId)
-                    .put("isEnabled", mode.isEnabled)
-                    .put(
-                        "schedule",
-                        JSONObject()
-                            .put("daysOfWeekIso", days)
-                            .put("startMinutes", mode.schedule.startMinutes)
-                            .put("endMinutes", mode.schedule.endMinutes),
-                    )
-                    .put("blockedAppIds", blockedAppIds),
-            )
+            val modePayload = JSONObject()
+                .put("modeId", mode.modeId)
+                .put("isEnabled", mode.isEnabled)
+                .put("blockedAppIds", blockedAppIds)
+            if (mode.schedule != null) {
+                val days = JSONArray()
+                mode.schedule.daysOfWeekIso.sorted().forEach(days::put)
+                modePayload.put(
+                    "schedule",
+                    JSONObject()
+                        .put("daysOfWeekIso", days)
+                        .put("startMinutes", mode.schedule.startMinutes)
+                        .put("endMinutes", mode.schedule.endMinutes),
+                )
+            }
+            payload.put(modePayload)
         }
         return payload.toString()
     }
@@ -95,19 +100,37 @@ internal class RestrictionScheduledModesStore(
                     continue
                 }
                 val isEnabled = mode.optBoolean("isEnabled", true)
-                val scheduleRaw = mode.optJSONObject("schedule") ?: continue
-                val days = mutableSetOf<Int>()
-                val rawDays = scheduleRaw.optJSONArray("daysOfWeekIso")
-                if (rawDays != null) {
-                    for (dayIndex in 0 until rawDays.length()) {
-                        val day = rawDays.optInt(dayIndex, -1)
-                        if (day in 1..7) {
-                            days += day
+                val scheduleRaw = mode.optJSONObject("schedule")
+                val schedule = if (scheduleRaw == null) {
+                    null
+                } else {
+                    val days = mutableSetOf<Int>()
+                    val rawDays = scheduleRaw.optJSONArray("daysOfWeekIso")
+                    if (rawDays != null) {
+                        for (dayIndex in 0 until rawDays.length()) {
+                            val day = rawDays.optInt(dayIndex, -1)
+                            if (day in 1..7) {
+                                days += day
+                            }
                         }
                     }
+                    val startMinutes = scheduleRaw.optInt("startMinutes", -1)
+                    val endMinutes = scheduleRaw.optInt("endMinutes", -1)
+                    if (
+                        days.isEmpty() ||
+                        startMinutes !in 0 until 24 * 60 ||
+                        endMinutes !in 0 until 24 * 60 ||
+                        startMinutes == endMinutes
+                    ) {
+                        null
+                    } else {
+                        RestrictionScheduleEntry(
+                            daysOfWeekIso = days,
+                            startMinutes = startMinutes,
+                            endMinutes = endMinutes,
+                        )
+                    }
                 }
-                val startMinutes = scheduleRaw.optInt("startMinutes", -1)
-                val endMinutes = scheduleRaw.optInt("endMinutes", -1)
                 val blockedAppIds = mutableListOf<String>()
                 val rawBlocked = mode.optJSONArray("blockedAppIds")
                 if (rawBlocked != null) {
@@ -118,22 +141,10 @@ internal class RestrictionScheduledModesStore(
                         }
                     }
                 }
-                if (
-                    days.isEmpty() ||
-                    startMinutes !in 0 until 24 * 60 ||
-                    endMinutes !in 0 until 24 * 60 ||
-                    startMinutes == endMinutes
-                ) {
-                    continue
-                }
                 parsed += RestrictionScheduledModeEntry(
                     modeId = modeId,
                     isEnabled = isEnabled,
-                    schedule = RestrictionScheduleEntry(
-                        daysOfWeekIso = days,
-                        startMinutes = startMinutes,
-                        endMinutes = endMinutes,
-                    ),
+                    schedule = schedule,
                     blockedAppIds = blockedAppIds.distinct(),
                 )
             }

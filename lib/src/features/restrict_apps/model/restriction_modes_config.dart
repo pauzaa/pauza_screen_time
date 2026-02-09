@@ -1,49 +1,43 @@
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_schedule.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_mode.dart';
 
-/// Scheduled modes config used for one-mode-per-schedule enforcement.
-class RestrictionScheduledModesConfig {
-  const RestrictionScheduledModesConfig({
-    required this.enabled,
-    required this.scheduledModes,
-  });
+/// Restriction modes config used for mode-based enforcement.
+class RestrictionModesConfig {
+  const RestrictionModesConfig({required this.enabled, required this.modes});
 
   final bool enabled;
-  final List<RestrictionScheduledMode> scheduledModes;
+  final List<RestrictionMode> modes;
 
-  factory RestrictionScheduledModesConfig.fromMap(Map<String, dynamic> map) {
+  factory RestrictionModesConfig.fromMap(Map<String, dynamic> map) {
     final enabled = map['enabled'] as bool? ?? false;
-    final scheduledModes = switch (map['scheduledModes']) {
+    final modes = switch (map['modes']) {
       final List<dynamic> value =>
         value
             .whereType<Map<dynamic, dynamic>>()
             .map((entry) => Map<String, dynamic>.from(entry))
-            .map(RestrictionScheduledMode.fromMap)
+            .map(RestrictionMode.fromMap)
             .toList(),
-      _ => const <RestrictionScheduledMode>[],
+      _ => const <RestrictionMode>[],
     };
 
-    return RestrictionScheduledModesConfig(
-      enabled: enabled,
-      scheduledModes: scheduledModes,
-    );
+    return RestrictionModesConfig(enabled: enabled, modes: modes);
   }
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'enabled': enabled,
-      'scheduledModes': scheduledModes.map((mode) => mode.toMap()).toList(),
+      'modes': modes.map((mode) => mode.toMap()).toList(),
     };
   }
 
   bool get isValid {
-    if (scheduledModes.any((mode) => !mode.isValid)) {
+    if (modes.any((mode) => !mode.isValid)) {
       return false;
     }
     return _validateNoOverlap(
-      scheduledModes
-          .where((mode) => mode.isEnabled)
-          .map((mode) => mode.schedule)
+      modes
+          .where((mode) => mode.isEnabled && mode.schedule != null)
+          .map((mode) => mode.schedule!)
           .toList(),
     );
   }

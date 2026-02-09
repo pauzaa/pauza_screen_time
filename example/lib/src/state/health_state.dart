@@ -61,8 +61,12 @@ class HealthController extends ValueNotifier<HealthSnapshot?> {
         permissions,
       );
 
-      // Get restricted apps
-      final restrictedIds = await restrictionManager.getRestrictedApps();
+      // Get blocked apps from all configured modes.
+      final modesConfig = await restrictionManager.getModesConfig();
+      final restrictedIds = modesConfig.modes
+          .expand((mode) => mode.blockedAppIds)
+          .toSet()
+          .toList();
 
       value = HealthSnapshot(
         permissionStatuses: statuses,

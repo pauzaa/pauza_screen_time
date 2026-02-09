@@ -1,10 +1,6 @@
 # pauza_screen_time
 
-Flutter plugin for **app usage monitoring**, **app restriction / blocking**, and **parental control** experiences.
-
-This package provides a single Dart API with platform-specific implementations:
-- **Android**: usage stats via `UsageStatsManager`, app blocking via **AccessibilityService** + **overlay shield**
-- **iOS**: app blocking via **Screen Time** (FamilyControls / ManagedSettings), usage reports via a native **DeviceActivityReport** platform view
+Flutter plugin for app usage monitoring, app restriction/blocking, and parental-control experiences.
 
 ## Platform support
 
@@ -18,91 +14,84 @@ This package provides a single Dart API with platform-specific implementations:
 | Usage stats as data (`UsageStatsManager`) | ✅ | ❌ (throws `UnsupportedError`) |
 | Usage stats as UI (`UsageReportView`) | ❌ | ✅ (iOS 16+, requires report extension) |
 
-## Important limitations (read this first)
-
-- **iOS app enumeration is not available**. You must use the iOS picker and store opaque tokens.
-- **iOS usage stats cannot be read programmatically**. Apple only allows rendering usage via `DeviceActivityReport` UI.
-- **Android blocking requires user-enabled system settings** (Usage Access, Accessibility).
-- **Android schedule/pause precision on Android 12+ depends on exact alarm capability** (`SCHEDULE_EXACT_ALARM` / Alarms & reminders setting).
-- **iOS pause auto-resume reliability requires a Device Activity Monitor extension** in the host app.
-
 ## Installation
-
-Add the dependency:
 
 ```bash
 flutter pub add pauza_screen_time
 ```
 
-Import it:
-
 ```dart
 import 'package:pauza_screen_time/pauza_screen_time.dart';
 ```
 
-## Quick start (minimal)
+## Quick start
 
 ```dart
-import 'package:pauza_screen_time/pauza_screen_time.dart';
-
 final permissions = PermissionManager();
 final installedApps = InstalledAppsManager();
 final restrictions = AppRestrictionManager();
 
-// Android: request required permissions and enable services in Settings.
-await permissions.requestAndroidPermission(AndroidPermission.usageStats);
 await permissions.requestAndroidPermission(AndroidPermission.accessibility);
 await permissions.requestAndroidPermission(AndroidPermission.exactAlarm);
-//
-// On Android 12+, exact alarms improve timing precision for pause/schedule boundaries.
-// iOS: request Screen Time authorization.
-//
-// Then:
-// - Android: restrict by package names, e.g. "com.whatsapp"
-// - iOS: restrict by base64 ApplicationToken strings from selectIOSApps()
 
-// Pause / session APIs:
-await restrictions.pauseEnforcement(const Duration(minutes: 5));
-await restrictions.resumeEnforcement();
-final isActiveNow = await restrictions.isRestrictionSessionActiveNow();
-final isConfigured = await restrictions.isRestrictionSessionConfigured();
+final androidApps = await installedApps.getAndroidInstalledApps(includeSystemApps: false);
+final blocked = androidApps
+    .take(3)
+    .map((a) => AppIdentifier.android(a.packageId))
+    .toList();
+
+await restrictions.upsertMode(
+  RestrictionMode(
+    modeId: 'focus-mode',
+    isEnabled: true,
+    blockedAppIds: blocked,
+  ),
+);
+await restrictions.setModesEnabled(true);
+await restrictions.startModeSession('focus-mode');
+
 final session = await restrictions.getRestrictionSession();
+// session.activeModeId / session.activeModeSource
 ```
+
+## Breaking API map (mode redesign)
+
+- `restrictApps` / `restrictApp` / `unrestrictApp` / `clearAllRestrictions` -> `upsertMode` + `removeMode`
+- `upsertScheduledMode` / `removeScheduledMode` / `setScheduledModesEnabled` / `getScheduledModesConfig` -> `upsertMode` / `removeMode` / `setModesEnabled` / `getModesConfig`
+- `startRestrictionSession` / `endRestrictionSession` -> `startModeSession(modeId)` / `endModeSession()`
+
+## Session payload additions
+
+`RestrictionSession` now includes:
+- `activeModeId`
+- `activeModeSource` (`none`, `manual`, `schedule`)
 
 ## Error handling
 
-Plugin APIs throw typed `PauzaError` subclasses on failure:
+Plugin APIs throw typed `PauzaError` subclasses:
 
 ```dart
 try {
-  await AppRestrictionManager().restrictApps(identifiers);
+  await AppRestrictionManager().upsertMode(
+    const RestrictionMode(
+      modeId: 'focus-mode',
+      isEnabled: true,
+      blockedAppIds: [AppIdentifier.android('com.instagram.android')],
+    ),
+  );
 } on PauzaMissingPermissionError catch (error) {
   // error.details includes structured diagnostics.
 }
 ```
 
-Taxonomy codes:
-`UNSUPPORTED`, `MISSING_PERMISSION`, `PERMISSION_DENIED`, `SYSTEM_RESTRICTED`, `INVALID_ARGUMENT`, `INTERNAL_FAILURE`.
-
-The plugin follows strict fast-failure semantics for channel decoding:
-malformed native payloads throw typed `PauzaInternalFailureError` instead of
-silently defaulting to empty lists or fallback values.
+Taxonomy codes: `UNSUPPORTED`, `MISSING_PERMISSION`, `PERMISSION_DENIED`, `SYSTEM_RESTRICTED`, `INVALID_ARGUMENT`, `INTERNAL_FAILURE`.
 
 ## Documentation
 
-Start here:
 - [Getting started](docs/getting-started.md)
-
-Platform setup:
-- [Android setup](docs/android-setup.md)
-- [iOS setup](docs/ios-setup.md)
-
-Feature guides:
-- [Permissions](docs/permissions.md)
 - [Restrict / block apps](docs/restrict-apps.md)
+- [Permissions](docs/permissions.md)
 - [Installed apps](docs/installed-apps.md)
 - [Usage stats](docs/usage-stats.md)
-
-Help:
 - [Troubleshooting](docs/troubleshooting.md)
 - [Error model](docs/errors.md)

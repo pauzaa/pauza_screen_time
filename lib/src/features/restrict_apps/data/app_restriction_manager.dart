@@ -1,9 +1,8 @@
-import 'package:pauza_screen_time/src/core/app_identifier.dart';
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/restrictions_method_channel.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_mode.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_modes_config.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
@@ -14,67 +13,31 @@ class AppRestrictionManager {
   AppRestrictionManager({AppRestrictionPlatform? platform})
     : _platform = platform ?? RestrictionsMethodChannel();
 
-  // ============================================================
-  // Shield Configuration
-  // ============================================================
-
   /// Configures the appearance of the blocking shield.
-  ///
-  /// Must be called before setting restrictions to define how
-  /// the shield will appear when a restricted app is launched.
   Future<void> configureShield(ShieldConfiguration configuration) {
     return _platform
         .configureShield(configuration.toMap())
         .throwTypedPauzaError();
   }
 
-  // ============================================================
-  // Restriction Management
-  // ============================================================
-
-  /// Restricts the specified apps by opaque identifiers.
-  ///
-  /// When a restricted app is launched, the configured shield will be displayed.
-  ///
-  /// Returns the list of identifiers that were successfully applied on the
-  /// native side (deduplicated, input-order-preserving).
-  ///
-  /// [identifiers] - List of identifiers:
-  /// - Android: package names.
-  /// - iOS: base64 `ApplicationToken` strings (from FamilyActivityPicker).
-  Future<List<AppIdentifier>> restrictApps(List<AppIdentifier> identifiers) {
-    return _platform.setRestrictedApps(identifiers).throwTypedPauzaError();
+  /// Upserts one mode.
+  Future<void> upsertMode(RestrictionMode mode) {
+    return _platform.upsertMode(mode).throwTypedPauzaError();
   }
 
-  /// Restricts a single app.
-  ///
-  /// Returns `true` if the restricted set changed, `false` if it was a no-op.
-  Future<bool> restrictApp(AppIdentifier identifier) {
-    return _platform.addRestrictedApp(identifier).throwTypedPauzaError();
+  /// Removes one mode by [modeId].
+  Future<void> removeMode(String modeId) {
+    return _platform.removeMode(modeId).throwTypedPauzaError();
   }
 
-  /// Removes restriction from a specific app.
-  ///
-  /// [identifier] - Opaque identifier of the app to unblock.
-  ///
-  /// Returns `true` if the restricted set changed, `false` if it was a no-op.
-  Future<bool> unrestrictApp(AppIdentifier identifier) {
-    return _platform.removeRestriction(identifier).throwTypedPauzaError();
+  /// Enables or disables schedule-based mode enforcement globally.
+  Future<void> setModesEnabled(bool enabled) {
+    return _platform.setModesEnabled(enabled).throwTypedPauzaError();
   }
 
-  /// Removes all app restrictions.
-  Future<void> clearAllRestrictions() {
-    return _platform.removeAllRestrictions().throwTypedPauzaError();
-  }
-
-  /// Returns the list of currently restricted app identifiers.
-  Future<List<AppIdentifier>> getRestrictedApps() {
-    return _platform.getRestrictedApps().throwTypedPauzaError();
-  }
-
-  /// Checks if a specific app is currently restricted.
-  Future<bool> isAppRestricted(AppIdentifier identifier) {
-    return _platform.isRestricted(identifier).throwTypedPauzaError();
+  /// Loads modes configuration.
+  Future<RestrictionModesConfig> getModesConfig() {
+    return _platform.getModesConfig().throwTypedPauzaError();
   }
 
   /// Returns whether the restriction session is active right now.
@@ -97,38 +60,18 @@ class AppRestrictionManager {
     return _platform.resumeEnforcement().throwTypedPauzaError();
   }
 
-  /// Starts a manual restriction session.
-  Future<void> startRestrictionSession() {
-    return _platform.startRestrictionSession().throwTypedPauzaError();
+  /// Starts a manual mode session with [modeId].
+  Future<void> startModeSession(String modeId) {
+    return _platform.startModeSession(modeId).throwTypedPauzaError();
   }
 
-  /// Ends a manual restriction session.
-  Future<void> endRestrictionSession() {
-    return _platform.endRestrictionSession().throwTypedPauzaError();
+  /// Ends the current manual mode session.
+  Future<void> endModeSession() {
+    return _platform.endModeSession().throwTypedPauzaError();
   }
 
   /// Returns the current restriction session snapshot.
   Future<RestrictionSession> getRestrictionSession() {
     return _platform.getRestrictionSession().throwTypedPauzaError();
-  }
-
-  /// Upserts one mode with a single schedule and blocked identifiers.
-  Future<void> upsertScheduledMode(RestrictionScheduledMode mode) {
-    return _platform.upsertScheduledMode(mode).throwTypedPauzaError();
-  }
-
-  /// Removes one scheduled mode by [modeId].
-  Future<void> removeScheduledMode(String modeId) {
-    return _platform.removeScheduledMode(modeId).throwTypedPauzaError();
-  }
-
-  /// Enables or disables scheduled mode enforcement globally.
-  Future<void> setScheduledModesEnabled(bool enabled) {
-    return _platform.setScheduledModesEnabled(enabled).throwTypedPauzaError();
-  }
-
-  /// Loads scheduled modes configuration.
-  Future<RestrictionScheduledModesConfig> getScheduledModesConfig() {
-    return _platform.getScheduledModesConfig().throwTypedPauzaError();
   }
 }

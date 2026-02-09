@@ -4,7 +4,6 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -14,41 +13,21 @@ import com.example.pauza_screen_time.app_restriction.schedule.RestrictionSchedul
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeResolver
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
 
-/**
- * AccessibilityService implementation for monitoring foreground app changes.
- *
- * This service detects when apps are launched (via TYPE_WINDOW_STATE_CHANGED events)
- * and checks if the launched app is on the blocklist. If blocked, it triggers
- * the shield overlay to be displayed over the restricted app.
- *
- * Features:
- * - Monitors foreground app changes in real-time
- * - Integrates with RestrictionManager for blocklist checking
- * - Triggers ShieldOverlayManager when blocked app is detected
- * - Shows shield overlay for restricted apps
- */
 class AppMonitoringService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AppMonitoringService"
         private const val EVENT_DEBOUNCE_MS = 500L
-        
-        // Reference to the running service instance
+
         @Volatile
         private var instance: AppMonitoringService? = null
-        
-        /**
-         * Checks if the accessibility service is enabled in system settings.
-         *
-         * @param context The application context
-         * @return true if the service is enabled, false otherwise
-         */
+
         fun isRunning(context: Context): Boolean {
             val enabledServices = Settings.Secure.getString(
                 context.contentResolver,
-                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
             )
-            
+
             if (enabledServices.isNullOrEmpty()) {
                 return false
             }
@@ -56,31 +35,20 @@ class AppMonitoringService : AccessibilityService() {
             val expectedService = ComponentName(context, AppMonitoringService::class.java).flattenToString()
             return enabledServices.split(':').any { it == expectedService }
         }
-        
-        /**
-         * Gets the current service instance if running.
-         *
-         * @return The service instance or null if not running
-         */
+
         fun getInstance(): AppMonitoringService? = instance
     }
-    
-    // Track the last detected foreground package to avoid duplicate processing
-    private var lastForegroundPackage: String? = null
 
-    // Track last processed event time to avoid rapid toggles
+    private var lastForegroundPackage: String? = null
     private var lastEventTimestamp: Long = 0L
-    
-    // Flag to indicate if monitoring is active
     private var isMonitoring = true
-    private val scheduledModesStore by lazy { RestrictionScheduledModesStore(applicationContext) }
+    private val modesStore by lazy { RestrictionScheduledModesStore(applicationContext) }
     private val scheduleCalculator = RestrictionScheduleCalculator()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        
-        // Configure the service programmatically (supplements XML config)
+
         val info = AccessibilityServiceInfo().apply {
             eventTypes =
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
@@ -92,22 +60,18 @@ class AppMonitoringService : AccessibilityService() {
                 AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
         }
         serviceInfo = info
-        
+
         Log.d(TAG, "AppMonitoringService connected and configured")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || !isMonitoring) return
-        
-        // Only process window state change events
+
         if (
             event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
             event.eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED
         ) return
-        
-        // Prefer the focused interactive application window package if available.
-        // This avoids false positives where a background/PiP window emits an event
-        // (commonly observed with YouTube) while the launcher is actually focused.
+
         val packageName = getFocusedApplicationPackageName()
             ?: event.packageName?.toString()
             ?: return
@@ -116,7 +80,6 @@ class AppMonitoringService : AccessibilityService() {
         if (now - lastEventTimestamp < EVENT_DEBOUNCE_MS) return
         lastEventTimestamp = now
 
-        // Skip if same as last detected package (avoid duplicate processing)
         if (packageName == lastForegroundPackage) return
 
         evaluateForegroundPackage(packageName, trigger = "accessibility_event")
@@ -133,12 +96,7 @@ class AppMonitoringService : AccessibilityService() {
         ShieldOverlayManager.getInstanceOrNull()?.hideShield()
         Log.d(TAG, "AppMonitoringService destroyed")
     }
-    
-    /**
-     * Enables or disables foreground app monitoring.
-     *
-     * @param enabled true to enable monitoring, false to disable
-     */
+
     fun setMonitoringEnabled(enabled: Boolean) {
         isMonitoring = enabled
         Log.d(TAG, "Monitoring ${if (enabled) "enabled" else "disabled"}")
@@ -152,7 +110,6 @@ class AppMonitoringService : AccessibilityService() {
     }
 
     private fun isLauncherPackage(packageName: String): Boolean {
-        // Common launcher packages across OEMs; plus a heuristic fallback.
         val knownLaunchers = listOf(
             "com.android.launcher",
             "com.android.launcher3",
@@ -173,31 +130,18 @@ class AppMonitoringService : AccessibilityService() {
         if (packageName.startsWith("com.android.systemui")) return true
 
         val knownImes = listOf(
-            "com.google.android.inputmethod", // Gboard
+            "com.google.android.inputmethod",
             "com.samsung.android.honeyboard",
         )
         return knownImes.any { packageName.startsWith(it) } ||
             packageName.contains("keyboard", ignoreCase = true) ||
             packageName.contains("inputmethod", ignoreCase = true)
     }
-    
-    /**
-     * Checks if the given package is on the restriction blocklist.
-     *
-     * @param packageName The package name to check
-     * @return true if the app is restricted
-     */
+
     private fun isAppRestricted(packageName: String): Boolean {
         return RestrictionManager.getInstance(applicationContext).isRestricted(packageName)
     }
 
-    /**
-     * Attempts to resolve the "real" foreground app by reading interactive windows
-     * and picking the focused (or active) application window.
-     *
-     * This is more reliable than trusting `AccessibilityEvent.packageName`, which
-     * may refer to transient/non-focused windows (e.g. YouTube PiP/miniplayer).
-     */
     private fun getFocusedApplicationPackageName(): String? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return null
 
@@ -216,23 +160,14 @@ class AppMonitoringService : AccessibilityService() {
             null
         }
     }
-    
-    /**
-     * Called when a restricted app is launched.
-     * 
-     * Shows the shield overlay.
-     *
-     * @param packageName The package name of the restricted app
-     */
+
     private fun handleRestrictedAppDetected(packageName: String) {
         Log.d(TAG, "Handling restricted app detection: $packageName")
-        
-        // Show shield overlay
+
         ShieldOverlayManager.getInstance(applicationContext).showShield(
             packageName,
-            contextOverride = this
+            contextOverride = this,
         )
-        
     }
 
     private fun evaluateForegroundPackage(packageName: String, trigger: String) {
@@ -241,19 +176,13 @@ class AppMonitoringService : AccessibilityService() {
 
         val overlayManager = ShieldOverlayManager.getInstanceOrNull()
 
-        // If we navigated away from a restricted app, dismiss the shield.
-        // This is critical for cases where the user presses Home/Recents instead of tapping "OK".
         if (packageName == applicationContext.packageName || isLauncherPackage(packageName)) {
             overlayManager?.hideShield()
             return
         }
 
-        // Ignore transient window changes for system UI / keyboards without dismissing,
-        // otherwise the shield could flicker when notifications/IME appear.
         if (isSystemUiOrImePackage(packageName)) return
 
-        // If the foreground app changed away from the currently blocked package, hide the shield.
-        // (e.g. user switches to another allowed app)
         if (overlayManager?.isShowing() == true) {
             val blocked = overlayManager.getCurrentBlockedPackage()
             if (blocked != null && blocked != packageName) {
@@ -267,11 +196,21 @@ class AppMonitoringService : AccessibilityService() {
             return
         }
 
-        val scheduleResolution = resolveScheduledModeNow()
-        if (!restrictionManager.isManualEnforcementEnabled()) {
-            restrictionManager.setRestrictedApps(scheduleResolution.blockedAppIds)
+        val config = modesStore.getConfig()
+        val manualModeId = restrictionManager.getManualActiveModeId()
+        val manualMode = config.modes.firstOrNull { it.modeId == manualModeId && it.isEnabled }
+        val scheduleResolution = resolveScheduledModeNow(config)
+
+        val blockedAppIds = when {
+            manualMode != null -> manualMode.blockedAppIds
+            else -> scheduleResolution.blockedAppIds
         }
-        val shouldEnforce = restrictionManager.isManualEnforcementEnabled() || scheduleResolution.isInScheduleNow
+        restrictionManager.setRestrictedApps(blockedAppIds)
+
+        val shouldEnforce = when {
+            manualMode != null -> true
+            else -> scheduleResolution.isInScheduleNow
+        }
         if (!shouldEnforce) {
             overlayManager?.hideShield()
             return
@@ -283,9 +222,9 @@ class AppMonitoringService : AccessibilityService() {
         }
     }
 
-    private fun resolveScheduledModeNow(): RestrictionScheduledModeResolver.Resolution {
+    private fun resolveScheduledModeNow(config: com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesConfig): RestrictionScheduledModeResolver.Resolution {
         return RestrictionScheduledModeResolver.resolveNow(
-            config = scheduledModesStore.getConfig(),
+            config = config,
             scheduleCalculator = scheduleCalculator,
         )
     }

@@ -4,6 +4,9 @@ import 'package:pauza_screen_time/src/core/app_identifier.dart';
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/data/app_restriction_manager.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode_source.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
 
 void main() {
@@ -13,7 +16,13 @@ void main() {
     );
 
     await expectLater(
-      manager.restrictApps(const [AppIdentifier('x')]),
+      manager.upsertMode(
+        const RestrictionMode(
+          modeId: 'focus',
+          isEnabled: true,
+          blockedAppIds: [AppIdentifier('x')],
+        ),
+      ),
       throwsA(isA<PauzaMissingPermissionError>()),
     );
   });
@@ -21,28 +30,25 @@ void main() {
 
 class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   @override
-  Future<bool> addRestrictedApp(AppIdentifier identifier) async => false;
-
-  @override
   Future<void> configureShield(Map<String, dynamic> configuration) async {}
 
   @override
-  Future<List<AppIdentifier>> getRestrictedApps() async => const [];
+  Future<RestrictionModesConfig> getModesConfig() async =>
+      const RestrictionModesConfig(enabled: false, modes: []);
 
   @override
   Future<RestrictionSession> getRestrictionSession() async =>
       const RestrictionSession(
         isActiveNow: false,
         isPausedNow: false,
-        isManuallyEnabled: true,
+        isManuallyEnabled: false,
         isScheduleEnabled: false,
         isInScheduleNow: false,
         pausedUntil: null,
         restrictedApps: [],
+        activeModeId: null,
+        activeModeSource: RestrictionModeSource.none,
       );
-
-  @override
-  Future<bool> isRestricted(AppIdentifier identifier) async => false;
 
   @override
   Future<bool> isRestrictionSessionActiveNow() async => false;
@@ -54,24 +60,22 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   Future<void> pauseEnforcement(Duration duration) async {}
 
   @override
-  Future<void> removeAllRestrictions() async {}
-
-  @override
-  Future<bool> removeRestriction(AppIdentifier identifier) async => false;
+  Future<void> removeMode(String modeId) async {}
 
   @override
   Future<void> resumeEnforcement() async {}
 
   @override
-  Future<void> startRestrictionSession() async {}
+  Future<void> endModeSession() async {}
 
   @override
-  Future<void> endRestrictionSession() async {}
+  Future<void> setModesEnabled(bool enabled) async {}
 
   @override
-  Future<List<AppIdentifier>> setRestrictedApps(
-    List<AppIdentifier> identifiers,
-  ) async {
+  Future<void> startModeSession(String modeId) async {}
+
+  @override
+  Future<void> upsertMode(RestrictionMode mode) async {
     throw PlatformException(code: 'MISSING_PERMISSION', message: 'missing');
   }
 }

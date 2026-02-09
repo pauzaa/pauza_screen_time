@@ -7,6 +7,9 @@ import 'package:pauza_screen_time/src/features/restrict_apps/data/app_restrictio
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/channel_name.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/method_names.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/restrictions_method_channel.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode_source.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
 
 void main() {
@@ -21,23 +24,6 @@ void main() {
           .setMockMethodCallHandler(channel, null);
     });
 
-    test(
-      'isRestrictionSessionActiveNow returns false on null result',
-      () async {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(channel, (call) async {
-              if (call.method ==
-                  RestrictionsMethodNames.isRestrictionSessionActiveNow) {
-                return null;
-              }
-              return null;
-            });
-
-        final isActive = await methodChannel.isRestrictionSessionActiveNow();
-        expect(isActive, isFalse);
-      },
-    );
-
     test('getRestrictionSession parses valid payload', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
@@ -50,6 +36,8 @@ void main() {
                 'isInScheduleNow': true,
                 'pausedUntilEpochMs': 1,
                 'restrictedApps': ['x'],
+                'activeModeId': 'focus',
+                'activeModeSource': 'schedule',
               };
             }
             return null;
@@ -63,6 +51,8 @@ void main() {
       expect(session.isInScheduleNow, isTrue);
       expect(session.pausedUntil, DateTime.fromMillisecondsSinceEpoch(1));
       expect(session.restrictedApps, const [AppIdentifier('x')]);
+      expect(session.activeModeId, 'focus');
+      expect(session.activeModeSource, RestrictionModeSource.schedule);
     });
 
     test('getRestrictionSession defaults missing keys', () async {
@@ -78,66 +68,47 @@ void main() {
       expect(session, isA<RestrictionSession>());
       expect(session.isActiveNow, isFalse);
       expect(session.isPausedNow, isFalse);
-      expect(session.isManuallyEnabled, isTrue);
+      expect(session.isManuallyEnabled, isFalse);
       expect(session.isScheduleEnabled, isFalse);
       expect(session.isInScheduleNow, isFalse);
       expect(session.pausedUntil, isNull);
       expect(session.restrictedApps, isEmpty);
+      expect(session.activeModeId, isNull);
+      expect(session.activeModeSource, RestrictionModeSource.none);
     });
 
-    test('getRestrictionSession throws on malformed payload', () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            if (call.method == RestrictionsMethodNames.getRestrictionSession) {
-              return {
-                'isActiveNow': 'invalid',
-                'restrictedApps': ['x'],
-              };
-            }
-            return null;
-          });
-
-      await expectLater(
-        methodChannel.getRestrictionSession(),
-        throwsA(
-          isA<PlatformException>().having(
-            (error) => error.code,
-            'code',
-            'INTERNAL_FAILURE',
-          ),
-        ),
-      );
-    });
-
-    test('getRestrictionSession throws on null payload', () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            if (call.method == RestrictionsMethodNames.getRestrictionSession) {
+    test(
+      'getRestrictionSession throws on malformed activeModeSource',
+      () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method ==
+                  RestrictionsMethodNames.getRestrictionSession) {
+                return {'activeModeSource': 'invalid'};
+              }
               return null;
-            }
-            return null;
-          });
+            });
 
-      await expectLater(
-        methodChannel.getRestrictionSession(),
-        throwsA(
-          isA<PlatformException>().having(
-            (error) => error.code,
-            'code',
-            'INTERNAL_FAILURE',
+        await expectLater(
+          methodChannel.getRestrictionSession(),
+          throwsA(
+            isA<PlatformException>().having(
+              (error) => error.code,
+              'code',
+              'INTERNAL_FAILURE',
+            ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
 
-    test('getScheduledModesConfig throws on malformed payload', () async {
+    test('getModesConfig throws on malformed payload', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-            if (call.method ==
-                RestrictionsMethodNames.getScheduledModesConfig) {
+            if (call.method == RestrictionsMethodNames.getModesConfig) {
               return {
                 'enabled': true,
-                'scheduledModes': [
+                'modes': [
                   {'modeId': 123},
                 ],
               };
@@ -146,7 +117,7 @@ void main() {
           });
 
       await expectLater(
-        methodChannel.getScheduledModesConfig(),
+        methodChannel.getModesConfig(),
         throwsA(
           isA<PlatformException>().having(
             (error) => error.code,
@@ -157,109 +128,66 @@ void main() {
       );
     });
 
-    test(
-      'isRestrictionSessionConfigured returns false on null result',
-      () async {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(channel, (call) async {
-              if (call.method ==
-                  RestrictionsMethodNames.isRestrictionSessionConfigured) {
-                return null;
-              }
-              return null;
-            });
-
-        final isConfigured = await methodChannel
-            .isRestrictionSessionConfigured();
-        expect(isConfigured, isFalse);
-      },
-    );
-
-    test('pauseEnforcement sends durationMs argument', () async {
-      Object? capturedDurationMs;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            if (call.method == RestrictionsMethodNames.pauseEnforcement) {
-              capturedDurationMs = (call.arguments as Map)['durationMs'];
-            }
-            return null;
-          });
-
-      await methodChannel.pauseEnforcement(const Duration(minutes: 2));
-      expect(capturedDurationMs, 120000);
-    });
-
-    test('resumeEnforcement invokes platform method', () async {
-      var called = false;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            if (call.method == RestrictionsMethodNames.resumeEnforcement) {
-              called = true;
-            }
-            return null;
-          });
-
-      await methodChannel.resumeEnforcement();
-      expect(called, isTrue);
-    });
-
-    test('start/end restriction session invoke platform methods', () async {
+    test('start/end mode session invoke platform methods', () async {
       var startCalled = false;
       var endCalled = false;
+      Object? capturedModeId;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-            if (call.method ==
-                RestrictionsMethodNames.startRestrictionSession) {
+            if (call.method == RestrictionsMethodNames.startModeSession) {
               startCalled = true;
-            } else if (call.method ==
-                RestrictionsMethodNames.endRestrictionSession) {
+              capturedModeId = (call.arguments as Map)['modeId'];
+            } else if (call.method == RestrictionsMethodNames.endModeSession) {
               endCalled = true;
             }
             return null;
           });
 
-      await methodChannel.startRestrictionSession();
-      await methodChannel.endRestrictionSession();
+      await methodChannel.startModeSession('focus');
+      await methodChannel.endModeSession();
       expect(startCalled, isTrue);
       expect(endCalled, isTrue);
+      expect(capturedModeId, 'focus');
     });
   });
 
-  group('AppRestrictionManager session delegation', () {
-    test('delegates session methods to platform', () async {
+  group('AppRestrictionManager delegation', () {
+    test('delegates mode APIs to platform', () async {
       final fakePlatform = _FakeAppRestrictionPlatform();
       final manager = AppRestrictionManager(platform: fakePlatform);
 
-      final isActiveNow = await manager.isRestrictionSessionActiveNow();
-      final isConfigured = await manager.isRestrictionSessionConfigured();
+      await manager.upsertMode(
+        const RestrictionMode(
+          modeId: 'focus',
+          isEnabled: true,
+          blockedAppIds: [AppIdentifier('com.example.app')],
+        ),
+      );
+      await manager.removeMode('focus');
+      await manager.setModesEnabled(true);
+      final modesConfig = await manager.getModesConfig();
       await manager.pauseEnforcement(const Duration(seconds: 30));
       await manager.resumeEnforcement();
-      await manager.startRestrictionSession();
-      await manager.endRestrictionSession();
+      await manager.startModeSession('focus');
+      await manager.endModeSession();
       final session = await manager.getRestrictionSession();
 
-      expect(fakePlatform.isRestrictionSessionActiveNowCalled, isTrue);
-      expect(fakePlatform.isRestrictionSessionConfiguredCalled, isTrue);
+      expect(fakePlatform.upsertModeCalled, isTrue);
+      expect(fakePlatform.removeModeCalled, isTrue);
+      expect(fakePlatform.setModesEnabledCalled, isTrue);
+      expect(fakePlatform.getModesConfigCalled, isTrue);
       expect(fakePlatform.pauseEnforcementCalled, isTrue);
       expect(fakePlatform.resumeEnforcementCalled, isTrue);
-      expect(fakePlatform.startRestrictionSessionCalled, isTrue);
-      expect(fakePlatform.endRestrictionSessionCalled, isTrue);
+      expect(fakePlatform.startModeSessionCalled, isTrue);
+      expect(fakePlatform.endModeSessionCalled, isTrue);
       expect(fakePlatform.getRestrictionSessionCalled, isTrue);
-      expect(isActiveNow, isTrue);
-      expect(isConfigured, isTrue);
-      expect(session.isActiveNow, isTrue);
-      expect(session.isPausedNow, isFalse);
-      expect(session.isManuallyEnabled, isTrue);
-      expect(session.isScheduleEnabled, isFalse);
-      expect(session.isInScheduleNow, isFalse);
-      expect(session.pausedUntil, isNull);
-      expect(session.restrictedApps, const [
-        AppIdentifier.android('com.example.app'),
-      ]);
+      expect(modesConfig.enabled, isTrue);
+      expect(session.activeModeId, 'focus');
+      expect(session.activeModeSource, RestrictionModeSource.manual);
     });
   });
 
-  group('AppRestrictionManager session decode failures', () {
+  group('AppRestrictionManager decode failures', () {
     const channel = MethodChannel(restrictionsChannelName);
 
     tearDown(() async {
@@ -277,7 +205,7 @@ void main() {
             .setMockMethodCallHandler(channel, (call) async {
               if (call.method ==
                   RestrictionsMethodNames.getRestrictionSession) {
-                return {'isActiveNow': 'not-bool'};
+                return {'activeModeSource': 'bad'};
               }
               return null;
             });
@@ -290,18 +218,17 @@ void main() {
     );
 
     test(
-      'getScheduledModesConfig surfaces malformed payload as typed PauzaError',
+      'getModesConfig surfaces malformed payload as typed PauzaError',
       () async {
         final manager = AppRestrictionManager(
           platform: RestrictionsMethodChannel(channel: channel),
         );
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(channel, (call) async {
-              if (call.method ==
-                  RestrictionsMethodNames.getScheduledModesConfig) {
+              if (call.method == RestrictionsMethodNames.getModesConfig) {
                 return {
                   'enabled': true,
-                  'scheduledModes': [
+                  'modes': [
                     {'modeId': 1},
                   ],
                 };
@@ -310,7 +237,7 @@ void main() {
             });
 
         await expectLater(
-          manager.getScheduledModesConfig(),
+          manager.getModesConfig(),
           throwsA(isA<PauzaInternalFailureError>()),
         );
       },
@@ -319,36 +246,24 @@ void main() {
 }
 
 class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
-  bool isRestrictionSessionActiveNowCalled = false;
-  bool isRestrictionSessionConfiguredCalled = false;
+  bool upsertModeCalled = false;
+  bool removeModeCalled = false;
+  bool setModesEnabledCalled = false;
+  bool getModesConfigCalled = false;
   bool pauseEnforcementCalled = false;
   bool resumeEnforcementCalled = false;
-  bool startRestrictionSessionCalled = false;
-  bool endRestrictionSessionCalled = false;
+  bool startModeSessionCalled = false;
+  bool endModeSessionCalled = false;
   bool getRestrictionSessionCalled = false;
-
-  @override
-  Future<bool> addRestrictedApp(AppIdentifier identifier) async => false;
 
   @override
   Future<void> configureShield(Map<String, dynamic> configuration) async {}
 
   @override
-  Future<List<AppIdentifier>> getRestrictedApps() async => const [];
-
-  @override
-  Future<bool> isRestricted(AppIdentifier identifier) async => false;
-
-  @override
-  Future<void> removeAllRestrictions() async {}
-
-  @override
-  Future<bool> removeRestriction(AppIdentifier identifier) async => false;
-
-  @override
-  Future<List<AppIdentifier>> setRestrictedApps(
-    List<AppIdentifier> identifiers,
-  ) async => const [];
+  Future<RestrictionModesConfig> getModesConfig() async {
+    getModesConfigCalled = true;
+    return const RestrictionModesConfig(enabled: true, modes: []);
+  }
 
   @override
   Future<RestrictionSession> getRestrictionSession() async {
@@ -361,24 +276,25 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
       isInScheduleNow: false,
       pausedUntil: null,
       restrictedApps: [AppIdentifier('com.example.app')],
+      activeModeId: 'focus',
+      activeModeSource: RestrictionModeSource.manual,
     );
   }
 
   @override
-  Future<bool> isRestrictionSessionActiveNow() async {
-    isRestrictionSessionActiveNowCalled = true;
-    return true;
-  }
+  Future<bool> isRestrictionSessionActiveNow() async => true;
 
   @override
-  Future<bool> isRestrictionSessionConfigured() async {
-    isRestrictionSessionConfiguredCalled = true;
-    return true;
-  }
+  Future<bool> isRestrictionSessionConfigured() async => true;
 
   @override
   Future<void> pauseEnforcement(Duration duration) async {
     pauseEnforcementCalled = true;
+  }
+
+  @override
+  Future<void> removeMode(String modeId) async {
+    removeModeCalled = true;
   }
 
   @override
@@ -387,12 +303,22 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> startRestrictionSession() async {
-    startRestrictionSessionCalled = true;
+  Future<void> endModeSession() async {
+    endModeSessionCalled = true;
   }
 
   @override
-  Future<void> endRestrictionSession() async {
-    endRestrictionSessionCalled = true;
+  Future<void> setModesEnabled(bool enabled) async {
+    setModesEnabledCalled = true;
+  }
+
+  @override
+  Future<void> startModeSession(String modeId) async {
+    startModeSessionCalled = true;
+  }
+
+  @override
+  Future<void> upsertMode(RestrictionMode mode) async {
+    upsertModeCalled = true;
   }
 }

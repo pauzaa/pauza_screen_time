@@ -1,4 +1,5 @@
 import 'package:pauza_screen_time/src/core/app_identifier.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode_source.dart';
 
 /// Snapshot of the current restriction session state.
 class RestrictionSession {
@@ -10,6 +11,8 @@ class RestrictionSession {
     required this.isInScheduleNow,
     required this.pausedUntil,
     required this.restrictedApps,
+    required this.activeModeId,
+    required this.activeModeSource,
   });
 
   /// Whether restrictions are currently considered active.
@@ -33,11 +36,17 @@ class RestrictionSession {
   /// Current restricted app identifiers.
   final List<AppIdentifier> restrictedApps;
 
+  /// Active mode identifier when resolved.
+  final String? activeModeId;
+
+  /// Source that selected the active mode.
+  final RestrictionModeSource activeModeSource;
+
   /// Parses session payload from platform channels.
   factory RestrictionSession.fromMap(Map<String, dynamic> map) {
     final isActiveNow = map['isActiveNow'] as bool? ?? false;
     final isPausedNow = map['isPausedNow'] as bool? ?? false;
-    final isManuallyEnabled = map['isManuallyEnabled'] as bool? ?? true;
+    final isManuallyEnabled = map['isManuallyEnabled'] as bool? ?? false;
     final isScheduleEnabled = map['isScheduleEnabled'] as bool? ?? false;
     final isInScheduleNow = map['isInScheduleNow'] as bool? ?? false;
     final pausedUntilEpochMs = switch (map['pausedUntilEpochMs']) {
@@ -52,6 +61,19 @@ class RestrictionSession {
       _ => const <AppIdentifier>[],
     };
 
+    final activeModeId = (map['activeModeId'] as String?)?.trim();
+    final sourceRaw = map['activeModeSource'] as String? ?? 'none';
+    final activeModeSource = switch (sourceRaw) {
+      'none' => RestrictionModeSource.none,
+      'manual' => RestrictionModeSource.manual,
+      'schedule' => RestrictionModeSource.schedule,
+      _ => throw ArgumentError.value(
+        sourceRaw,
+        'activeModeSource',
+        'Unsupported mode source',
+      ),
+    };
+
     return RestrictionSession(
       isActiveNow: isActiveNow,
       isPausedNow: isPausedNow,
@@ -62,6 +84,10 @@ class RestrictionSession {
           ? null
           : DateTime.fromMillisecondsSinceEpoch(pausedUntilEpochMs),
       restrictedApps: restrictedApps,
+      activeModeId: (activeModeId == null || activeModeId.isEmpty)
+          ? null
+          : activeModeId,
+      activeModeSource: activeModeSource,
     );
   }
 }

@@ -1,3 +1,11 @@
+## 0.5.0
+
+* BREAKING: Restriction APIs are now mode-centric. Added `RestrictionMode` and `RestrictionModesConfig`; removed global app-list restriction entry points from manager/channel contracts.
+* BREAKING: Manual session APIs changed from `startRestrictionSession`/`endRestrictionSession` to `startModeSession(modeId)`/`endModeSession()`.
+* BREAKING: Scheduled mode APIs were replaced with unified mode APIs: `upsertMode`, `removeMode`, `setModesEnabled`, `getModesConfig`.
+* Added `RestrictionSession.activeModeId` and `RestrictionSession.activeModeSource` (`none`, `manual`, `schedule`) to expose active mode identity directly.
+* Android and iOS runtime resolution now uses a shared active-mode model: manual mode id override first, then scheduled mode resolution.
+
 ## 0.4.0
 
 * BREAKING: Removed legacy schedule APIs `setRestrictionScheduleConfig` and `getRestrictionScheduleConfig` from Dart and native method channels.

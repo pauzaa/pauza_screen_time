@@ -15,6 +15,7 @@ class RestrictScreen extends StatefulWidget {
 }
 
 class _RestrictScreenState extends State<RestrictScreen> {
+  static const _modeId = 'example-mode';
   final _titleController = TextEditingController(text: 'App Blocked');
   final _subtitleController = TextEditingController(
     text: 'This app is currently restricted',
@@ -39,7 +40,10 @@ class _RestrictScreenState extends State<RestrictScreen> {
 
   Future<void> _loadRestrictedApps() async {
     try {
-      final apps = await widget.deps.appRestrictionManager.getRestrictedApps();
+      final modesConfig = await widget.deps.appRestrictionManager
+          .getModesConfig();
+      final mode = modesConfig.modes.where((mode) => mode.modeId == _modeId);
+      final apps = mode.isEmpty ? <AppIdentifier>[] : mode.first.blockedAppIds;
       setState(() {
         _restrictedApps = apps;
       });
@@ -123,9 +127,14 @@ class _RestrictScreenState extends State<RestrictScreen> {
         'Restricting ${selected.length} apps...',
       );
 
-      final applied = await widget.deps.appRestrictionManager.restrictApps(
-        selected.toList(),
+      final mode = RestrictionMode(
+        modeId: _modeId,
+        isEnabled: true,
+        blockedAppIds: selected.toList(),
       );
+      await widget.deps.appRestrictionManager.upsertMode(mode);
+      await widget.deps.appRestrictionManager.setModesEnabled(true);
+      final applied = mode.blockedAppIds;
 
       widget.deps.logController.info(
         'restrict',
@@ -165,8 +174,28 @@ class _RestrictScreenState extends State<RestrictScreen> {
         'Unrestricting app: ${identifier.value}',
       );
 
-      final changed = await widget.deps.appRestrictionManager.unrestrictApp(
-        identifier,
+      final modesConfig = await widget.deps.appRestrictionManager
+          .getModesConfig();
+      final modeMatches = modesConfig.modes
+          .where((mode) => mode.modeId == _modeId)
+          .toList();
+      final existingMode = modeMatches.isEmpty ? null : modeMatches.first;
+      final nextBlocked =
+          existingMode?.blockedAppIds
+              .where((id) => id != identifier)
+              .toList() ??
+          <AppIdentifier>[];
+      final changed =
+          existingMode != null &&
+          nextBlocked.length != existingMode.blockedAppIds.length;
+
+      await widget.deps.appRestrictionManager.upsertMode(
+        RestrictionMode(
+          modeId: _modeId,
+          isEnabled: existingMode?.isEnabled ?? true,
+          schedule: existingMode?.schedule,
+          blockedAppIds: nextBlocked,
+        ),
       );
 
       if (changed) {
@@ -208,7 +237,7 @@ class _RestrictScreenState extends State<RestrictScreen> {
         'Clearing all restrictions...',
       );
 
-      await widget.deps.appRestrictionManager.clearAllRestrictions();
+      await widget.deps.appRestrictionManager.removeMode(_modeId);
 
       widget.deps.logController.info('restrict', 'All restrictions cleared');
 

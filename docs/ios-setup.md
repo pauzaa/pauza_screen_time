@@ -97,13 +97,10 @@ To make auto-resume reliable while the app is backgrounded/terminated, your host
 ### Shared storage keys used by the plugin
 
 The extension must read these App Group keys:
-- `desiredRestrictedApps`
 - `pausedUntilEpochMs`
-- `manualEnforcementEnabled`
-- `scheduleEnabled`
-- `restrictionSchedules`
-- `scheduledModesEnabled`
-- `scheduledModes`
+- `manualActiveModeId`
+- `modesEnabled`
+- `modes`
 
 ### Failure behavior
 
