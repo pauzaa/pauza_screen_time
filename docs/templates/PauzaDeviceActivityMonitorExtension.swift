@@ -13,8 +13,6 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
     private let desiredRestrictedAppsKey = "desiredRestrictedApps"
     private let pausedUntilEpochMsKey = "pausedUntilEpochMs"
     private let manualEnforcementEnabledKey = "manualEnforcementEnabled"
-    private let scheduleEnabledKey = "scheduleEnabled"
-    private let restrictionSchedulesKey = "restrictionSchedules"
     private let scheduledModesEnabledKey = "scheduledModesEnabled"
     private let scheduledModesKey = "scheduledModes"
 
@@ -106,13 +104,6 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
         return decoded
     }
 
-    private func loadSchedules(defaults: UserDefaults) -> [RestrictionSchedule] {
-        guard let raw = defaults.array(forKey: restrictionSchedulesKey) as? [[String: Any]] else {
-            return []
-        }
-        return raw.compactMap(RestrictionSchedule.init(dictionary:))
-    }
-
     private func loadScheduledModes(defaults: UserDefaults) -> [RestrictionScheduledMode] {
         guard let raw = defaults.array(forKey: scheduledModesKey) as? [[String: Any]] else {
             return []
@@ -122,17 +113,8 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     private func resolveScheduleState(defaults: UserDefaults) -> ScheduleState {
         let scheduledModes = loadScheduledModes(defaults: defaults)
-        if !scheduledModes.isEmpty {
-            let enabled = defaults.bool(forKey: scheduledModesEnabledKey)
-            return resolveFromScheduledModes(enabled: enabled, modes: scheduledModes)
-        }
-        let scheduleEnabled = defaults.bool(forKey: scheduleEnabledKey)
-        let schedules = loadSchedules(defaults: defaults)
-        let isInSchedule = isInScheduleNow(schedules: schedules, enabled: scheduleEnabled)
-        return ScheduleState(
-            isInScheduleNow: isInSchedule,
-            blockedAppIds: isInSchedule ? (defaults.array(forKey: desiredRestrictedAppsKey) as? [String] ?? []) : []
-        )
+        let enabled = defaults.bool(forKey: scheduledModesEnabledKey)
+        return resolveFromScheduledModes(enabled: enabled, modes: scheduledModes)
     }
 
     private func resolveFromScheduledModes(enabled: Bool, modes: [RestrictionScheduledMode]) -> ScheduleState {

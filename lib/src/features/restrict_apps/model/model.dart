@@ -1,6 +1,5 @@
 export 'background_blur_style.dart';
 export 'restriction_schedule.dart';
-export 'restriction_schedule_config.dart';
 export 'restriction_scheduled_mode.dart';
 export 'restriction_scheduled_modes_config.dart';
 export 'restriction_session.dart';

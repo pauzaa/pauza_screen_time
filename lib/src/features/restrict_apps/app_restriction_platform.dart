@@ -1,6 +1,5 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:pauza_screen_time/src/core/app_identifier.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_schedule_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
@@ -92,20 +91,6 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
   Future<void> endRestrictionSession() {
     throw UnimplementedError(
       'endRestrictionSession() has not been implemented.',
-    );
-  }
-
-  /// Saves weekly schedule configuration for automatic enforcement.
-  Future<void> setRestrictionScheduleConfig(RestrictionScheduleConfig config) {
-    throw UnimplementedError(
-      'setRestrictionScheduleConfig() has not been implemented.',
-    );
-  }
-
-  /// Loads weekly schedule configuration for automatic enforcement.
-  Future<RestrictionScheduleConfig> getRestrictionScheduleConfig() {
-    throw UnimplementedError(
-      'getRestrictionScheduleConfig() has not been implemented.',
     );
   }
 

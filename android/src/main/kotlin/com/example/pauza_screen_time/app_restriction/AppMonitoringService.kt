@@ -13,7 +13,6 @@ import android.view.accessibility.AccessibilityWindowInfo
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeResolver
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleStore
 
 /**
  * AccessibilityService implementation for monitoring foreground app changes.
@@ -74,7 +73,6 @@ class AppMonitoringService : AccessibilityService() {
     
     // Flag to indicate if monitoring is active
     private var isMonitoring = true
-    private val scheduleStore by lazy { RestrictionScheduleStore(applicationContext) }
     private val scheduledModesStore by lazy { RestrictionScheduledModesStore(applicationContext) }
     private val scheduleCalculator = RestrictionScheduleCalculator()
 
@@ -286,21 +284,9 @@ class AppMonitoringService : AccessibilityService() {
     }
 
     private fun resolveScheduledModeNow(): RestrictionScheduledModeResolver.Resolution {
-        val scheduledModesConfig = scheduledModesStore.getConfig()
-        if (scheduledModesConfig.scheduledModes.isNotEmpty()) {
-            return RestrictionScheduledModeResolver.resolveNow(
-                config = scheduledModesConfig,
-                scheduleCalculator = scheduleCalculator,
-            )
-        }
-        val isInLegacyScheduleNow = scheduleCalculator.isInSessionNow(scheduleStore.getConfig())
-        return RestrictionScheduledModeResolver.Resolution(
-            isInScheduleNow = isInLegacyScheduleNow,
-            blockedAppIds = if (isInLegacyScheduleNow) {
-                RestrictionManager.getInstance(applicationContext).getRestrictedApps()
-            } else {
-                emptyList()
-            },
+        return RestrictionScheduledModeResolver.resolveNow(
+            config = scheduledModesStore.getConfig(),
+            scheduleCalculator = scheduleCalculator,
         )
     }
 }

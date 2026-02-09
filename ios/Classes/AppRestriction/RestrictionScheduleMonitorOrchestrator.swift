@@ -13,15 +13,8 @@ enum RestrictionScheduleMonitorOrchestrator {
         }
 
         let scheduledModes = RestrictionStateStore.loadScheduledModes()
-        let schedules: [RestrictionSchedule]
-        let scheduleEnabled: Bool
-        if !scheduledModes.isEmpty {
-            schedules = scheduledModes.filter { $0.isEnabled }.map { $0.schedule }
-            scheduleEnabled = RestrictionStateStore.loadScheduledModesEnabled()
-        } else {
-            schedules = RestrictionStateStore.loadRestrictionSchedules()
-            scheduleEnabled = enabled
-        }
+        let schedules = scheduledModes.filter { $0.isEnabled }.map { $0.schedule }
+        let scheduleEnabled = RestrictionStateStore.loadScheduledModesEnabled()
         guard scheduleEnabled, !schedules.isEmpty else {
             _ = RestrictionStateStore.storeScheduleMonitorNames([])
             return

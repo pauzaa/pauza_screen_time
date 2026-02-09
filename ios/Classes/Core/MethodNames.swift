@@ -27,8 +27,6 @@ enum MethodNames {
     static let resumeEnforcement = "resumeEnforcement"
     static let startRestrictionSession = "startRestrictionSession"
     static let endRestrictionSession = "endRestrictionSession"
-    static let setRestrictionScheduleConfig = "setRestrictionScheduleConfig"
-    static let getRestrictionScheduleConfig = "getRestrictionScheduleConfig"
     static let getRestrictionSession = "getRestrictionSession"
     static let upsertScheduledMode = "upsertScheduledMode"
     static let removeScheduledMode = "removeScheduledMode"

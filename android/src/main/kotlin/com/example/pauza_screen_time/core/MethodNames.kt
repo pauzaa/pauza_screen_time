@@ -31,8 +31,6 @@ object MethodNames {
     const val RESUME_ENFORCEMENT = "resumeEnforcement"
     const val START_RESTRICTION_SESSION = "startRestrictionSession"
     const val END_RESTRICTION_SESSION = "endRestrictionSession"
-    const val SET_RESTRICTION_SCHEDULE_CONFIG = "setRestrictionScheduleConfig"
-    const val GET_RESTRICTION_SCHEDULE_CONFIG = "getRestrictionScheduleConfig"
     const val GET_RESTRICTION_SESSION = "getRestrictionSession"
     const val UPSERT_SCHEDULED_MODE = "upsertScheduledMode"
     const val REMOVE_SCHEDULED_MODE = "removeScheduledMode"

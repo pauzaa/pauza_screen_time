@@ -1,3 +1,9 @@
+## 0.4.0
+
+* BREAKING: Removed legacy schedule APIs `setRestrictionScheduleConfig` and `getRestrictionScheduleConfig` from Dart and native method channels.
+* BREAKING: Removed legacy schedule persistence/runtime paths; scheduled-mode APIs are now the only supported schedule configuration path.
+* iOS schedule monitor orchestration now derives schedules only from scheduled modes, removing legacy fallback logic.
+
 ## 0.3.0
 
 * BREAKING: Android usage stats timestamp schema is now explicit:

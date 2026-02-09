@@ -5,8 +5,6 @@ enum RestrictionStateStore {
     static let desiredRestrictedAppsKey = "desiredRestrictedApps"
     static let pausedUntilEpochMsKey = "pausedUntilEpochMs"
     static let manualEnforcementEnabledKey = "manualEnforcementEnabled"
-    static let scheduleEnabledKey = "scheduleEnabled"
-    static let restrictionSchedulesKey = "restrictionSchedules"
     static let scheduleMonitorNamesKey = "scheduleMonitorNames"
     static let scheduledModesEnabledKey = "scheduledModesEnabled"
     static let scheduledModesKey = "scheduledModes"
@@ -78,43 +76,6 @@ enum RestrictionStateStore {
             return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
         }
         defaults.set(enabled, forKey: manualEnforcementEnabledKey)
-        return .success
-    }
-
-    static func loadScheduleEnabled() -> Bool {
-        guard let defaults = AppGroupStore.sharedDefaults() else {
-            return false
-        }
-        return defaults.bool(forKey: scheduleEnabledKey)
-    }
-
-    @discardableResult
-    static func storeScheduleEnabled(_ enabled: Bool) -> StoreResult {
-        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
-        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
-            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
-        }
-        defaults.set(enabled, forKey: scheduleEnabledKey)
-        return .success
-    }
-
-    static func loadRestrictionSchedules() -> [RestrictionSchedule] {
-        guard let defaults = AppGroupStore.sharedDefaults() else {
-            return []
-        }
-        guard let values = defaults.array(forKey: restrictionSchedulesKey) as? [[String: Any]] else {
-            return []
-        }
-        return values.compactMap(RestrictionSchedule.init(dictionary:))
-    }
-
-    @discardableResult
-    static func storeRestrictionSchedules(_ schedules: [RestrictionSchedule]) -> StoreResult {
-        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
-        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
-            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
-        }
-        defaults.set(schedules.map { $0.toDictionary() }, forKey: restrictionSchedulesKey)
         return .success
     }
 

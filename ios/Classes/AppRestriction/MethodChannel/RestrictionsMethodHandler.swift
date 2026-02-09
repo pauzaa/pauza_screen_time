@@ -36,10 +36,6 @@ final class RestrictionsMethodHandler {
             handleStartRestrictionSession(result: result)
         case MethodNames.endRestrictionSession:
             handleEndRestrictionSession(result: result)
-        case MethodNames.setRestrictionScheduleConfig:
-            handleSetRestrictionScheduleConfig(call: call, result: result)
-        case MethodNames.getRestrictionScheduleConfig:
-            handleGetRestrictionScheduleConfig(result: result)
         case MethodNames.getRestrictionSession:
             handleGetRestrictionSession(result: result)
         case MethodNames.upsertScheduledMode:
@@ -515,109 +511,6 @@ final class RestrictionsMethodHandler {
         result(nil)
     }
 
-    private func handleSetRestrictionScheduleConfig(call: FlutterMethodCall, result: @escaping FlutterResult) {
-        guard #available(iOS 16.0, *) else {
-            result(PluginErrors.unsupported(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictionScheduleConfig,
-                message: PluginErrorMessage.restrictionsUnsupported
-            ))
-            return
-        }
-        guard let args = call.arguments as? [String: Any] else {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictionScheduleConfig,
-                message: "Missing or invalid schedule configuration payload"
-            ))
-            return
-        }
-        let enabled = args["enabled"] as? Bool ?? false
-        guard let rawSchedules = args["schedules"] as? [[String: Any]] else {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictionScheduleConfig,
-                message: "Missing or invalid 'schedules' argument"
-            ))
-            return
-        }
-        let schedules = rawSchedules.compactMap(RestrictionSchedule.init(dictionary:))
-        if schedules.count != rawSchedules.count {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictionScheduleConfig,
-                message: "Each schedule must provide valid day/time fields"
-            ))
-            return
-        }
-        let scheduleShapeIsValid = RestrictionScheduleEvaluator.isScheduleShapeValid(schedules)
-        if !scheduleShapeIsValid || (enabled && !RestrictionScheduleEvaluator.hasAnySchedule(schedules)) {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictionScheduleConfig,
-                message: "Schedule configuration is invalid or has overlapping windows"
-            ))
-            return
-        }
-
-        switch RestrictionStateStore.storeScheduleEnabled(enabled) {
-        case .success:
-            break
-        case .appGroupUnavailable(let resolvedGroupId):
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictionScheduleConfig,
-                message: PluginErrorMessage.appGroupUnavailable,
-                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-            ))
-            return
-        }
-        switch RestrictionStateStore.storeRestrictionSchedules(schedules) {
-        case .success:
-            break
-        case .appGroupUnavailable(let resolvedGroupId):
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictionScheduleConfig,
-                message: PluginErrorMessage.appGroupUnavailable,
-                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-            ))
-            return
-        }
-
-        do {
-            try RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()
-        } catch {
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.setRestrictionScheduleConfig,
-                message: "Failed to schedule iOS boundary monitors",
-                diagnostic: "error=\(String(describing: error))"
-            ))
-            return
-        }
-
-        applyDesiredRestrictionsIfNeeded()
-        result(nil)
-    }
-
-    private func handleGetRestrictionScheduleConfig(result: @escaping FlutterResult) {
-        guard #available(iOS 16.0, *) else {
-            result([
-                "enabled": false,
-                "schedules": [[String: Any]](),
-            ])
-            return
-        }
-        let schedules = RestrictionStateStore
-            .loadRestrictionSchedules()
-            .map { $0.toDictionary() }
-        result([
-            "enabled": RestrictionStateStore.loadScheduleEnabled(),
-            "schedules": schedules,
-        ])
-    }
-
     private func handleGetRestrictionSession(result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result([
@@ -885,28 +778,15 @@ final class RestrictionsMethodHandler {
     @available(iOS 16.0, *)
     private func resolveScheduleState() -> ScheduleState {
         let scheduledModes = RestrictionStateStore.loadScheduledModes()
-        if !scheduledModes.isEmpty {
-            let config = RestrictionScheduledModesConfig(
-                enabled: RestrictionStateStore.loadScheduledModesEnabled(),
-                scheduledModes: scheduledModes
-            )
-            let resolution = RestrictionScheduledModeEvaluator.resolveNow(config: config)
-            return ScheduleState(
-                isScheduleEnabled: config.enabled,
-                isInScheduleNow: resolution.isInScheduleNow,
-                blockedAppIds: resolution.blockedAppIds
-            )
-        }
-
-        let isScheduleEnabled = RestrictionStateStore.loadScheduleEnabled()
-        let isInScheduleNow = RestrictionScheduleEvaluator.isInScheduleNow(
-            enabled: isScheduleEnabled,
-            schedules: RestrictionStateStore.loadRestrictionSchedules()
+        let config = RestrictionScheduledModesConfig(
+            enabled: RestrictionStateStore.loadScheduledModesEnabled(),
+            scheduledModes: scheduledModes
         )
+        let resolution = RestrictionScheduledModeEvaluator.resolveNow(config: config)
         return ScheduleState(
-            isScheduleEnabled: isScheduleEnabled,
-            isInScheduleNow: isInScheduleNow,
-            blockedAppIds: isInScheduleNow ? RestrictionStateStore.loadDesiredRestrictedApps() : []
+            isScheduleEnabled: config.enabled,
+            isInScheduleNow: resolution.isInScheduleNow,
+            blockedAppIds: resolution.blockedAppIds
         )
     }
 

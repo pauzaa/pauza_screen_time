@@ -12,7 +12,6 @@ import com.example.pauza_screen_time.app_restriction.schedule.RestrictionSchedul
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeResolver
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesConfig
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleStore
 import com.example.pauza_screen_time.core.MethodNames
 import com.example.pauza_screen_time.core.PluginErrorHelper
 import com.example.pauza_screen_time.permissions.PermissionHandler
@@ -44,8 +43,6 @@ class RestrictionsMethodHandler(
                 MethodNames.RESUME_ENFORCEMENT -> handleResumeEnforcement(result)
                 MethodNames.START_RESTRICTION_SESSION -> handleStartRestrictionSession(result)
                 MethodNames.END_RESTRICTION_SESSION -> handleEndRestrictionSession(result)
-                MethodNames.SET_RESTRICTION_SCHEDULE_CONFIG -> handleSetRestrictionScheduleConfig(call, result)
-                MethodNames.GET_RESTRICTION_SCHEDULE_CONFIG -> handleGetRestrictionScheduleConfig(result)
                 MethodNames.GET_RESTRICTION_SESSION -> handleGetRestrictionSession(result)
                 MethodNames.UPSERT_SCHEDULED_MODE -> handleUpsertScheduledMode(call, result)
                 MethodNames.REMOVE_SCHEDULED_MODE -> handleRemoveScheduledMode(call, result)
@@ -562,145 +559,6 @@ class RestrictionsMethodHandler(
         }
     }
 
-    private fun handleSetRestrictionScheduleConfig(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_RESTRICTION_SCHEDULE_CONFIG,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        val configMap = call.arguments as? Map<*, *>
-        if (configMap == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_RESTRICTION_SCHEDULE_CONFIG,
-                message = "Missing or invalid schedule configuration payload",
-            )
-            return
-        }
-
-        val enabled = configMap["enabled"] as? Boolean ?: false
-        val scheduleMaps = configMap["schedules"] as? List<*>
-        if (scheduleMaps == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_RESTRICTION_SCHEDULE_CONFIG,
-                message = "Missing or invalid 'schedules' argument",
-            )
-            return
-        }
-
-        val schedules = mutableListOf<RestrictionScheduleEntry>()
-        for (rawSchedule in scheduleMaps) {
-            val scheduleMap = rawSchedule as? Map<*, *>
-            if (scheduleMap == null) {
-                PluginErrorHelper.invalidArgument(
-                    result = result,
-                    feature = FEATURE,
-                    action = MethodNames.SET_RESTRICTION_SCHEDULE_CONFIG,
-                    message = "Each schedule must be a map",
-                )
-                return
-            }
-            val rawDays = scheduleMap["daysOfWeekIso"] as? List<*>
-            val startMinutes = (scheduleMap["startMinutes"] as? Number)?.toInt()
-            val endMinutes = (scheduleMap["endMinutes"] as? Number)?.toInt()
-            if (rawDays == null || startMinutes == null || endMinutes == null) {
-                PluginErrorHelper.invalidArgument(
-                    result = result,
-                    feature = FEATURE,
-                    action = MethodNames.SET_RESTRICTION_SCHEDULE_CONFIG,
-                    message = "Schedule requires 'daysOfWeekIso', 'startMinutes', and 'endMinutes'",
-                )
-                return
-            }
-            val days = rawDays.mapNotNull {
-                val value = it as? Number
-                value?.toInt()
-            }.toSet()
-            schedules += RestrictionScheduleEntry(
-                daysOfWeekIso = days,
-                startMinutes = startMinutes,
-                endMinutes = endMinutes,
-            )
-        }
-
-        val config = RestrictionScheduleConfig(enabled = enabled, schedules = schedules)
-        val scheduleCalculator = RestrictionScheduleCalculator()
-        val scheduleShapeIsValid =
-            scheduleCalculator.isScheduleShapeValid(config) &&
-                (!config.enabled || scheduleCalculator.hasAnySchedule(config))
-        if (!scheduleShapeIsValid) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_RESTRICTION_SCHEDULE_CONFIG,
-                message = "Schedule configuration is invalid or has overlapping windows",
-            )
-            return
-        }
-
-        try {
-            RestrictionScheduleStore(context).setConfig(config)
-            RestrictionAlarmOrchestrator(context).rescheduleAll()
-            applyCurrentEnforcementState(context, trigger = "set_restriction_schedule_config")
-            result.success(null)
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_RESTRICTION_SCHEDULE_CONFIG,
-                message = "Failed to save schedule configuration: ${e.message}",
-                error = e,
-            )
-        }
-    }
-
-    private fun handleGetRestrictionScheduleConfig(result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_RESTRICTION_SCHEDULE_CONFIG,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        try {
-            val config = RestrictionScheduleStore(context).getConfig()
-            val schedules = config.schedules.map { schedule ->
-                mapOf(
-                    "daysOfWeekIso" to schedule.daysOfWeekIso.sorted(),
-                    "startMinutes" to schedule.startMinutes,
-                    "endMinutes" to schedule.endMinutes,
-                )
-            }
-            result.success(
-                mapOf(
-                    "enabled" to config.enabled,
-                    "schedules" to schedules,
-                ),
-            )
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_RESTRICTION_SCHEDULE_CONFIG,
-                message = "Failed to load schedule configuration: ${e.message}",
-                error = e,
-            )
-        }
-    }
-
     private fun handleGetRestrictionSession(result: Result) {
         val context = contextProvider()
         if (context == null) {
@@ -1014,20 +872,11 @@ class RestrictionsMethodHandler(
 
     private fun resolveScheduleState(context: Context): ScheduleState {
         val scheduledModesConfig = RestrictionScheduledModesStore(context).getConfig()
-        if (scheduledModesConfig.scheduledModes.isNotEmpty()) {
-            val resolution = RestrictionScheduledModeResolver.resolveNow(scheduledModesConfig)
-            return ScheduleState(
-                isScheduleEnabled = scheduledModesConfig.enabled,
-                isInScheduleNow = resolution.isInScheduleNow,
-                blockedAppIds = resolution.blockedAppIds,
-            )
-        }
-        val scheduleConfig = RestrictionScheduleStore(context).getConfig()
-        val isInScheduleNow = RestrictionScheduleCalculator().isInSessionNow(scheduleConfig)
+        val resolution = RestrictionScheduledModeResolver.resolveNow(scheduledModesConfig)
         return ScheduleState(
-            isScheduleEnabled = scheduleConfig.enabled,
-            isInScheduleNow = isInScheduleNow,
-            blockedAppIds = if (isInScheduleNow) RestrictionManager.getInstance(context).getRestrictedApps() else emptyList(),
+            isScheduleEnabled = scheduledModesConfig.enabled,
+            isInScheduleNow = resolution.isInScheduleNow,
+            blockedAppIds = resolution.blockedAppIds,
         )
     }
 

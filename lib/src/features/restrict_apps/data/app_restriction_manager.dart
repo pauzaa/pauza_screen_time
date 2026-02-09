@@ -2,7 +2,6 @@ import 'package:pauza_screen_time/src/core/app_identifier.dart';
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/restrictions_method_channel.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_schedule_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
@@ -106,18 +105,6 @@ class AppRestrictionManager {
   /// Ends a manual restriction session.
   Future<void> endRestrictionSession() {
     return _platform.endRestrictionSession().throwTypedPauzaError();
-  }
-
-  /// Stores weekly schedule configuration for automatic enforcement.
-  Future<void> setRestrictionScheduleConfig(RestrictionScheduleConfig config) {
-    return _platform
-        .setRestrictionScheduleConfig(config)
-        .throwTypedPauzaError();
-  }
-
-  /// Loads weekly schedule configuration for automatic enforcement.
-  Future<RestrictionScheduleConfig> getRestrictionScheduleConfig() {
-    return _platform.getRestrictionScheduleConfig().throwTypedPauzaError();
   }
 
   /// Returns the current restriction session snapshot.

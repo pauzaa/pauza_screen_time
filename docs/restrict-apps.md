@@ -159,37 +159,7 @@ Behavior:
 - Manual session controls whether restrictions are active outside scheduled windows.
 - If a manual session is active, schedule boundaries do not force-stop it.
 
-## 8) Schedule enforcement
-
-```dart
-final restrictions = AppRestrictionManager();
-
-await restrictions.setRestrictionScheduleConfig(
-  const RestrictionScheduleConfig(
-    enabled: true,
-    schedules: [
-      RestrictionSchedule(
-        daysOfWeekIso: {1, 2, 3, 4, 5},
-        startMinutes: 9 * 60,
-        endMinutes: 12 * 60,
-      ),
-      RestrictionSchedule(
-        daysOfWeekIso: {1, 2, 3, 4, 5},
-        startMinutes: 14 * 60,
-        endMinutes: 17 * 60,
-      ),
-    ],
-  ),
-);
-```
-
-Rules:
-- Multiple schedules per day are supported.
-- Schedules cannot overlap (adjacent windows are allowed).
-- Overnight schedules are supported (`endMinutes <= startMinutes`).
-- Schedule time is interpreted in the device local timezone.
-
-## 8.1) One mode → one schedule APIs
+## 8) One mode → one schedule APIs
 
 If your host app stores Modes/Schedules in SQLite, save there first, then call plugin APIs to sync shared native config:
 
