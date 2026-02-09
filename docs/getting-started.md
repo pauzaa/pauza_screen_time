@@ -18,7 +18,7 @@ import 'package:pauza_screen_time/pauza_screen_time.dart';
 
 ## 1) Do platform setup first
 
-- **Android**: follow [Android setup](android-setup.md) (Usage Access + Accessibility).
+- **Android**: follow [Android setup](android-setup.md) (Usage Access + Accessibility + Exact Alarms for precise timing).
 - **iOS**: follow [iOS setup](ios-setup.md) (Screen Time authorization + App Groups + required extensions).
 - For a host-app implementation checklist, see `docs/templates/PauzaHostAppIntegrationChecklist.md`.
 
@@ -45,9 +45,11 @@ final permissions = PermissionManager();
 
 await permissions.requestAndroidPermission(AndroidPermission.usageStats);
 await permissions.requestAndroidPermission(AndroidPermission.accessibility);
+await permissions.requestAndroidPermission(AndroidPermission.exactAlarm);
 ```
 
 These calls open Settings screens and do not synchronously confirm granted status. Re-check permissions after the user returns.
+If exact alarms are not allowed on Android 12+, schedule/pause timing still works but may be delayed.
 
 2) Pick apps to restrict (package names) and apply restrictions:
 

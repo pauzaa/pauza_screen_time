@@ -23,6 +23,16 @@ enum AndroidPermission {
     description: 'Required to detect when restricted apps are launched',
   ),
 
+  /// Capability to schedule exact alarms on Android 12+.
+  /// Required for precise schedule boundary and pause-end timing.
+  /// Managed via system settings ("Alarms & reminders"), not a runtime dialog.
+  exactAlarm(
+    key: 'android.exactAlarm',
+    displayName: 'Exact Alarms',
+    description:
+        'Required for precise pause and schedule timing on Android 12+',
+  ),
+
   /// Permission to query all installed packages.
   /// Required on Android 11+ to enumerate installed apps.
   /// Manifest: android.permission.QUERY_ALL_PACKAGES

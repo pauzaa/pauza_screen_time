@@ -52,6 +52,7 @@ class PermissionHelper {
           .getMissingAndroidPermissions([
             AndroidPermission.usageStats,
             AndroidPermission.accessibility,
+            AndroidPermission.exactAlarm,
           ]);
       if (missingRuntimePermissions.isEmpty) {
         return;

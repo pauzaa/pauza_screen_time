@@ -1,6 +1,7 @@
 package com.example.pauza_screen_time.permissions
 
 import android.app.Activity
+import android.app.AlarmManager
 import android.app.AppOpsManager
 import android.content.ComponentName
 import android.content.Context
@@ -19,12 +20,13 @@ import com.example.pauza_screen_time.app_restriction.AppMonitoringService
  * - Accessibility service permission
  * - Query all packages permission (QUERY_ALL_PACKAGES)
  */
-class PermissionHandler(private val context: Context) {
+open class PermissionHandler(private val context: Context) {
 
     companion object {
         // Permission keys matching Flutter AndroidPermission enum
         const val USAGE_STATS_KEY = "android.usageStats"
         const val ACCESSIBILITY_KEY = "android.accessibility"
+        const val EXACT_ALARM_KEY = "android.exactAlarm"
         const val QUERY_ALL_PACKAGES_KEY = "android.queryAllPackages"
 
         // Permission status strings matching Flutter PermissionStatus enum
@@ -47,6 +49,7 @@ class PermissionHandler(private val context: Context) {
         return when (permissionKey) {
             USAGE_STATS_KEY -> checkUsageStatsPermission()
             ACCESSIBILITY_KEY -> checkAccessibilityPermission()
+            EXACT_ALARM_KEY -> checkExactAlarmPermission()
             QUERY_ALL_PACKAGES_KEY -> checkQueryAllPackagesPermission()
             else -> STATUS_UNKNOWN
         }
@@ -63,6 +66,7 @@ class PermissionHandler(private val context: Context) {
         return when (permissionKey) {
             USAGE_STATS_KEY -> requestUsageStatsPermission(activity)
             ACCESSIBILITY_KEY -> requestAccessibilityPermission(activity)
+            EXACT_ALARM_KEY -> requestExactAlarmPermission(activity)
             QUERY_ALL_PACKAGES_KEY -> {
                 // QUERY_ALL_PACKAGES is a manifest permission, cannot be requested at runtime
                 // User needs to allow it in the manifest and potentially through Play Store review
@@ -82,6 +86,7 @@ class PermissionHandler(private val context: Context) {
         when (permissionKey) {
             USAGE_STATS_KEY -> openUsageStatsSettings(activity)
             ACCESSIBILITY_KEY -> openAccessibilitySettings(activity)
+            EXACT_ALARM_KEY -> openExactAlarmSettings(activity)
             QUERY_ALL_PACKAGES_KEY -> openAppDetailsSettings(activity)
             else -> openAppDetailsSettings(activity)
         }
@@ -176,6 +181,61 @@ class PermissionHandler(private val context: Context) {
         }
     }
 
+    // ============= Exact Alarm Capability =============
+
+    private fun checkExactAlarmPermission(): String {
+        if (sdkInt() < Build.VERSION_CODES.S) {
+            return STATUS_GRANTED
+        }
+        return if (canScheduleExactAlarms()) STATUS_GRANTED else STATUS_DENIED
+    }
+
+    private fun requestExactAlarmPermission(activity: Activity): Boolean {
+        if (sdkInt() < Build.VERSION_CODES.S) {
+            return true
+        }
+
+        val started = launchIntent(activity, buildExactAlarmSettingsIntent())
+        if (!started) {
+            openAppDetailsSettings(activity)
+        }
+        return started
+    }
+
+    private fun openExactAlarmSettings(activity: Activity) {
+        if (sdkInt() < Build.VERSION_CODES.S) {
+            openAppDetailsSettings(activity)
+            return
+        }
+
+        val started = launchIntent(activity, buildExactAlarmSettingsIntent())
+        if (!started) {
+            openAppDetailsSettings(activity)
+        }
+    }
+
+    internal open fun sdkInt(): Int = Build.VERSION.SDK_INT
+
+    internal open fun canScheduleExactAlarms(): Boolean {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        return alarmManager.canScheduleExactAlarms()
+    }
+
+    internal open fun buildExactAlarmSettingsIntent(): Intent {
+        return Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+            data = Uri.parse("package:${context.packageName}")
+        }
+    }
+
+    internal open fun launchIntent(activity: Activity, intent: Intent): Boolean {
+        return try {
+            activity.startActivity(intent)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     // ============= Query All Packages Permission =============
 
     private fun checkQueryAllPackagesPermission(): String {
@@ -228,14 +288,16 @@ class PermissionHandler(private val context: Context) {
     }
 
     private fun openAppDetailsSettings(activity: Activity) {
-        try {
-            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-            intent.data = Uri.parse("package:${context.packageName}")
-            activity.startActivity(intent)
-        } catch (e: Exception) {
+        val started = launchIntent(activity, buildAppDetailsSettingsIntent())
+        if (!started) {
             // Fallback to general settings
-            val intent = Intent(Settings.ACTION_SETTINGS)
-            activity.startActivity(intent)
+            launchIntent(activity, Intent(Settings.ACTION_SETTINGS))
+        }
+    }
+
+    internal open fun buildAppDetailsSettingsIntent(): Intent {
+        return Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.parse("package:${context.packageName}")
         }
     }
 }

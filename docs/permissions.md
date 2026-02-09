@@ -16,6 +16,7 @@ This plugin exposes a typed permission API via `PermissionManager`.
 These are represented by `AndroidPermission`:
 - `AndroidPermission.usageStats`: Usage Access (Settings → Usage access)
 - `AndroidPermission.accessibility`: Accessibility service (Settings → Accessibility)
+- `AndroidPermission.exactAlarm`: exact-alarm capability for precise pause/schedule timing (Android 12+; Settings → Alarms & reminders)
 - `AndroidPermission.queryAllPackages`: install-time manifest capability (Android 11+). **This is not requestable at runtime.**
 
 ### Example: request the key permissions
@@ -25,6 +26,7 @@ final permissions = PermissionManager();
 
 await permissions.requestAndroidPermission(AndroidPermission.usageStats);
 await permissions.requestAndroidPermission(AndroidPermission.accessibility);
+await permissions.requestAndroidPermission(AndroidPermission.exactAlarm);
 ```
 
 `requestAndroidPermission(...)` opens the relevant Settings screen and returns when the intent is dispatched. It does not confirm granted status; call `checkAndroidPermission(...)` after the user returns.
@@ -47,6 +49,7 @@ final permissions = PermissionManager();
 final missing = await permissions.getMissingAndroidPermissions([
   AndroidPermission.usageStats,
   AndroidPermission.accessibility,
+  AndroidPermission.exactAlarm,
 ]);
 ```
 
@@ -96,7 +99,14 @@ final helper = PermissionHelper(PermissionManager());
 await helper.requestAllRequiredPermissions();
 ```
 
-On Android, this opens only the first missing runtime prerequisite (`usageStats`, then `accessibility`) so your app can guide the user one step at a time.
+On Android, this opens only the first missing runtime prerequisite (`usageStats`, then `accessibility`, then `exactAlarm`) so your app can guide the user one step at a time.
+
+### Note about Android `exactAlarm`
+
+On Android 12+ (`API 31+`), exact alarms are controlled by system settings.  
+`requestAndroidPermission(AndroidPermission.exactAlarm)` opens the exact alarm settings flow; it is not a normal runtime dialog permission.
+
+If exact alarms are not allowed, schedule and pause-end enforcement still work using inexact alarms, but callbacks can be delayed by the OS.
 
 ### Note about Android `queryAllPackages`
 

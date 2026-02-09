@@ -60,8 +60,7 @@ Performance-oriented detail:
 
 - Restrictions state is stored in `SharedPreferences`:
   - Restricted apps set, pause deadline, and manual session toggle: `RestrictionManager` (`android/.../app_restriction/RestrictionManager.kt`)
-  - Schedule config: `RestrictionScheduleStore` (`android/.../app_restriction/schedule/RestrictionScheduleStore.kt`)
-  - Scheduled modes: `RestrictionScheduledModesStore` (`android/.../app_restriction/schedule/RestrictionScheduledModesStore.kt`)
+  - Scheduled modes toggle and modes list: `RestrictionScheduledModesStore` (`android/.../app_restriction/schedule/RestrictionScheduledModesStore.kt`)
 - Enforcement uses:
   - `AccessibilityService` to detect foreground app changes: `AppMonitoringService` (`android/.../app_restriction/AppMonitoringService.kt`)
   - Exact/inexact alarms to enforce pause expiry and schedule boundaries: `RestrictionAlarmOrchestrator` + `RestrictionAlarmScheduler` (`android/.../app_restriction/alarm/*`)
@@ -70,7 +69,7 @@ Performance-oriented detail:
 **iOS**
 
 - Persisted state uses App Group `UserDefaults`:
-  - Desired restricted tokens, pause deadline, manual toggle, schedule config, scheduled modes: `RestrictionStateStore` (`ios/Classes/AppRestriction/RestrictionStateStore.swift`)
+  - Desired restricted tokens, pause deadline, manual toggle, scheduled modes: `RestrictionStateStore` (`ios/Classes/AppRestriction/RestrictionStateStore.swift`)
   - Shield UI configuration: `ShieldConfigurationStore` (`ios/Classes/AppRestriction/ShieldConfigurationStore.swift`)
 - Enforcement uses:
   - ManagedSettings shield restrictions: `ShieldManager` (`ios/Classes/AppRestriction/ShieldManager.swift`)
@@ -163,12 +162,16 @@ Status vs specs: **⚠️**
 
 ### 2.3 Reliable Schedules (auto enable/disable without app running, persists reboot)
 
-There are **two schedule APIs** in this codebase:
+Schedule configuration is now **mode-only**:
 
-1) Legacy schedule config: `setRestrictionScheduleConfig(RestrictionScheduleConfig)`
-2) Mode-based schedule config: `upsertScheduledMode(RestrictionScheduledMode)` + `setScheduledModesEnabled(true)`
+- `upsertScheduledMode(RestrictionScheduledMode)`
+- `removeScheduledMode(modeId)`
+- `setScheduledModesEnabled(bool)`
+- `getScheduledModesConfig()`
 
-#### 2.3.1 Mode-based schedules (“one mode → one schedule”)
+There is no legacy schedule API path in Dart or native handlers.
+
+#### 2.3.1 Mode-based schedules (“one mode → one schedule”, only path)
 
 **What exists**
 
@@ -195,36 +198,6 @@ There are **two schedule APIs** in this codebase:
 - “Only one mode active at a time”: ✅ by non-overlap enforcement; resolvers fail-safe to “none” if multiple match.
 
 Status vs specs: **⚠️ (Android strong; iOS depends on host extension)**
-
-#### 2.3.2 Legacy schedules (`setRestrictionScheduleConfig`)
-
-**Intent**
-
-The docs claim this config enables/disables restriction enforcement based on weekly windows.
-
-**Current Android behavior appears logically broken**
-
-Android’s legacy schedule flow reuses the **same persisted restricted-apps set** as both:
-
-- the “desired list” to apply inside schedule windows, and
-- the “currently applied list” to clear outside windows
-
-Concretely:
-
-- When manual session is disabled, schedule boundary handling can call `RestrictionManager.setRestrictedApps(...)` with an empty list when leaving the schedule window.
-- On the next schedule start, legacy logic reads the restricted apps list again to re-apply it — but it has already been cleared, so nothing re-applies.
-
-This makes “legacy schedule toggling” non-persistent across schedule cycles unless the host app re-writes restricted apps before each cycle (which conflicts with the “works when app isn’t running” requirement).
-
-Fixability: ✅ fixable (store “desiredRestrictedApps” separately on Android, like iOS does, or avoid mutating the desired set when leaving a window).
-
-**iOS legacy schedules**
-
-iOS stores schedule windows separately and does not overwrite the desired token list; enforcement uses `applyDesiredRestrictionsIfNeeded()` to decide what should be applied.
-
-Fixability: N/A (iOS has the separation; background enforcement still requires host extension).
-
-Status vs specs: **Android legacy schedule = ❌ (as implemented today); scheduled modes = ⚠️**
 
 ---
 
@@ -307,6 +280,7 @@ Status vs specs: **⚠️ overall (Android meets, iOS constrained)**
 - Android: `PermissionHandler` supports:
   - Usage access (AppOps check + settings intent)
   - Accessibility enabled check + settings intent
+  - Exact alarm capability (API 31+ gate) via `AlarmManager.canScheduleExactAlarms()` check + `ACTION_REQUEST_SCHEDULE_EXACT_ALARM` intent; API < 31 treated as granted
   - Query all packages “capability check”
 - iOS:
   - `PermissionHandler` requests FamilyControls authorization (`AuthorizationCenter.shared.requestAuthorization(for: .individual)`)
@@ -315,6 +289,7 @@ Status vs specs: **⚠️ overall (Android meets, iOS constrained)**
 **Adherence to specs**
 
 - ✅ Implemented with typed API and platform handlers.
+- ⚠️ Exact alarm capability is now part of the runtime permission flow; lacking exact alarms degrades schedule/pause timing because the plugin falls back to inexact alarms, but enforcement still works.
 
 Status vs specs: **✅**
 
@@ -325,7 +300,7 @@ Status vs specs: **✅**
 **What exists**
 
 - “Single active mode”: enforced primarily by **non-overlapping schedules** for scheduled modes.
-  - Dart models include `isValid` checks (`RestrictionScheduleConfig.isValid`, `RestrictionScheduledModesConfig.isValid`).
+  - Dart models include `isValid` checks (`RestrictionScheduledModesConfig.isValid`).
   - Native layers enforce overlap constraints and return `INVALID_ARGUMENT` when violated.
 - “Manual override precedence”:
   - Both platforms treat manual session as an override: if manual is enabled, schedule-based mode switching is ignored.
@@ -363,7 +338,7 @@ Status: **✅ / ⚠️ (good overall; map parsing is the main weak spot)**
 Partially compliant; there are several places where errors are **caught and converted into “empty success”** instead of a typed error:
 
 - Dart restrictions method channel:
-  - `getRestrictionScheduleConfig()`, `getRestrictionSession()`, and `getScheduledModesConfig()` swallow parse failures and return default values.
+  - `getRestrictionSession()` and `getScheduledModesConfig()` swallow parse failures and return default values.
 - Android installed apps and usage stats handlers:
   - `InstalledAppsHandler.getInstalledApps()` logs and returns `[]` on exception.
   - `UsageStatsHandler.calculateLaunchCounts()` logs errors and returns partial results.
@@ -404,12 +379,12 @@ Status: **✅ / ⚠️**
 
 ## 4) Likely errors / pitfalls (and fixability)
 
-### 4.1 iOS compile-time bug in schedule monitor orchestrator
+### 4.1 Legacy schedule stack removed (breaking)
 
-- File: `ios/Classes/AppRestriction/RestrictionScheduleMonitorOrchestrator.swift`
-- Problem: `scheduleEnabled = enabled` references an undefined symbol `enabled`.
-- Impact: iOS build should fail for this target.
-- Fixability: ✅ fixable (likely meant `RestrictionStateStore.loadScheduleEnabled()`).
+- Legacy schedule API (`setRestrictionScheduleConfig` / `getRestrictionScheduleConfig`) was removed from Dart and native channels.
+- Runtime schedule resolution on Android and iOS now relies only on scheduled modes (`RestrictionScheduledModesStore` / scheduled modes in `RestrictionStateStore`).
+- Impact: host apps must use scheduled-mode APIs; old legacy calls no longer exist.
+- Fixability: N/A (intentional breaking change aligned with one-app-centric architecture).
 
 ### 4.2 iOS “reliable schedules” and “reliable pause auto-resume” require host extensions
 
@@ -427,11 +402,9 @@ Fixability: ✅ fixable as host app integration requirements (templates exist un
 - Impact: pause-end and schedule boundary enforcement may be delayed.
 - Fixability: ⚠️ partially fixable (detect/report inability to schedule exact alarms; offer degraded-mode docs). Absolute “exact” timing cannot be guaranteed on all devices.
 
-### 4.4 Android legacy schedule config appears non-functional across cycles
+### 4.4 Android legacy schedule inconsistency (retired)
 
-As described in §2.3.2, the legacy schedule implementation clears the same restricted-apps list it later needs to re-apply.
-
-Fixability: ✅ fixable (separate “desired restrictions” from “applied restrictions” on Android, mirroring iOS, or redesign legacy schedule logic).
+- This previously affected the removed legacy schedule path and is no longer applicable after legacy stack removal.
 
 ### 4.5 Play Store / policy risk: `QUERY_ALL_PACKAGES` and exact alarms
 
@@ -488,6 +461,5 @@ Fixability: ✅ fixable (API/design change): add a typed Mode model (or at least
 
 - The plugin has a solid feature-based architecture and typed Dart API surface.
 - Android restrictions + pause + scheduled modes are implemented with persistence and background enforcement, but schedule timing may degrade without exact alarms.
-- iOS restrictions APIs exist and are strongly typed around Screen Time authorization and token decoding, but **reliable background schedule/pause enforcement requires host extensions**, and there is a **blocking compile-time bug** in schedule monitor orchestration.
+- iOS restrictions APIs exist and are strongly typed around Screen Time authorization and token decoding, but **reliable background schedule/pause enforcement requires host extensions**.
 - Some areas (notably parse fallbacks and “return empty on error”) do not adhere to the “Honest Fast-Failure” technical requirement.
-

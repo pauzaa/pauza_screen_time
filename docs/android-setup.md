@@ -17,6 +17,7 @@ This plugin includes its own Android manifest at `android/src/main/AndroidManife
 It declares:
 - `android.permission.PACKAGE_USAGE_STATS` (Usage Access)
 - `android.permission.QUERY_ALL_PACKAGES` (Android 11+ app enumeration)
+- `android.permission.SCHEDULE_EXACT_ALARM` (Android 12+ exact alarm capability)
 - Accessibility service `com.example.pauza_screen_time.app_restriction.AppMonitoringService`
 
 ### When you should edit your app manifest
@@ -69,7 +70,26 @@ This call opens the Accessibility Settings screen. Re-check permission status af
 2) Find your app’s service and enable it
 3) Re-open your app and try launching a restricted app — the shield should appear
 
-## 4) Notes about `QUERY_ALL_PACKAGES`
+## 4) Exact alarms for precise schedule timing (Android 12+)
+
+### Why this is needed
+
+Pause-end and schedule-boundary callbacks are most accurate when the app can schedule exact alarms.
+Without exact-alarm capability on Android 12+ (API 31+), Android may delay callbacks.
+
+### How to request / open Settings
+
+```dart
+final permissions = PermissionManager();
+await permissions.requestAndroidPermission(AndroidPermission.exactAlarm);
+```
+
+### How to verify
+
+1) Open **Settings** → **Apps** → **Special app access** → **Alarms & reminders** (paths vary by OEM)
+2) Find your app and allow exact alarms
+
+## 5) Notes about `QUERY_ALL_PACKAGES`
 
 ### What it’s for
 
@@ -79,7 +99,7 @@ This call opens the Accessibility Settings screen. Re-check permission status af
 
 Google Play restricts use of `QUERY_ALL_PACKAGES`. If you don’t qualify, you may need to remove this capability or limit queries via `<queries>` instead.
 
-## 5) Pause auto-resume timing (AlarmManager)
+## 6) Pause auto-resume timing (AlarmManager)
 
 ### Why this matters
 

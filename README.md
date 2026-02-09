@@ -23,6 +23,7 @@ This package provides a single Dart API with platform-specific implementations:
 - **iOS app enumeration is not available**. You must use the iOS picker and store opaque tokens.
 - **iOS usage stats cannot be read programmatically**. Apple only allows rendering usage via `DeviceActivityReport` UI.
 - **Android blocking requires user-enabled system settings** (Usage Access, Accessibility).
+- **Android schedule/pause precision on Android 12+ depends on exact alarm capability** (`SCHEDULE_EXACT_ALARM` / Alarms & reminders setting).
 - **iOS pause auto-resume reliability requires a Device Activity Monitor extension** in the host app.
 
 ## Installation
@@ -49,6 +50,11 @@ final installedApps = InstalledAppsManager();
 final restrictions = AppRestrictionManager();
 
 // Android: request required permissions and enable services in Settings.
+await permissions.requestAndroidPermission(AndroidPermission.usageStats);
+await permissions.requestAndroidPermission(AndroidPermission.accessibility);
+await permissions.requestAndroidPermission(AndroidPermission.exactAlarm);
+//
+// On Android 12+, exact alarms improve timing precision for pause/schedule boundaries.
 // iOS: request Screen Time authorization.
 //
 // Then:

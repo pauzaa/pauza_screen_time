@@ -40,6 +40,9 @@ class PermissionManager {
   ///
   /// For [AndroidPermission.queryAllPackages], this method is a no-op because
   /// it is a manifest/policy capability and not runtime-requestable.
+  ///
+  /// For [AndroidPermission.exactAlarm], this opens system settings on
+  /// Android 12+ where exact alarms are controlled.
   /// Only call this on Android platform.
   Future<void> requestAndroidPermission(AndroidPermission permission) {
     if (!Platform.isAndroid) {
