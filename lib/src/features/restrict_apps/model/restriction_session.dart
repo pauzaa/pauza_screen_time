@@ -5,6 +5,9 @@ class RestrictionSession {
   const RestrictionSession({
     required this.isActiveNow,
     required this.isPausedNow,
+    required this.isManuallyEnabled,
+    required this.isScheduleEnabled,
+    required this.isInScheduleNow,
     required this.pausedUntil,
     required this.restrictedApps,
   });
@@ -14,6 +17,15 @@ class RestrictionSession {
 
   /// Whether restriction enforcement is currently paused.
   final bool isPausedNow;
+
+  /// Whether manual restriction session is enabled.
+  final bool isManuallyEnabled;
+
+  /// Whether schedule-based restriction session is enabled.
+  final bool isScheduleEnabled;
+
+  /// Whether current time falls inside any configured schedule window.
+  final bool isInScheduleNow;
 
   /// When pause ends, if paused.
   final DateTime? pausedUntil;
@@ -25,6 +37,9 @@ class RestrictionSession {
   factory RestrictionSession.fromMap(Map<String, dynamic> map) {
     final isActiveNow = map['isActiveNow'] as bool? ?? false;
     final isPausedNow = map['isPausedNow'] as bool? ?? false;
+    final isManuallyEnabled = map['isManuallyEnabled'] as bool? ?? true;
+    final isScheduleEnabled = map['isScheduleEnabled'] as bool? ?? false;
+    final isInScheduleNow = map['isInScheduleNow'] as bool? ?? false;
     final pausedUntilEpochMs = switch (map['pausedUntilEpochMs']) {
       final int value => value,
       final num value => value.toInt(),
@@ -40,6 +55,9 @@ class RestrictionSession {
     return RestrictionSession(
       isActiveNow: isActiveNow,
       isPausedNow: isPausedNow,
+      isManuallyEnabled: isManuallyEnabled,
+      isScheduleEnabled: isScheduleEnabled,
+      isInScheduleNow: isInScheduleNow,
       pausedUntil: pausedUntilEpochMs == null || pausedUntilEpochMs <= 0
           ? null
           : DateTime.fromMillisecondsSinceEpoch(pausedUntilEpochMs),

@@ -10,6 +10,10 @@ import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
+import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
+import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeResolver
+import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
+import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleStore
 
 /**
  * AccessibilityService implementation for monitoring foreground app changes.
@@ -70,6 +74,9 @@ class AppMonitoringService : AccessibilityService() {
     
     // Flag to indicate if monitoring is active
     private var isMonitoring = true
+    private val scheduleStore by lazy { RestrictionScheduleStore(applicationContext) }
+    private val scheduledModesStore by lazy { RestrictionScheduledModesStore(applicationContext) }
+    private val scheduleCalculator = RestrictionScheduleCalculator()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -113,43 +120,8 @@ class AppMonitoringService : AccessibilityService() {
 
         // Skip if same as last detected package (avoid duplicate processing)
         if (packageName == lastForegroundPackage) return
-        
-        lastForegroundPackage = packageName
-        
-        Log.d(TAG, "Foreground app changed: $packageName")
 
-        val overlayManager = ShieldOverlayManager.getInstanceOrNull()
-
-        // If we navigated away from a restricted app, dismiss the shield.
-        // This is critical for cases where the user presses Home/Recents instead of tapping "OK".
-        if (packageName == applicationContext.packageName || isLauncherPackage(packageName)) {
-            overlayManager?.hideShield()
-            return
-        }
-
-        // Ignore transient window changes for system UI / keyboards without dismissing,
-        // otherwise the shield could flicker when notifications/IME appear.
-        if (isSystemUiOrImePackage(packageName)) return
-
-        // If the foreground app changed away from the currently blocked package, hide the shield.
-        // (e.g. user switches to another allowed app)
-        if (overlayManager?.isShowing() == true) {
-            val blocked = overlayManager.getCurrentBlockedPackage()
-            if (blocked != null && blocked != packageName) {
-                overlayManager.hideShield()
-            }
-        }
-
-        if (RestrictionManager.getInstance(applicationContext).isPausedNow()) {
-            overlayManager?.hideShield()
-            return
-        }
-
-        // Check if this app is on the blocklist
-        if (isAppRestricted(packageName)) {
-            Log.d(TAG, "Restricted app detected: $packageName")
-            handleRestrictedAppDetected(packageName)
-        }
+        evaluateForegroundPackage(packageName, trigger = "accessibility_event")
     }
 
     override fun onInterrupt() {
@@ -172,6 +144,13 @@ class AppMonitoringService : AccessibilityService() {
     fun setMonitoringEnabled(enabled: Boolean) {
         isMonitoring = enabled
         Log.d(TAG, "Monitoring ${if (enabled) "enabled" else "disabled"}")
+    }
+
+    fun enforceCurrentForegroundNow(trigger: String) {
+        if (!isMonitoring) return
+
+        val packageName = getFocusedApplicationPackageName() ?: return
+        evaluateForegroundPackage(packageName, trigger)
     }
 
     private fun isLauncherPackage(packageName: String): Boolean {
@@ -256,5 +235,72 @@ class AppMonitoringService : AccessibilityService() {
             contextOverride = this
         )
         
+    }
+
+    private fun evaluateForegroundPackage(packageName: String, trigger: String) {
+        lastForegroundPackage = packageName
+        Log.d(TAG, "Evaluating foreground package=$packageName trigger=$trigger")
+
+        val overlayManager = ShieldOverlayManager.getInstanceOrNull()
+
+        // If we navigated away from a restricted app, dismiss the shield.
+        // This is critical for cases where the user presses Home/Recents instead of tapping "OK".
+        if (packageName == applicationContext.packageName || isLauncherPackage(packageName)) {
+            overlayManager?.hideShield()
+            return
+        }
+
+        // Ignore transient window changes for system UI / keyboards without dismissing,
+        // otherwise the shield could flicker when notifications/IME appear.
+        if (isSystemUiOrImePackage(packageName)) return
+
+        // If the foreground app changed away from the currently blocked package, hide the shield.
+        // (e.g. user switches to another allowed app)
+        if (overlayManager?.isShowing() == true) {
+            val blocked = overlayManager.getCurrentBlockedPackage()
+            if (blocked != null && blocked != packageName) {
+                overlayManager.hideShield()
+            }
+        }
+
+        val restrictionManager = RestrictionManager.getInstance(applicationContext)
+        if (restrictionManager.isPausedNow()) {
+            overlayManager?.hideShield()
+            return
+        }
+
+        val scheduleResolution = resolveScheduledModeNow()
+        if (!restrictionManager.isManualEnforcementEnabled()) {
+            restrictionManager.setRestrictedApps(scheduleResolution.blockedAppIds)
+        }
+        val shouldEnforce = restrictionManager.isManualEnforcementEnabled() || scheduleResolution.isInScheduleNow
+        if (!shouldEnforce) {
+            overlayManager?.hideShield()
+            return
+        }
+
+        if (isAppRestricted(packageName)) {
+            Log.d(TAG, "Restricted app detected: $packageName")
+            handleRestrictedAppDetected(packageName)
+        }
+    }
+
+    private fun resolveScheduledModeNow(): RestrictionScheduledModeResolver.Resolution {
+        val scheduledModesConfig = scheduledModesStore.getConfig()
+        if (scheduledModesConfig.scheduledModes.isNotEmpty()) {
+            return RestrictionScheduledModeResolver.resolveNow(
+                config = scheduledModesConfig,
+                scheduleCalculator = scheduleCalculator,
+            )
+        }
+        val isInLegacyScheduleNow = scheduleCalculator.isInSessionNow(scheduleStore.getConfig())
+        return RestrictionScheduledModeResolver.Resolution(
+            isInScheduleNow = isInLegacyScheduleNow,
+            blockedAppIds = if (isInLegacyScheduleNow) {
+                RestrictionManager.getInstance(applicationContext).getRestrictedApps()
+            } else {
+                emptyList()
+            },
+        )
     }
 }

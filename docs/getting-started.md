@@ -20,6 +20,7 @@ import 'package:pauza_screen_time/pauza_screen_time.dart';
 
 - **Android**: follow [Android setup](android-setup.md) (Usage Access + Accessibility).
 - **iOS**: follow [iOS setup](ios-setup.md) (Screen Time authorization + App Groups + required extensions).
+- For a host-app implementation checklist, see `docs/templates/PauzaHostAppIntegrationChecklist.md`.
 
 If you skip these, calls may succeed but features won’t work (for example: blocking won’t trigger if the accessibility service is not enabled).
 

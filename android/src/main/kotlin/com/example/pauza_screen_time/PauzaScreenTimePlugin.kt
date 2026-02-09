@@ -2,6 +2,7 @@ package com.example.pauza_screen_time
 
 import android.app.Activity
 import android.content.Context
+import com.example.pauza_screen_time.app_restriction.alarm.RestrictionAlarmOrchestrator
 import com.example.pauza_screen_time.app_restriction.method_channel.RestrictionsChannelRegistrar
 import com.example.pauza_screen_time.core.method_channel.CoreChannelRegistrar
 import com.example.pauza_screen_time.installed_apps.method_channel.InstalledAppsChannelRegistrar
@@ -46,6 +47,7 @@ class PauzaScreenTimePlugin :
         installedAppsRegistrar.attach(messenger, context)
         usageStatsRegistrar.attach(messenger, context)
         restrictionsRegistrar.attach(messenger) { applicationContext }
+        RestrictionAlarmOrchestrator(context).rescheduleAll()
     }
 
     // ============= Plugin Lifecycle =============

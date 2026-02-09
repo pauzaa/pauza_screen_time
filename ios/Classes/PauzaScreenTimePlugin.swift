@@ -5,6 +5,7 @@
 /// and app restriction functionality.
 
 import Flutter
+import Foundation
 
 public class PauzaScreenTimePlugin: NSObject, FlutterPlugin {
 
@@ -14,6 +15,9 @@ public class PauzaScreenTimePlugin: NSObject, FlutterPlugin {
         PermissionsRegistrar.register(with: registrar)
         InstalledAppsRegistrar.register(with: registrar)
         RestrictionsRegistrar.register(with: registrar)
+        if #available(iOS 16.0, *) {
+            try? RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()
+        }
         // Note: Usage stats method channel is not supported on iOS.
         // Dart throws UnsupportedError before invoking native.
         // However, the platform view for displaying usage reports IS supported.

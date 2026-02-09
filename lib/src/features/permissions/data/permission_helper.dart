@@ -23,12 +23,16 @@ class PermissionHelper {
     final results = <String, PermissionStatus>{};
 
     if (Platform.isAndroid) {
-      final typed = await _permissionManager.checkAndroidPermissions(AndroidPermission.values);
+      final typed = await _permissionManager.checkAndroidPermissions(
+        AndroidPermission.values,
+      );
       for (final entry in typed.entries) {
         results[entry.key.key] = entry.value;
       }
     } else if (Platform.isIOS) {
-      final typed = await _permissionManager.checkIOSPermissions(IOSPermission.values);
+      final typed = await _permissionManager.checkIOSPermissions(
+        IOSPermission.values,
+      );
       for (final entry in typed.entries) {
         results[entry.key.key] = entry.value;
       }
@@ -44,17 +48,21 @@ class PermissionHelper {
   /// Re-check statuses after the user returns.
   Future<void> requestAllRequiredPermissions() async {
     if (Platform.isAndroid) {
-      final missingRuntimePermissions = await _permissionManager.getMissingAndroidPermissions([
-        AndroidPermission.usageStats,
-        AndroidPermission.accessibility,
-      ]);
+      final missingRuntimePermissions = await _permissionManager
+          .getMissingAndroidPermissions([
+            AndroidPermission.usageStats,
+            AndroidPermission.accessibility,
+          ]);
       if (missingRuntimePermissions.isEmpty) {
         return;
       }
-      await _permissionManager.requestAndroidPermission(missingRuntimePermissions.first);
+      await _permissionManager.requestAndroidPermission(
+        missingRuntimePermissions.first,
+      );
       return;
     } else if (Platform.isIOS) {
-      final missingPermissions = await _permissionManager.getMissingIOSPermissions();
+      final missingPermissions = await _permissionManager
+          .getMissingIOSPermissions();
       if (missingPermissions.isEmpty) {
         return;
       }

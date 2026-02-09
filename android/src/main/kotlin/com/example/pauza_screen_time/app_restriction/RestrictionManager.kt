@@ -27,6 +27,7 @@ class RestrictionManager private constructor(context: Context) {
         private const val KEY_BLOCKED_APPS = "blocked_apps"
         private const val KEY_BLOCKED_APPS_LIST = "blockedApps"
         private const val KEY_PAUSED_UNTIL_EPOCH_MS = "paused_until_epoch_ms"
+        private const val KEY_MANUAL_ENFORCEMENT_ENABLED = "manual_enforcement_enabled"
 
         @Volatile
         private var instance: RestrictionManager? = null
@@ -179,6 +180,19 @@ class RestrictionManager private constructor(context: Context) {
             .putLong(KEY_PAUSED_UNTIL_EPOCH_MS, 0L)
             .apply()
         Log.d(TAG, "Restriction pause cleared")
+    }
+
+    @Synchronized
+    fun isManualEnforcementEnabled(): Boolean {
+        return preferences.getBoolean(KEY_MANUAL_ENFORCEMENT_ENABLED, true)
+    }
+
+    @Synchronized
+    fun setManualEnforcementEnabled(enabled: Boolean) {
+        preferences.edit()
+            .putBoolean(KEY_MANUAL_ENFORCEMENT_ENABLED, enabled)
+            .apply()
+        Log.d(TAG, "Manual restriction enforcement set to: $enabled")
     }
 
     /**

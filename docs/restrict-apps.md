@@ -122,6 +122,9 @@ final session = await restrictions.getRestrictionSession();
 `RestrictionSession` now includes:
 - `isActiveNow`: restrictions are currently enforcing (configured, not paused, and all prerequisites are satisfied)
 - `isPausedNow`: pause is currently active
+- `isManuallyEnabled`: manual session toggle state
+- `isScheduleEnabled`: schedule toggle state
+- `isInScheduleNow`: current local time is inside a configured schedule window
 - `pausedUntil`: pause expiration timestamp, if paused
 - `restrictedApps`: currently configured restricted identifiers
 
@@ -139,11 +142,82 @@ Behavior:
 - iOS requires pause duration `< 24h`; longer durations return `INVALID_ARGUMENT`.
 - While paused, `isRestrictionSessionActiveNow()` returns `false`.
 - `isRestrictionSessionConfigured()` can still return `true` during pause.
-- Android resumes enforcement automatically after pause expiry.
+- Android resumes enforcement automatically after pause expiry and re-checks the current foreground app immediately.
 - iOS schedules a Device Activity pause monitor and resumes after expiry through the host monitor extension.
 - If iOS cannot schedule the monitor interval, pause fails with `INTERNAL_FAILURE`.
 
-## 7) Fail-safe enforcement errors
+## 7) Manual session controls
+
+```dart
+final restrictions = AppRestrictionManager();
+
+await restrictions.startRestrictionSession();
+await restrictions.endRestrictionSession();
+```
+
+Behavior:
+- Manual session controls whether restrictions are active outside scheduled windows.
+- If a manual session is active, schedule boundaries do not force-stop it.
+
+## 8) Schedule enforcement
+
+```dart
+final restrictions = AppRestrictionManager();
+
+await restrictions.setRestrictionScheduleConfig(
+  const RestrictionScheduleConfig(
+    enabled: true,
+    schedules: [
+      RestrictionSchedule(
+        daysOfWeekIso: {1, 2, 3, 4, 5},
+        startMinutes: 9 * 60,
+        endMinutes: 12 * 60,
+      ),
+      RestrictionSchedule(
+        daysOfWeekIso: {1, 2, 3, 4, 5},
+        startMinutes: 14 * 60,
+        endMinutes: 17 * 60,
+      ),
+    ],
+  ),
+);
+```
+
+Rules:
+- Multiple schedules per day are supported.
+- Schedules cannot overlap (adjacent windows are allowed).
+- Overnight schedules are supported (`endMinutes <= startMinutes`).
+- Schedule time is interpreted in the device local timezone.
+
+## 8.1) One mode → one schedule APIs
+
+If your host app stores Modes/Schedules in SQLite, save there first, then call plugin APIs to sync shared native config:
+
+```dart
+await restrictions.upsertScheduledMode(
+  RestrictionScheduledMode(
+    modeId: 'focus-mode',
+    isEnabled: true,
+    schedule: const RestrictionSchedule(
+      daysOfWeekIso: {1, 2, 3, 4, 5},
+      startMinutes: 9 * 60,
+      endMinutes: 12 * 60,
+    ),
+    blockedAppIds: [
+      AppIdentifier.android('com.instagram.android'),
+    ],
+  ),
+);
+
+await restrictions.setScheduledModesEnabled(true);
+```
+
+Notes:
+- Each mode can have only one schedule in this API.
+- Schedules across modes must not overlap.
+- If a manual session is enabled (`startRestrictionSession()`), schedule-based mode switching is ignored until manual mode ends.
+
+## 9) Fail-safe enforcement errors
 
 When you apply restrictions while prerequisites are missing, the plugin now fails safely with stable error codes:
 
@@ -169,7 +243,7 @@ Use `PauzaError.fromPlatformException(...)` to map these to typed Dart error cat
   - iOS 16+
   - Screen Time authorization approved
   - Tokens come from `selectIOSApps()` (don’t invent them)
-  - For reliable pause auto-resume while app is backgrounded, Device Activity Monitor extension is configured
+  - For reliable pause auto-resume (including when the app is backgrounded/terminated), Device Activity Monitor extension is configured
 
 ## Next
 

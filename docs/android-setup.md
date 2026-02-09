@@ -79,6 +79,26 @@ This call opens the Accessibility Settings screen. Re-check permission status af
 
 Google Play restricts use of `QUERY_ALL_PACKAGES`. If you don’t qualify, you may need to remove this capability or limit queries via `<queries>` instead.
 
+## 5) Pause auto-resume timing (AlarmManager)
+
+### Why this matters
+
+`pauseEnforcement(...)` stores pause state and schedules an AlarmManager callback at pause expiry.  
+When that alarm fires, the plugin immediately re-evaluates the current foreground app and shows the shield if it is restricted (without waiting for the next accessibility event).
+
+### Exact alarm behavior on Android 12+
+
+The plugin manifest declares `android.permission.SCHEDULE_EXACT_ALARM` for best timing reliability.
+
+On Android 12+ (API 31+), some devices/users may still restrict exact alarms via system settings.  
+If exact alarms are not allowed, the plugin falls back to `setAndAllowWhileIdle`, and pause-end enforcement can be slightly delayed by the OS.
+
+### How to verify
+
+1) Pause for 1 minute while currently inside a restricted app  
+2) Keep the app open  
+3) At pause expiry, verify the shield appears automatically without app switching
+
 ## Troubleshooting
 
 If blocking doesn’t work:

@@ -1,5 +1,8 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:pauza_screen_time/src/core/app_identifier.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_schedule_config.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_mode.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
 
 /// Platform interface for app restriction functionality.
@@ -78,10 +81,62 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
     throw UnimplementedError('resumeEnforcement() has not been implemented.');
   }
 
+  /// Starts a manual restriction session.
+  Future<void> startRestrictionSession() {
+    throw UnimplementedError(
+      'startRestrictionSession() has not been implemented.',
+    );
+  }
+
+  /// Ends a manual restriction session.
+  Future<void> endRestrictionSession() {
+    throw UnimplementedError(
+      'endRestrictionSession() has not been implemented.',
+    );
+  }
+
+  /// Saves weekly schedule configuration for automatic enforcement.
+  Future<void> setRestrictionScheduleConfig(RestrictionScheduleConfig config) {
+    throw UnimplementedError(
+      'setRestrictionScheduleConfig() has not been implemented.',
+    );
+  }
+
+  /// Loads weekly schedule configuration for automatic enforcement.
+  Future<RestrictionScheduleConfig> getRestrictionScheduleConfig() {
+    throw UnimplementedError(
+      'getRestrictionScheduleConfig() has not been implemented.',
+    );
+  }
+
   /// Returns the current restriction session snapshot.
   Future<RestrictionSession> getRestrictionSession() {
     throw UnimplementedError(
       'getRestrictionSession() has not been implemented.',
+    );
+  }
+
+  /// Upserts one mode with a single schedule and blocked identifiers.
+  Future<void> upsertScheduledMode(RestrictionScheduledMode mode) {
+    throw UnimplementedError('upsertScheduledMode() has not been implemented.');
+  }
+
+  /// Removes one scheduled mode by [modeId].
+  Future<void> removeScheduledMode(String modeId) {
+    throw UnimplementedError('removeScheduledMode() has not been implemented.');
+  }
+
+  /// Enables or disables schedule-based mode enforcement globally.
+  Future<void> setScheduledModesEnabled(bool enabled) {
+    throw UnimplementedError(
+      'setScheduledModesEnabled() has not been implemented.',
+    );
+  }
+
+  /// Returns the currently stored scheduled modes config.
+  Future<RestrictionScheduledModesConfig> getScheduledModesConfig() {
+    throw UnimplementedError(
+      'getScheduledModesConfig() has not been implemented.',
     );
   }
 }

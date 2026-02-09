@@ -9,32 +9,44 @@ import 'package:pauza_screen_time/src/features/usage_stats/usage_stats_platform.
 
 void main() {
   group('UsageStatsManager permission errors', () {
-    test('getUsageStats throws typed missing-permission error', () async {
-      final manager = UsageStatsManager(platform: _MissingPermissionPlatform());
-      final now = DateTime.now();
+    test(
+      'getUsageStats throws typed missing-permission error',
+      () async {
+        final manager = UsageStatsManager(
+          platform: _MissingPermissionPlatform(),
+        );
+        final now = DateTime.now();
 
-      await expectLater(
-        manager.getUsageStats(
-          startDate: now.subtract(const Duration(days: 1)),
-          endDate: now,
-        ),
-        throwsA(isA<PauzaMissingPermissionError>()),
-      );
-    }, skip: !Platform.isAndroid);
+        await expectLater(
+          manager.getUsageStats(
+            startDate: now.subtract(const Duration(days: 1)),
+            endDate: now,
+          ),
+          throwsA(isA<PauzaMissingPermissionError>()),
+        );
+      },
+      skip: !Platform.isAndroid,
+    );
 
-    test('getAppUsageStats throws typed missing-permission error', () async {
-      final manager = UsageStatsManager(platform: _MissingPermissionPlatform());
-      final now = DateTime.now();
+    test(
+      'getAppUsageStats throws typed missing-permission error',
+      () async {
+        final manager = UsageStatsManager(
+          platform: _MissingPermissionPlatform(),
+        );
+        final now = DateTime.now();
 
-      await expectLater(
-        manager.getAppUsageStats(
-          packageId: 'com.example.app',
-          startDate: now.subtract(const Duration(days: 1)),
-          endDate: now,
-        ),
-        throwsA(isA<PauzaMissingPermissionError>()),
-      );
-    }, skip: !Platform.isAndroid);
+        await expectLater(
+          manager.getAppUsageStats(
+            packageId: 'com.example.app',
+            startDate: now.subtract(const Duration(days: 1)),
+            endDate: now,
+          ),
+          throwsA(isA<PauzaMissingPermissionError>()),
+        );
+      },
+      skip: !Platform.isAndroid,
+    );
   });
 }
 

@@ -2,6 +2,9 @@ import 'package:pauza_screen_time/src/core/app_identifier.dart';
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/restrictions_method_channel.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_schedule_config.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_mode.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_scheduled_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
@@ -95,8 +98,50 @@ class AppRestrictionManager {
     return _platform.resumeEnforcement().throwTypedPauzaError();
   }
 
+  /// Starts a manual restriction session.
+  Future<void> startRestrictionSession() {
+    return _platform.startRestrictionSession().throwTypedPauzaError();
+  }
+
+  /// Ends a manual restriction session.
+  Future<void> endRestrictionSession() {
+    return _platform.endRestrictionSession().throwTypedPauzaError();
+  }
+
+  /// Stores weekly schedule configuration for automatic enforcement.
+  Future<void> setRestrictionScheduleConfig(RestrictionScheduleConfig config) {
+    return _platform
+        .setRestrictionScheduleConfig(config)
+        .throwTypedPauzaError();
+  }
+
+  /// Loads weekly schedule configuration for automatic enforcement.
+  Future<RestrictionScheduleConfig> getRestrictionScheduleConfig() {
+    return _platform.getRestrictionScheduleConfig().throwTypedPauzaError();
+  }
+
   /// Returns the current restriction session snapshot.
   Future<RestrictionSession> getRestrictionSession() {
     return _platform.getRestrictionSession().throwTypedPauzaError();
+  }
+
+  /// Upserts one mode with a single schedule and blocked identifiers.
+  Future<void> upsertScheduledMode(RestrictionScheduledMode mode) {
+    return _platform.upsertScheduledMode(mode).throwTypedPauzaError();
+  }
+
+  /// Removes one scheduled mode by [modeId].
+  Future<void> removeScheduledMode(String modeId) {
+    return _platform.removeScheduledMode(modeId).throwTypedPauzaError();
+  }
+
+  /// Enables or disables scheduled mode enforcement globally.
+  Future<void> setScheduledModesEnabled(bool enabled) {
+    return _platform.setScheduledModesEnabled(enabled).throwTypedPauzaError();
+  }
+
+  /// Loads scheduled modes configuration.
+  Future<RestrictionScheduledModesConfig> getScheduledModesConfig() {
+    return _platform.getScheduledModesConfig().throwTypedPauzaError();
   }
 }

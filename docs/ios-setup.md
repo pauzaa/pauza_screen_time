@@ -9,6 +9,9 @@ Because of Apple privacy rules, iOS has important constraints:
 - You cannot enumerate installed apps programmatically.
 - You cannot read usage stats as data; you can only **render** them as a native report.
 
+Copy-ready host app checklist:
+- `docs/templates/PauzaHostAppIntegrationChecklist.md`
+
 ## Requirements
 
 - iOS **16.0+** (this plugin requests individual authorization via `AuthorizationCenter.requestAuthorization(for: .individual)`).
@@ -96,10 +99,22 @@ To make auto-resume reliable while the app is backgrounded/terminated, your host
 The extension must read these App Group keys:
 - `desiredRestrictedApps`
 - `pausedUntilEpochMs`
+- `manualEnforcementEnabled`
+- `scheduleEnabled`
+- `restrictionSchedules`
+- `scheduledModesEnabled`
+- `scheduledModes`
 
 ### Failure behavior
 
 If iOS cannot start the pause monitor interval, `pauseEnforcement(...)` returns `INTERNAL_FAILURE` with an actionable diagnostic.
+
+### How to verify timed auto-resume
+
+1) Restrict at least one app token  
+2) Call `pauseEnforcement(const Duration(minutes: 1))`  
+3) Open a restricted app and keep it open  
+4) After pause expiry, confirm the shield is re-applied automatically
 
 ## 5) Create the Shield Configuration extension (optional but recommended)
 

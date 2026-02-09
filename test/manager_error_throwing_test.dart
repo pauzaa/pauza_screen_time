@@ -4,6 +4,7 @@ import 'package:pauza_screen_time/src/core/app_identifier.dart';
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/data/app_restriction_manager.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_schedule_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
 
 void main() {
@@ -34,6 +35,9 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
       const RestrictionSession(
         isActiveNow: false,
         isPausedNow: false,
+        isManuallyEnabled: true,
+        isScheduleEnabled: false,
+        isInScheduleNow: false,
         pausedUntil: null,
         restrictedApps: [],
       );
@@ -58,6 +62,22 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
 
   @override
   Future<void> resumeEnforcement() async {}
+
+  @override
+  Future<void> startRestrictionSession() async {}
+
+  @override
+  Future<void> endRestrictionSession() async {}
+
+  @override
+  Future<void> setRestrictionScheduleConfig(
+    RestrictionScheduleConfig config,
+  ) async {}
+
+  @override
+  Future<RestrictionScheduleConfig> getRestrictionScheduleConfig() async {
+    return const RestrictionScheduleConfig(enabled: false, schedules: []);
+  }
 
   @override
   Future<List<AppIdentifier>> setRestrictedApps(

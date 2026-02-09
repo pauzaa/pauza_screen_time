@@ -4,6 +4,12 @@ import Foundation
 enum RestrictionStateStore {
     static let desiredRestrictedAppsKey = "desiredRestrictedApps"
     static let pausedUntilEpochMsKey = "pausedUntilEpochMs"
+    static let manualEnforcementEnabledKey = "manualEnforcementEnabled"
+    static let scheduleEnabledKey = "scheduleEnabled"
+    static let restrictionSchedulesKey = "restrictionSchedules"
+    static let scheduleMonitorNamesKey = "scheduleMonitorNames"
+    static let scheduledModesEnabledKey = "scheduledModesEnabled"
+    static let scheduledModesKey = "scheduledModes"
 
     enum StoreResult {
         case success
@@ -55,6 +61,80 @@ enum RestrictionStateStore {
         return pausedUntil
     }
 
+    static func loadManualEnforcementEnabled() -> Bool {
+        guard let defaults = AppGroupStore.sharedDefaults() else {
+            return true
+        }
+        if defaults.object(forKey: manualEnforcementEnabledKey) == nil {
+            return true
+        }
+        return defaults.bool(forKey: manualEnforcementEnabledKey)
+    }
+
+    @discardableResult
+    static func storeManualEnforcementEnabled(_ enabled: Bool) -> StoreResult {
+        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
+        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
+            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
+        }
+        defaults.set(enabled, forKey: manualEnforcementEnabledKey)
+        return .success
+    }
+
+    static func loadScheduleEnabled() -> Bool {
+        guard let defaults = AppGroupStore.sharedDefaults() else {
+            return false
+        }
+        return defaults.bool(forKey: scheduleEnabledKey)
+    }
+
+    @discardableResult
+    static func storeScheduleEnabled(_ enabled: Bool) -> StoreResult {
+        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
+        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
+            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
+        }
+        defaults.set(enabled, forKey: scheduleEnabledKey)
+        return .success
+    }
+
+    static func loadRestrictionSchedules() -> [RestrictionSchedule] {
+        guard let defaults = AppGroupStore.sharedDefaults() else {
+            return []
+        }
+        guard let values = defaults.array(forKey: restrictionSchedulesKey) as? [[String: Any]] else {
+            return []
+        }
+        return values.compactMap(RestrictionSchedule.init(dictionary:))
+    }
+
+    @discardableResult
+    static func storeRestrictionSchedules(_ schedules: [RestrictionSchedule]) -> StoreResult {
+        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
+        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
+            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
+        }
+        defaults.set(schedules.map { $0.toDictionary() }, forKey: restrictionSchedulesKey)
+        return .success
+    }
+
+    static func loadScheduleMonitorNames() -> [String] {
+        guard let defaults = AppGroupStore.sharedDefaults() else {
+            return []
+        }
+        return defaults.array(forKey: scheduleMonitorNamesKey) as? [String] ?? []
+    }
+
+    @discardableResult
+    static func storeScheduleMonitorNames(_ names: [String]) -> StoreResult {
+        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
+        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
+            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
+        }
+        defaults.set(names, forKey: scheduleMonitorNamesKey)
+        return .success
+    }
+
     @discardableResult
     static func storePausedUntilEpochMs(_ epochMs: Int64) -> StoreResult {
         let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
@@ -67,5 +147,42 @@ enum RestrictionStateStore {
 
     static func currentEpochMs() -> Int64 {
         Int64(Date().timeIntervalSince1970 * 1000)
+    }
+
+    static func loadScheduledModesEnabled() -> Bool {
+        guard let defaults = AppGroupStore.sharedDefaults() else {
+            return false
+        }
+        return defaults.bool(forKey: scheduledModesEnabledKey)
+    }
+
+    @discardableResult
+    static func storeScheduledModesEnabled(_ enabled: Bool) -> StoreResult {
+        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
+        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
+            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
+        }
+        defaults.set(enabled, forKey: scheduledModesEnabledKey)
+        return .success
+    }
+
+    static func loadScheduledModes() -> [RestrictionScheduledMode] {
+        guard let defaults = AppGroupStore.sharedDefaults() else {
+            return []
+        }
+        guard let values = defaults.array(forKey: scheduledModesKey) as? [[String: Any]] else {
+            return []
+        }
+        return values.compactMap(RestrictionScheduledMode.init(dictionary:))
+    }
+
+    @discardableResult
+    static func storeScheduledModes(_ modes: [RestrictionScheduledMode]) -> StoreResult {
+        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
+        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
+            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
+        }
+        defaults.set(modes.map { $0.toDictionary() }, forKey: scheduledModesKey)
+        return .success
     }
 }

@@ -6,6 +6,8 @@ import 'package:pauza_screen_time/src/features/restrict_apps/data/app_restrictio
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/channel_name.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/method_names.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/restrictions_method_channel.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_schedule.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_schedule_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
 
 void main() {
@@ -44,6 +46,9 @@ void main() {
               return {
                 'isActiveNow': true,
                 'isPausedNow': true,
+                'isManuallyEnabled': false,
+                'isScheduleEnabled': true,
+                'isInScheduleNow': true,
                 'pausedUntilEpochMs': 1,
                 'restrictedApps': ['x'],
               };
@@ -54,6 +59,9 @@ void main() {
       final session = await methodChannel.getRestrictionSession();
       expect(session.isActiveNow, isTrue);
       expect(session.isPausedNow, isTrue);
+      expect(session.isManuallyEnabled, isFalse);
+      expect(session.isScheduleEnabled, isTrue);
+      expect(session.isInScheduleNow, isTrue);
       expect(session.pausedUntil, DateTime.fromMillisecondsSinceEpoch(1));
       expect(session.restrictedApps, const [AppIdentifier('x')]);
     });
@@ -71,6 +79,9 @@ void main() {
       expect(session, isA<RestrictionSession>());
       expect(session.isActiveNow, isFalse);
       expect(session.isPausedNow, isFalse);
+      expect(session.isManuallyEnabled, isTrue);
+      expect(session.isScheduleEnabled, isFalse);
+      expect(session.isInScheduleNow, isFalse);
       expect(session.pausedUntil, isNull);
       expect(session.restrictedApps, isEmpty);
     });
@@ -120,6 +131,76 @@ void main() {
       await methodChannel.resumeEnforcement();
       expect(called, isTrue);
     });
+
+    test('start/end restriction session invoke platform methods', () async {
+      var startCalled = false;
+      var endCalled = false;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method ==
+                RestrictionsMethodNames.startRestrictionSession) {
+              startCalled = true;
+            } else if (call.method ==
+                RestrictionsMethodNames.endRestrictionSession) {
+              endCalled = true;
+            }
+            return null;
+          });
+
+      await methodChannel.startRestrictionSession();
+      await methodChannel.endRestrictionSession();
+      expect(startCalled, isTrue);
+      expect(endCalled, isTrue);
+    });
+
+    test('set/get schedule config roundtrip payload', () async {
+      Map<dynamic, dynamic>? capturedConfig;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method ==
+                RestrictionsMethodNames.setRestrictionScheduleConfig) {
+              capturedConfig = call.arguments as Map<dynamic, dynamic>;
+              return null;
+            }
+            if (call.method ==
+                RestrictionsMethodNames.getRestrictionScheduleConfig) {
+              return <String, dynamic>{
+                'enabled': true,
+                'schedules': [
+                  {
+                    'daysOfWeekIso': [1, 2],
+                    'startMinutes': 60,
+                    'endMinutes': 120,
+                  },
+                ],
+              };
+            }
+            return null;
+          });
+
+      await methodChannel.setRestrictionScheduleConfig(
+        const RestrictionScheduleConfig(
+          enabled: true,
+          schedules: [
+            RestrictionSchedule(
+              daysOfWeekIso: {1, 2},
+              startMinutes: 60,
+              endMinutes: 120,
+            ),
+          ],
+        ),
+      );
+
+      expect(capturedConfig, isNotNull);
+      expect(capturedConfig?['enabled'], isTrue);
+
+      final loaded = await methodChannel.getRestrictionScheduleConfig();
+      expect(loaded.enabled, isTrue);
+      expect(loaded.schedules, hasLength(1));
+      expect(loaded.schedules.first.daysOfWeekIso, {1, 2});
+      expect(loaded.schedules.first.startMinutes, 60);
+      expect(loaded.schedules.first.endMinutes, 120);
+    });
   });
 
   group('AppRestrictionManager session delegation', () {
@@ -131,17 +212,31 @@ void main() {
       final isConfigured = await manager.isRestrictionSessionConfigured();
       await manager.pauseEnforcement(const Duration(seconds: 30));
       await manager.resumeEnforcement();
+      await manager.startRestrictionSession();
+      await manager.endRestrictionSession();
+      await manager.setRestrictionScheduleConfig(
+        const RestrictionScheduleConfig(enabled: false, schedules: []),
+      );
+      final scheduleConfig = await manager.getRestrictionScheduleConfig();
       final session = await manager.getRestrictionSession();
 
       expect(fakePlatform.isRestrictionSessionActiveNowCalled, isTrue);
       expect(fakePlatform.isRestrictionSessionConfiguredCalled, isTrue);
       expect(fakePlatform.pauseEnforcementCalled, isTrue);
       expect(fakePlatform.resumeEnforcementCalled, isTrue);
+      expect(fakePlatform.startRestrictionSessionCalled, isTrue);
+      expect(fakePlatform.endRestrictionSessionCalled, isTrue);
+      expect(fakePlatform.setRestrictionScheduleConfigCalled, isTrue);
+      expect(fakePlatform.getRestrictionScheduleConfigCalled, isTrue);
       expect(fakePlatform.getRestrictionSessionCalled, isTrue);
       expect(isActiveNow, isTrue);
       expect(isConfigured, isTrue);
+      expect(scheduleConfig.enabled, isFalse);
       expect(session.isActiveNow, isTrue);
       expect(session.isPausedNow, isFalse);
+      expect(session.isManuallyEnabled, isTrue);
+      expect(session.isScheduleEnabled, isFalse);
+      expect(session.isInScheduleNow, isFalse);
       expect(session.pausedUntil, isNull);
       expect(session.restrictedApps, const [
         AppIdentifier.android('com.example.app'),
@@ -155,6 +250,10 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   bool isRestrictionSessionConfiguredCalled = false;
   bool pauseEnforcementCalled = false;
   bool resumeEnforcementCalled = false;
+  bool startRestrictionSessionCalled = false;
+  bool endRestrictionSessionCalled = false;
+  bool setRestrictionScheduleConfigCalled = false;
+  bool getRestrictionScheduleConfigCalled = false;
   bool getRestrictionSessionCalled = false;
 
   @override
@@ -186,6 +285,9 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
     return const RestrictionSession(
       isActiveNow: true,
       isPausedNow: false,
+      isManuallyEnabled: true,
+      isScheduleEnabled: false,
+      isInScheduleNow: false,
       pausedUntil: null,
       restrictedApps: [AppIdentifier('com.example.app')],
     );
@@ -211,5 +313,28 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   @override
   Future<void> resumeEnforcement() async {
     resumeEnforcementCalled = true;
+  }
+
+  @override
+  Future<void> startRestrictionSession() async {
+    startRestrictionSessionCalled = true;
+  }
+
+  @override
+  Future<void> endRestrictionSession() async {
+    endRestrictionSessionCalled = true;
+  }
+
+  @override
+  Future<void> setRestrictionScheduleConfig(
+    RestrictionScheduleConfig config,
+  ) async {
+    setRestrictionScheduleConfigCalled = true;
+  }
+
+  @override
+  Future<RestrictionScheduleConfig> getRestrictionScheduleConfig() async {
+    getRestrictionScheduleConfigCalled = true;
+    return const RestrictionScheduleConfig(enabled: false, schedules: []);
   }
 }
