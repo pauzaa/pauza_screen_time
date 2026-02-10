@@ -3,15 +3,12 @@ package com.example.pauza_screen_time.app_restriction.alarm
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
-import com.example.pauza_screen_time.app_restriction.AppMonitoringService
-import com.example.pauza_screen_time.app_restriction.RestrictionManualModeResolver
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
-import com.example.pauza_screen_time.app_restriction.ShieldOverlayManager
+import com.example.pauza_screen_time.app_restriction.RestrictionSessionController
+import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleBoundaryType
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleConfig
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeResolver
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesConfig
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
 
 internal class RestrictionAlarmOrchestrator(
@@ -26,6 +23,7 @@ internal class RestrictionAlarmOrchestrator(
     private val restrictionManager = RestrictionManager.getInstance(appContext)
     private val modesStore = RestrictionScheduledModesStore(appContext)
     private val scheduleCalculator = RestrictionScheduleCalculator()
+    private val sessionController = RestrictionSessionController(appContext)
 
     fun onAlarmFired(alarmType: RestrictionAlarmType) {
         when (alarmType) {
@@ -44,15 +42,17 @@ internal class RestrictionAlarmOrchestrator(
             return
         }
 
-        AppMonitoringService.getInstance()?.enforceCurrentForegroundNow(
-            trigger = "pause_end_alarm",
-        )
+        sessionController.applyCurrentEnforcementState(trigger = "pause_end_alarm")
         rescheduleScheduleBoundary()
     }
 
     fun onScheduleBoundaryFired(alarmType: RestrictionAlarmType) {
         Log.d(TAG, "Schedule boundary fired: ${alarmType.value}")
-        applyScheduleBoundaryState(alarmType)
+        when (alarmType) {
+            RestrictionAlarmType.SCHEDULE_SESSION_START -> applyScheduleStart()
+            RestrictionAlarmType.SCHEDULE_SESSION_END -> applyScheduleEnd()
+            RestrictionAlarmType.PAUSE_END -> Unit
+        }
         rescheduleScheduleBoundary()
     }
 
@@ -101,36 +101,31 @@ internal class RestrictionAlarmOrchestrator(
         )
     }
 
-    private fun applyScheduleBoundaryState(alarmType: RestrictionAlarmType) {
+    private fun applyScheduleStart() {
         val modesConfig = modesStore.getConfig()
-        val manualMode = RestrictionManualModeResolver.resolveActiveManualMode(
-            restrictionManager = restrictionManager,
+        val resolution = com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeResolver.resolveNow(
+            config = modesConfig,
+            scheduleCalculator = scheduleCalculator,
         )
-        val resolution = resolveScheduledModeNow(modesConfig)
-
-        val blockedAppIds = when {
-            manualMode != null -> manualMode.blockedAppIds
-            else -> resolution.blockedAppIds
-        }
-        restrictionManager.setRestrictedApps(blockedAppIds)
-
-        val shouldEnforce = when {
-            manualMode != null -> true
-            else -> resolution.isInScheduleNow
-        }
-        if (shouldEnforce) {
-            AppMonitoringService.getInstance()?.enforceCurrentForegroundNow(
-                trigger = "schedule_boundary_${alarmType.value}",
-            )
+        if (!resolution.isInScheduleNow || resolution.activeModeId == null || resolution.blockedAppIds.isEmpty()) {
+            sessionController.applyCurrentEnforcementState(trigger = "schedule_boundary_start_noop")
             return
         }
-        ShieldOverlayManager.getInstanceOrNull()?.hideShield()
+
+        sessionController.startSession(
+            modeId = resolution.activeModeId,
+            blockedAppIds = resolution.blockedAppIds,
+            source = RestrictionModeSource.SCHEDULE,
+            trigger = "schedule_boundary_start",
+            rescheduleAlarms = false,
+        )
     }
 
-    private fun resolveScheduledModeNow(config: RestrictionScheduledModesConfig): RestrictionScheduledModeResolver.Resolution {
-        return RestrictionScheduledModeResolver.resolveNow(
-            config = config,
-            scheduleCalculator = scheduleCalculator,
+    private fun applyScheduleEnd() {
+        sessionController.endSession(
+            source = RestrictionModeSource.SCHEDULE,
+            trigger = "schedule_boundary_end",
+            rescheduleAlarms = false,
         )
     }
 }

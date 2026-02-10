@@ -51,7 +51,7 @@ Notes:
 ## 3) Manual mode session
 
 ```dart
-await restrictions.startManualModeSession(
+await restrictions.startSession(
   RestrictionMode(
     modeId: 'focus-mode',
     blockedAppIds: [
@@ -59,13 +59,13 @@ await restrictions.startManualModeSession(
     ],
   ),
 );
-await restrictions.endModeSession();
+await restrictions.endSession();
 ```
 
 Manual session rules:
-- `startManualModeSession(mode)` performs `upsertMode(mode)` then `startModeSession(modeId)`.
-- `startModeSession(modeId)` requires mode to exist with non-empty blocked app ids. For unscheduled modes, call `upsertMode` first in the same app run.
-- Manual session overrides scheduled activation until `endModeSession()`.
+- `startSession(mode)` always requires and uses the full mode DTO (`modeId` + non-empty `blockedAppIds`).
+- `startSession(mode)` writes the active session snapshot separately from recurring scheduled modes.
+- Manual session overrides scheduled activation until `endSession()`.
 
 ## 4) Pause / resume
 
@@ -101,7 +101,7 @@ Returns:
 - `enabled`: global schedule engine flag
 - `modes`: only persisted scheduled modes used for background enforcement (`schedule != null && blockedAppIds.isNotEmpty`)
 
-The plugin persists only enforceable scheduled modes and the current manual active mode. Host apps should store the full user mode catalog separately and represent disabled schedules by removing the schedule-backed mode from plugin storage.
+The plugin persists only enforceable scheduled modes and the current active session snapshot. Host apps should store the full user mode catalog separately and represent disabled schedules by removing the schedule-backed mode from plugin storage.
 
 ## 7) Remove mode
 
@@ -109,10 +109,10 @@ The plugin persists only enforceable scheduled modes and the current manual acti
 await restrictions.removeMode('focus-mode');
 ```
 
-If the removed mode is currently active manually, manual session is cleared.
+If the removed mode is currently active, the active session is cleared.
 
 ## Breaking migration map
 
 - `restrictApps`, `restrictApp`, `unrestrictApp`, `clearAllRestrictions` -> `upsertMode` / `removeMode`
 - `upsertScheduledMode`, `removeScheduledMode`, `setScheduledModesEnabled`, `getScheduledModesConfig` -> `upsertMode`, `removeMode`, `setModesEnabled`, `getModesConfig`
-- `startRestrictionSession`, `endRestrictionSession` -> `startModeSession(modeId)`, `endModeSession()`
+- `startRestrictionSession`, `endRestrictionSession` -> `startSession(mode)`, `endSession()`

@@ -15,6 +15,10 @@ void main() {
         '$root/docs/ios-setup.md',
       ];
       final forbidden = <String>[
+        'startModeSession(',
+        'endModeSession(',
+        'startManualModeSession(',
+        'RestrictionModeUpsertCache',
         'getManualActiveModeId(',
         'setManualActiveModeId(',
         'loadManualActiveModeId(',

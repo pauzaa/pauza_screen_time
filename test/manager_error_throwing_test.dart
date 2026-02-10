@@ -62,13 +62,13 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   Future<void> resumeEnforcement() async {}
 
   @override
-  Future<void> endModeSession() async {}
+  Future<void> endSession() async {}
 
   @override
   Future<void> setModesEnabled(bool enabled) async {}
 
   @override
-  Future<void> startModeSession(String modeId) async {}
+  Future<void> startSession(RestrictionMode mode) async {}
 
   @override
   Future<void> upsertMode(RestrictionMode mode) async {

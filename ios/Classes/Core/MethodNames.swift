@@ -22,7 +22,7 @@ enum MethodNames {
     static let isRestrictionSessionActiveNow = "isRestrictionSessionActiveNow"
     static let pauseEnforcement = "pauseEnforcement"
     static let resumeEnforcement = "resumeEnforcement"
-    static let startModeSession = "startModeSession"
-    static let endModeSession = "endModeSession"
+    static let startSession = "startSession"
+    static let endSession = "endSession"
     static let getRestrictionSession = "getRestrictionSession"
 }

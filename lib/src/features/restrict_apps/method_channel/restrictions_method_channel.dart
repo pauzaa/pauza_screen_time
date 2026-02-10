@@ -97,16 +97,16 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> startModeSession(String modeId) {
+  Future<void> startSession(RestrictionMode mode) {
     return channel.invokeMethod<void>(
-      RestrictionsMethodNames.startModeSession,
-      {'modeId': modeId},
+      RestrictionsMethodNames.startSession,
+      mode.toMap(),
     );
   }
 
   @override
-  Future<void> endModeSession() {
-    return channel.invokeMethod<void>(RestrictionsMethodNames.endModeSession);
+  Future<void> endSession() {
+    return channel.invokeMethod<void>(RestrictionsMethodNames.endSession);
   }
 
   @override

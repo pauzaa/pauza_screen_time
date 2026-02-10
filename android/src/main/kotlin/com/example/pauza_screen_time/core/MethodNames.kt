@@ -26,7 +26,7 @@ object MethodNames {
     const val IS_RESTRICTION_SESSION_ACTIVE_NOW = "isRestrictionSessionActiveNow"
     const val PAUSE_ENFORCEMENT = "pauseEnforcement"
     const val RESUME_ENFORCEMENT = "resumeEnforcement"
-    const val START_MODE_SESSION = "startModeSession"
-    const val END_MODE_SESSION = "endModeSession"
+    const val START_SESSION = "startSession"
+    const val END_SESSION = "endSession"
     const val GET_RESTRICTION_SESSION = "getRestrictionSession"
 }

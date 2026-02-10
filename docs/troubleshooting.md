@@ -15,7 +15,7 @@ This page lists common setup issues and how to fix them.
 **Verify**:
 - Restrict a well-known app (e.g. a browser) and open it — the overlay should appear within ~500ms.
 
-### `upsertMode(...)` or `startModeSession(...)` fails with `MISSING_PERMISSION` on Android
+### `upsertMode(...)` or `startSession(...)` fails with `MISSING_PERMISSION` on Android
 
 **What it means**:
 
@@ -24,7 +24,7 @@ Restriction prerequisites are not satisfied. For Android restrictions, this mean
 **Fix**:
 - Open **Settings → Accessibility**
 - Enable your app’s accessibility service
-- Retry `upsertMode(...)` / `startModeSession(...)`
+- Retry `upsertMode(...)` / `startSession(...)`
 
 ### Blocking triggers, but shield overlay is not visible
 

@@ -26,10 +26,10 @@ final class RestrictionsMethodHandler {
             handlePauseEnforcement(call: call, result: result)
         case MethodNames.resumeEnforcement:
             handleResumeEnforcement(result: result)
-        case MethodNames.startModeSession:
-            handleStartModeSession(call: call, result: result)
-        case MethodNames.endModeSession:
-            handleEndModeSession(result: result)
+        case MethodNames.startSession:
+            handleStartSession(call: call, result: result)
+        case MethodNames.endSession:
+            handleEndSession(result: result)
         case MethodNames.getRestrictionSession:
             handleGetRestrictionSession(result: result)
         default:
@@ -195,49 +195,39 @@ final class RestrictionsMethodHandler {
         result(nil)
     }
 
-    private func handleStartModeSession(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    private func handleStartSession(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(PluginErrors.unsupported(
                 feature: Self.featureRestrictions,
-                action: MethodNames.startModeSession,
+                action: MethodNames.startSession,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
             return
         }
-        guard let args = call.arguments as? [String: Any],
-              let modeIdRaw = args["modeId"] as? String else {
+
+        guard let args = call.arguments as? [String: Any] else {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.startModeSession,
-                message: "Missing or invalid 'modeId' argument"
-            ))
-            return
-        }
-        let modeId = modeIdRaw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if modeId.isEmpty {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.startModeSession,
-                message: "Missing or invalid 'modeId' argument"
+                action: MethodNames.startSession,
+                message: "Missing or invalid mode payload"
             ))
             return
         }
 
-        let scheduledMode = RestrictionStateStore.loadModes().first { $0.modeId == modeId }
-        let cachedMode = RestrictionModeUpsertCache.get(modeId: modeId)
-        let blockedAppIds: [String]?
-        if let scheduledMode, scheduledMode.isStartable {
-            blockedAppIds = scheduledMode.blockedAppIds
-        } else if let cachedMode, !cachedMode.blockedAppIds.isEmpty {
-            blockedAppIds = cachedMode.blockedAppIds
-        } else {
-            blockedAppIds = nil
+        let modeId = (args["modeId"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let blockedAppIdsRaw = args["blockedAppIds"] as? [Any] ?? []
+        let blockedAppIds = blockedAppIdsRaw.compactMap { value -> String? in
+            guard let raw = value as? String else {
+                return nil
+            }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
         }
-        guard let blockedAppIds else {
+        if modeId.isEmpty || blockedAppIds.isEmpty {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.startModeSession,
-                message: "Mode must exist with blocked apps to start manual session. Call upsertMode first for unscheduled modes."
+                action: MethodNames.startSession,
+                message: "Mode requires non-empty 'modeId' and 'blockedAppIds'"
             ))
             return
         }
@@ -246,22 +236,22 @@ final class RestrictionsMethodHandler {
         if !decodeResult.invalidTokens.isEmpty {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.startModeSession,
+                action: MethodNames.startSession,
                 message: PluginErrorMessage.unableToDecodeTokens,
                 diagnostic: "invalidTokens=\(decodeResult.invalidTokens)"
             ))
             return
         }
 
-        switch RestrictionStateStore.storeManualActiveMode(
-            RestrictionStateStore.ManualActiveMode(modeId: modeId, blockedAppIds: blockedAppIds)
+        switch RestrictionStateStore.storeActiveSession(
+            RestrictionStateStore.ActiveSession(modeId: modeId, blockedAppIds: blockedAppIds, source: .manual)
         ) {
         case .success:
             break
         case .appGroupUnavailable(let resolvedGroupId):
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
-                action: MethodNames.startModeSession,
+                action: MethodNames.startSession,
                 message: PluginErrorMessage.appGroupUnavailable,
                 diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
             ))
@@ -272,35 +262,28 @@ final class RestrictionsMethodHandler {
         result(nil)
     }
 
-    private func handleEndModeSession(result: @escaping FlutterResult) {
+    private func handleEndSession(result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(PluginErrors.unsupported(
                 feature: Self.featureRestrictions,
-                action: MethodNames.endModeSession,
+                action: MethodNames.endSession,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
             return
         }
 
-        let activeManualMode = resolveManualActiveMode()
-        switch RestrictionStateStore.clearManualActiveMode() {
+        switch endSession(for: .manual) {
         case .success:
-            break
+            applyDesiredRestrictionsIfNeeded()
+            result(nil)
         case .appGroupUnavailable(let resolvedGroupId):
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
-                action: MethodNames.endModeSession,
+                action: MethodNames.endSession,
                 message: PluginErrorMessage.appGroupUnavailable,
                 diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
             ))
-            return
         }
-
-        if let activeManualMode {
-            RestrictionModeUpsertCache.remove(modeId: activeManualMode.modeId)
-        }
-        applyDesiredRestrictionsIfNeeded()
-        result(nil)
     }
 
     private func handleGetRestrictionSession(result: @escaping FlutterResult) {
@@ -384,17 +367,6 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        if mode.isStartable {
-            RestrictionModeUpsertCache.upsert(
-                RestrictionCachedMode(
-                    modeId: mode.modeId,
-                    blockedAppIds: mode.blockedAppIds
-                )
-            )
-        } else {
-            RestrictionModeUpsertCache.remove(modeId: mode.modeId)
-        }
-
         let shouldRescheduleMonitors = scheduleModesSignature(existing) != scheduleModesSignature(nextModes)
         if shouldRescheduleMonitors {
             switch RestrictionStateStore.storeModes(nextModes) {
@@ -423,36 +395,28 @@ final class RestrictionsMethodHandler {
             }
         }
 
-        if let activeManualMode = resolveManualActiveMode(),
-           activeManualMode.modeId == mode.modeId {
+        if let activeSession = RestrictionStateStore.loadActiveSession(),
+           activeSession.modeId == mode.modeId {
+            let storeResult: RestrictionStateStore.StoreResult
             if mode.isStartable {
-                switch RestrictionStateStore.storeManualActiveMode(
-                    RestrictionStateStore.ManualActiveMode(modeId: mode.modeId, blockedAppIds: mode.blockedAppIds)
-                ) {
-                case .success:
-                    break
-                case .appGroupUnavailable(let resolvedGroupId):
-                    result(PluginErrors.internalFailure(
-                        feature: Self.featureRestrictions,
-                        action: MethodNames.upsertMode,
-                        message: PluginErrorMessage.appGroupUnavailable,
-                        diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-                    ))
-                    return
-                }
+                storeResult = RestrictionStateStore.storeActiveSession(
+                    RestrictionStateStore.ActiveSession(
+                        modeId: mode.modeId,
+                        blockedAppIds: mode.blockedAppIds,
+                        source: activeSession.source
+                    )
+                )
             } else {
-                switch RestrictionStateStore.clearManualActiveMode() {
-                case .success:
-                    break
-                case .appGroupUnavailable(let resolvedGroupId):
-                    result(PluginErrors.internalFailure(
-                        feature: Self.featureRestrictions,
-                        action: MethodNames.upsertMode,
-                        message: PluginErrorMessage.appGroupUnavailable,
-                        diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-                    ))
-                    return
-                }
+                storeResult = RestrictionStateStore.clearActiveSession()
+            }
+            if case .appGroupUnavailable(let resolvedGroupId) = storeResult {
+                result(PluginErrors.internalFailure(
+                    feature: Self.featureRestrictions,
+                    action: MethodNames.upsertMode,
+                    message: PluginErrorMessage.appGroupUnavailable,
+                    diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                ))
+                return
             }
         }
 
@@ -506,9 +470,8 @@ final class RestrictionsMethodHandler {
             }
         }
 
-        RestrictionModeUpsertCache.remove(modeId: modeId)
-        if resolveManualActiveMode()?.modeId == modeId {
-            switch RestrictionStateStore.clearManualActiveMode() {
+        if RestrictionStateStore.loadActiveSession()?.modeId == modeId {
+            switch RestrictionStateStore.clearActiveSession() {
             case .success:
                 break
             case .appGroupUnavailable(let resolvedGroupId):
@@ -631,30 +594,53 @@ final class RestrictionsMethodHandler {
     private func resolveSessionState() -> SessionState {
         let modes = RestrictionStateStore.loadModes()
         let modesEnabled = RestrictionStateStore.loadModesEnabled()
-        let manualMode = resolveManualActiveMode()
 
         let config = RestrictionScheduledModesConfig(
             enabled: modesEnabled,
             modes: modes
         )
         let resolution = RestrictionScheduledModeEvaluator.resolveNow(config: config)
+        let activeSession = RestrictionStateStore.loadActiveSession()
 
-        if let manualMode {
-            return SessionState(
-                isScheduleEnabled: modesEnabled,
-                isInScheduleNow: resolution.isInScheduleNow,
-                blockedAppIds: manualMode.blockedAppIds,
-                activeModeId: manualMode.modeId,
-                activeModeSource: .manual
-            )
+        if let activeSession {
+            if activeSession.source == .manual {
+                return SessionState(
+                    isScheduleEnabled: modesEnabled,
+                    isInScheduleNow: resolution.isInScheduleNow,
+                    blockedAppIds: activeSession.blockedAppIds,
+                    activeModeId: activeSession.modeId,
+                    activeModeSource: .manual
+                )
+            }
+
+            if resolution.isInScheduleNow, activeSession.modeId == resolution.activeModeId {
+                return SessionState(
+                    isScheduleEnabled: modesEnabled,
+                    isInScheduleNow: true,
+                    blockedAppIds: activeSession.blockedAppIds,
+                    activeModeId: activeSession.modeId,
+                    activeModeSource: .schedule
+                )
+            }
+
+            _ = RestrictionStateStore.clearActiveSession()
         }
 
-        if resolution.isInScheduleNow {
+        if resolution.isInScheduleNow,
+           let activeModeId = resolution.activeModeId,
+           !resolution.blockedAppIds.isEmpty {
+            _ = RestrictionStateStore.storeActiveSession(
+                RestrictionStateStore.ActiveSession(
+                    modeId: activeModeId,
+                    blockedAppIds: resolution.blockedAppIds,
+                    source: .schedule
+                )
+            )
             return SessionState(
                 isScheduleEnabled: modesEnabled,
                 isInScheduleNow: true,
                 blockedAppIds: resolution.blockedAppIds,
-                activeModeId: resolution.activeModeId,
+                activeModeId: activeModeId,
                 activeModeSource: .schedule
             )
         }
@@ -668,17 +654,23 @@ final class RestrictionsMethodHandler {
         )
     }
 
+    @available(iOS 16.0, *)
+    private func endSession(for source: RestrictionModeSource) -> RestrictionStateStore.StoreResult {
+        guard let activeSession = RestrictionStateStore.loadActiveSession() else {
+            return .success
+        }
+        if source == .schedule && activeSession.source != .schedule {
+            return .success
+        }
+        return RestrictionStateStore.clearActiveSession()
+    }
+
     private struct SessionState {
         let isScheduleEnabled: Bool
         let isInScheduleNow: Bool
         let blockedAppIds: [String]
         let activeModeId: String?
         let activeModeSource: RestrictionModeSource
-    }
-
-    @available(iOS 16.0, *)
-    private func resolveManualActiveMode() -> RestrictionStateStore.ManualActiveMode? {
-        return RestrictionStateStore.loadManualActiveMode()
     }
 
     private func scheduleModesSignature(_ modes: [RestrictionScheduledMode]) -> String {

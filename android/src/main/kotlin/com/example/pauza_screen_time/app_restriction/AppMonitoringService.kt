@@ -9,9 +9,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeResolver
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
+import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
 
 class AppMonitoringService : AccessibilityService() {
 
@@ -42,8 +40,6 @@ class AppMonitoringService : AccessibilityService() {
     private var lastForegroundPackage: String? = null
     private var lastEventTimestamp: Long = 0L
     private var isMonitoring = true
-    private val modesStore by lazy { RestrictionScheduledModesStore(applicationContext) }
-    private val scheduleCalculator = RestrictionScheduleCalculator()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -196,22 +192,9 @@ class AppMonitoringService : AccessibilityService() {
             return
         }
 
-        val config = modesStore.getConfig()
-        val manualMode = RestrictionManualModeResolver.resolveActiveManualMode(
-            restrictionManager = restrictionManager,
-        )
-        val scheduleResolution = resolveScheduledModeNow(config)
-
-        val blockedAppIds = when {
-            manualMode != null -> manualMode.blockedAppIds
-            else -> scheduleResolution.blockedAppIds
-        }
-        restrictionManager.setRestrictedApps(blockedAppIds)
-
-        val shouldEnforce = when {
-            manualMode != null -> true
-            else -> scheduleResolution.isInScheduleNow
-        }
+        val sessionState = RestrictionSessionController(applicationContext).resolveSessionState()
+        restrictionManager.setRestrictedApps(sessionState.blockedAppIds)
+        val shouldEnforce = sessionState.activeModeSource != RestrictionModeSource.NONE
         if (!shouldEnforce) {
             overlayManager?.hideShield()
             return
@@ -223,10 +206,4 @@ class AppMonitoringService : AccessibilityService() {
         }
     }
 
-    private fun resolveScheduledModeNow(config: com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesConfig): RestrictionScheduledModeResolver.Resolution {
-        return RestrictionScheduledModeResolver.resolveNow(
-            config = config,
-            scheduleCalculator = scheduleCalculator,
-        )
-    }
 }

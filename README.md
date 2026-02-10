@@ -47,7 +47,7 @@ await restrictions.upsertMode(
   ),
 );
 await restrictions.setModesEnabled(true);
-await restrictions.startManualModeSession(
+await restrictions.startSession(
   RestrictionMode(
     modeId: 'focus-mode',
     blockedAppIds: blocked,
@@ -64,7 +64,7 @@ final session = await restrictions.getRestrictionSession();
 
 - `restrictApps` / `restrictApp` / `unrestrictApp` / `clearAllRestrictions` -> `upsertMode` + `removeMode`
 - `upsertScheduledMode` / `removeScheduledMode` / `setScheduledModesEnabled` / `getScheduledModesConfig` -> `upsertMode` / `removeMode` / `setModesEnabled` / `getModesConfig`
-- `startRestrictionSession` / `endRestrictionSession` -> `startModeSession(modeId)` / `endModeSession()`
+- `startRestrictionSession` / `endRestrictionSession` -> `startSession(mode)` / `endSession()`
 
 ## Session payload additions
 

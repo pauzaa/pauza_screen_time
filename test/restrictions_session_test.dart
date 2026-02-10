@@ -128,26 +128,34 @@ void main() {
       );
     });
 
-    test('start/end mode session invoke platform methods', () async {
+    test('start/end session invoke platform methods', () async {
       var startCalled = false;
       var endCalled = false;
       Object? capturedModeId;
+      Object? capturedBlockedAppIds;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
-            if (call.method == RestrictionsMethodNames.startModeSession) {
+            if (call.method == RestrictionsMethodNames.startSession) {
               startCalled = true;
               capturedModeId = (call.arguments as Map)['modeId'];
-            } else if (call.method == RestrictionsMethodNames.endModeSession) {
+              capturedBlockedAppIds = (call.arguments as Map)['blockedAppIds'];
+            } else if (call.method == RestrictionsMethodNames.endSession) {
               endCalled = true;
             }
             return null;
           });
 
-      await methodChannel.startModeSession('focus');
-      await methodChannel.endModeSession();
+      await methodChannel.startSession(
+        const RestrictionMode(
+          modeId: 'focus',
+          blockedAppIds: [AppIdentifier('com.example.focus')],
+        ),
+      );
+      await methodChannel.endSession();
       expect(startCalled, isTrue);
       expect(endCalled, isTrue);
       expect(capturedModeId, 'focus');
+      expect(capturedBlockedAppIds, ['com.example.focus']);
     });
   });
 
@@ -167,8 +175,13 @@ void main() {
       final modesConfig = await manager.getModesConfig();
       await manager.pauseEnforcement(const Duration(seconds: 30));
       await manager.resumeEnforcement();
-      await manager.startModeSession('focus');
-      await manager.endModeSession();
+      await manager.startSession(
+        const RestrictionMode(
+          modeId: 'focus',
+          blockedAppIds: [AppIdentifier('com.example.app')],
+        ),
+      );
+      await manager.endSession();
       final session = await manager.getRestrictionSession();
 
       expect(fakePlatform.upsertModeCalled, isTrue);
@@ -177,31 +190,31 @@ void main() {
       expect(fakePlatform.getModesConfigCalled, isTrue);
       expect(fakePlatform.pauseEnforcementCalled, isTrue);
       expect(fakePlatform.resumeEnforcementCalled, isTrue);
-      expect(fakePlatform.startModeSessionCalled, isTrue);
-      expect(fakePlatform.endModeSessionCalled, isTrue);
+      expect(fakePlatform.startSessionCalled, isTrue);
+      expect(fakePlatform.endSessionCalled, isTrue);
       expect(fakePlatform.getRestrictionSessionCalled, isTrue);
       expect(modesConfig.enabled, isTrue);
       expect(session.activeModeId, 'focus');
       expect(session.activeModeSource, RestrictionModeSource.manual);
     });
 
-    test('startManualModeSession upserts before starting session', () async {
-      final fakePlatform = _FakeAppRestrictionPlatform();
-      final manager = AppRestrictionManager(platform: fakePlatform);
-      const mode = RestrictionMode(
-        modeId: 'manual-focus',
-        blockedAppIds: [AppIdentifier('com.example.social')],
-      );
+    test(
+      'startSession delegates mode payload without upsert dependency',
+      () async {
+        final fakePlatform = _FakeAppRestrictionPlatform();
+        final manager = AppRestrictionManager(platform: fakePlatform);
+        const mode = RestrictionMode(
+          modeId: 'manual-focus',
+          blockedAppIds: [AppIdentifier('com.example.social')],
+        );
 
-      await manager.startManualModeSession(mode);
+        await manager.startSession(mode);
 
-      expect(fakePlatform.upsertModeCalled, isTrue);
-      expect(fakePlatform.startModeSessionCalled, isTrue);
-      expect(
-        fakePlatform.calls,
-        equals(['upsertMode:manual-focus', 'startModeSession:manual-focus']),
-      );
-    });
+        expect(fakePlatform.upsertModeCalled, isFalse);
+        expect(fakePlatform.startSessionCalled, isTrue);
+        expect(fakePlatform.calls, equals(['startSession:manual-focus']));
+      },
+    );
   });
 
   group('AppRestrictionManager decode failures', () {
@@ -270,8 +283,8 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   bool getModesConfigCalled = false;
   bool pauseEnforcementCalled = false;
   bool resumeEnforcementCalled = false;
-  bool startModeSessionCalled = false;
-  bool endModeSessionCalled = false;
+  bool startSessionCalled = false;
+  bool endSessionCalled = false;
   bool getRestrictionSessionCalled = false;
 
   @override
@@ -318,9 +331,9 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> endModeSession() async {
-    endModeSessionCalled = true;
-    calls.add('endModeSession');
+  Future<void> endSession() async {
+    endSessionCalled = true;
+    calls.add('endSession');
   }
 
   @override
@@ -330,9 +343,9 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> startModeSession(String modeId) async {
-    startModeSessionCalled = true;
-    calls.add('startModeSession:$modeId');
+  Future<void> startSession(RestrictionMode mode) async {
+    startSessionCalled = true;
+    calls.add('startSession:${mode.modeId}');
   }
 
   @override

@@ -54,10 +54,10 @@ await restrictions.upsertMode(
 await restrictions.setModesEnabled(true);
 ```
 
-3. Start manual mode session:
+3. Start session:
 
 ```dart
-await restrictions.startManualModeSession(
+await restrictions.startSession(
   RestrictionMode(
     modeId: 'focus-mode',
     blockedAppIds: blocked,

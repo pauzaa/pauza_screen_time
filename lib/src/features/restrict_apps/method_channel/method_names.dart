@@ -13,7 +13,7 @@ class RestrictionsMethodNames {
       'isRestrictionSessionActiveNow';
   static const String pauseEnforcement = 'pauseEnforcement';
   static const String resumeEnforcement = 'resumeEnforcement';
-  static const String startModeSession = 'startModeSession';
-  static const String endModeSession = 'endModeSession';
+  static const String startSession = 'startSession';
+  static const String endSession = 'endSession';
   static const String getRestrictionSession = 'getRestrictionSession';
 }

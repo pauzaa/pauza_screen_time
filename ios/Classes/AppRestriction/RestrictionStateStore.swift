@@ -3,7 +3,7 @@ import Foundation
 /// Shared app-group-backed storage for restriction session state.
 enum RestrictionStateStore {
     static let pausedUntilEpochMsKey = "pausedUntilEpochMs"
-    static let manualActiveModeKey = "manualActiveMode"
+    static let activeSessionKey = "activeSession"
     static let scheduleMonitorNamesKey = "scheduleMonitorNames"
     static let modesEnabledKey = "modesEnabled"
     static let modesKey = "modes"
@@ -13,18 +13,20 @@ enum RestrictionStateStore {
         case appGroupUnavailable(resolvedGroupId: String)
     }
 
-    struct ManualActiveMode {
+    struct ActiveSession {
         let modeId: String
         let blockedAppIds: [String]
+        let source: RestrictionModeSource
 
         func toStorageMap() -> [String: Any] {
             [
                 "modeId": modeId,
                 "blockedAppIds": blockedAppIds,
+                "source": source.wireValue,
             ]
         }
 
-        static func fromStorageMap(_ map: [String: Any]) -> ManualActiveMode? {
+        static func fromStorageMap(_ map: [String: Any]) -> ActiveSession? {
             let modeId = (map["modeId"] as? String ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let blockedAppIds = (map["blockedAppIds"] as? [Any] ?? []).compactMap { value -> String? in
@@ -34,11 +36,14 @@ enum RestrictionStateStore {
                 let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                 return trimmed.isEmpty ? nil : trimmed
             }
+            let sourceRaw = (map["source"] as? String ?? RestrictionModeSource.manual.wireValue)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let source = RestrictionModeSource(rawValue: sourceRaw) ?? .manual
             let uniqueBlockedAppIds = Array(NSOrderedSet(array: blockedAppIds)) as? [String] ?? blockedAppIds
             guard !modeId.isEmpty, !uniqueBlockedAppIds.isEmpty else {
                 return nil
             }
-            return ManualActiveMode(modeId: modeId, blockedAppIds: uniqueBlockedAppIds)
+            return ActiveSession(modeId: modeId, blockedAppIds: uniqueBlockedAppIds, source: source)
         }
     }
 
@@ -61,37 +66,37 @@ enum RestrictionStateStore {
         return pausedUntil
     }
 
-    static func loadManualActiveMode() -> ManualActiveMode? {
+    static func loadActiveSession() -> ActiveSession? {
         guard let defaults = AppGroupStore.sharedDefaults() else {
             return nil
         }
-        guard let raw = defaults.dictionary(forKey: manualActiveModeKey) else {
+        guard let raw = defaults.dictionary(forKey: activeSessionKey) else {
             return nil
         }
-        guard let parsed = ManualActiveMode.fromStorageMap(raw) else {
-            _ = clearManualActiveMode()
+        guard let parsed = ActiveSession.fromStorageMap(raw) else {
+            _ = clearActiveSession()
             return nil
         }
         return parsed
     }
 
     @discardableResult
-    static func storeManualActiveMode(_ mode: ManualActiveMode?) -> StoreResult {
+    static func storeActiveSession(_ session: ActiveSession?) -> StoreResult {
         let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
         guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
             return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
         }
-        if let mode {
-            defaults.set(mode.toStorageMap(), forKey: manualActiveModeKey)
+        if let session {
+            defaults.set(session.toStorageMap(), forKey: activeSessionKey)
         } else {
-            defaults.removeObject(forKey: manualActiveModeKey)
+            defaults.removeObject(forKey: activeSessionKey)
         }
         return .success
     }
 
     @discardableResult
-    static func clearManualActiveMode() -> StoreResult {
-        return storeManualActiveMode(nil)
+    static func clearActiveSession() -> StoreResult {
+        return storeActiveSession(nil)
     }
 
     static func loadScheduleMonitorNames() -> [String] {

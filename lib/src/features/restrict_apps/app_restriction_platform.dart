@@ -52,14 +52,14 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
     throw UnimplementedError('resumeEnforcement() has not been implemented.');
   }
 
-  /// Starts a manual mode session.
-  Future<void> startModeSession(String modeId) {
-    throw UnimplementedError('startModeSession() has not been implemented.');
+  /// Starts a restriction session for [mode].
+  Future<void> startSession(RestrictionMode mode) {
+    throw UnimplementedError('startSession() has not been implemented.');
   }
 
-  /// Ends the current manual mode session.
-  Future<void> endModeSession() {
-    throw UnimplementedError('endModeSession() has not been implemented.');
+  /// Ends the current active restriction session.
+  Future<void> endSession() {
+    throw UnimplementedError('endSession() has not been implemented.');
   }
 
   /// Returns the current restriction session snapshot.
