@@ -44,3 +44,13 @@ try {
 Channel payload decoding is strict. Malformed or unexpected payloads from native
 layers are treated as `INTERNAL_FAILURE` and surfaced as typed
 `PauzaInternalFailureError` in Dart.
+
+For restrictions, enforcement mutation APIs preflight permissions and fail fast:
+- `upsertMode(...)`
+- `setModesEnabled(...)`
+- `startSession(...)`
+- `pauseEnforcement(...)`
+- `resumeEnforcement()`
+
+Read/inspection APIs do not preflight-fail and continue returning session/config
+state payloads.

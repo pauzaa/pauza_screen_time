@@ -74,6 +74,30 @@ await restrictions.pauseEnforcement(const Duration(minutes: 5));
 await restrictions.resumeEnforcement();
 ```
 
+## Permission fast-failure coverage
+
+Restriction mutation methods that can enable or apply enforcement fail fast when
+restriction prerequisites are missing.
+
+- Android prerequisite: Accessibility service enabled.
+- iOS prerequisite: Screen Time authorization approved.
+
+Methods that can throw permission errors (`MISSING_PERMISSION`,
+`PERMISSION_DENIED`, `SYSTEM_RESTRICTED` where applicable):
+- `upsertMode(...)`
+- `setModesEnabled(...)`
+- `startSession(...)`
+- `pauseEnforcement(...)`
+- `resumeEnforcement()`
+
+Methods that do not preflight-fail and still return state/cleanup behavior:
+- `getRestrictionSession()`
+- `isRestrictionSessionActiveNow()`
+- `getModesConfig()`
+- `removeMode(...)`
+- `endSession()`
+- `configureShield(...)`
+
 ## 5) Restriction session snapshot
 
 ```dart

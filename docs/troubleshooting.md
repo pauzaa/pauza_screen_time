@@ -15,16 +15,23 @@ This page lists common setup issues and how to fix them.
 **Verify**:
 - Restrict a well-known app (e.g. a browser) and open it — the overlay should appear within ~500ms.
 
-### `upsertMode(...)` or `startSession(...)` fails with `MISSING_PERMISSION` on Android
+### Restriction mutation methods fail with `MISSING_PERMISSION` on Android
 
 **What it means**:
 
 Restriction prerequisites are not satisfied. For Android restrictions, this means Accessibility is disabled.
 
+Affected methods:
+- `upsertMode(...)`
+- `setModesEnabled(...)`
+- `startSession(...)`
+- `pauseEnforcement(...)`
+- `resumeEnforcement()`
+
 **Fix**:
 - Open **Settings → Accessibility**
 - Enable your app’s accessibility service
-- Retry `upsertMode(...)` / `startSession(...)`
+- Retry the restriction call
 
 ### Blocking triggers, but shield overlay is not visible
 
@@ -69,17 +76,24 @@ Restriction prerequisites are not satisfied. For Android restrictions, this mean
 - **Settings → Screen Time → Turn On Screen Time**
 - Re-run and request authorization again
 
-### `upsertMode(...)` fails with `MISSING_PERMISSION` on iOS
+### Restriction mutation methods fail with `MISSING_PERMISSION` on iOS
 
 **What it means**:
 
 Screen Time authorization has not been granted yet (`notDetermined`).
 
+Affected methods:
+- `upsertMode(...)`
+- `setModesEnabled(...)`
+- `startSession(...)`
+- `pauseEnforcement(...)`
+- `resumeEnforcement()`
+
 **Fix**:
 - Call `requestIOSPermission(IOSPermission.familyControls)` first
 - Retry restriction calls after approval
 
-### `upsertMode(...)` fails with `PERMISSION_DENIED` on iOS
+### Restriction mutation methods fail with `PERMISSION_DENIED` on iOS
 
 **What it means**:
 

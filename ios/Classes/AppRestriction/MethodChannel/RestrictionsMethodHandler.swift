@@ -98,6 +98,10 @@ final class RestrictionsMethodHandler {
             ))
             return
         }
+        if let preflightError = restrictionPreflightError(action: MethodNames.pauseEnforcement) {
+            result(preflightError)
+            return
+        }
 
         guard let args = call.arguments as? [String: Any],
               let durationValue = args["durationMs"] as? NSNumber else {
@@ -176,6 +180,10 @@ final class RestrictionsMethodHandler {
             ))
             return
         }
+        if let preflightError = restrictionPreflightError(action: MethodNames.resumeEnforcement) {
+            result(preflightError)
+            return
+        }
 
         switch RestrictionStateStore.storePausedUntilEpochMs(0) {
         case .success:
@@ -202,6 +210,10 @@ final class RestrictionsMethodHandler {
                 action: MethodNames.startSession,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
+            return
+        }
+        if let preflightError = restrictionPreflightError(action: MethodNames.startSession) {
+            result(preflightError)
             return
         }
 
@@ -327,6 +339,10 @@ final class RestrictionsMethodHandler {
                 action: MethodNames.upsertMode,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
+            return
+        }
+        if let preflightError = restrictionPreflightError(action: MethodNames.upsertMode) {
+            result(preflightError)
             return
         }
         guard let args = call.arguments as? [String: Any],
@@ -510,6 +526,10 @@ final class RestrictionsMethodHandler {
                 action: MethodNames.setModesEnabled,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
+            return
+        }
+        if let preflightError = restrictionPreflightError(action: MethodNames.setModesEnabled) {
+            result(preflightError)
             return
         }
         guard let args = call.arguments as? [String: Any],

@@ -20,6 +20,9 @@ import io.flutter.plugin.common.MethodChannel.Result
 
 class RestrictionsMethodHandler(
     private val contextProvider: () -> Context?,
+    private val accessibilityStatusProvider: (Context) -> String = {
+        PermissionHandler(it).checkPermission(PermissionHandler.ACCESSIBILITY_KEY)
+    },
 ) : MethodCallHandler {
     companion object {
         private const val ANDROID_ACCESSIBILITY_KEY = "android.accessibility"
@@ -100,6 +103,9 @@ class RestrictionsMethodHandler(
                 action = MethodNames.UPSERT_MODE,
                 message = "Application context is not available",
             )
+            return
+        }
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.UPSERT_MODE, result)) {
             return
         }
 
@@ -280,6 +286,9 @@ class RestrictionsMethodHandler(
             )
             return
         }
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.SET_MODES_ENABLED, result)) {
+            return
+        }
 
         val payload = call.arguments as? Map<*, *>
         val enabled = payload?.get("enabled") as? Boolean
@@ -375,6 +384,9 @@ class RestrictionsMethodHandler(
             )
             return
         }
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.PAUSE_ENFORCEMENT, result)) {
+            return
+        }
 
         val durationMs = call.argument<Number>("durationMs")?.toLong()
         if (durationMs == null || durationMs <= 0L) {
@@ -434,6 +446,9 @@ class RestrictionsMethodHandler(
             )
             return
         }
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.RESUME_ENFORCEMENT, result)) {
+            return
+        }
 
         try {
             RestrictionManager.getInstance(context).clearPause()
@@ -462,6 +477,9 @@ class RestrictionsMethodHandler(
                 action = MethodNames.START_SESSION,
                 message = "Application context is not available",
             )
+            return
+        }
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.START_SESSION, result)) {
             return
         }
 
@@ -595,12 +613,28 @@ class RestrictionsMethodHandler(
     }
 
     private fun getMissingPrerequisites(context: Context): List<String> {
-        val permissionHandler = PermissionHandler(context)
-        val accessibilityStatus = permissionHandler.checkPermission(PermissionHandler.ACCESSIBILITY_KEY)
+        val accessibilityStatus = accessibilityStatusProvider(context)
         if (accessibilityStatus == PermissionHandler.STATUS_GRANTED) {
             return emptyList()
         }
         return listOf(ANDROID_ACCESSIBILITY_KEY)
+    }
+
+    private fun emitRestrictionPreflightErrorIfAny(context: Context, action: String, result: Result): Boolean {
+        val accessibilityStatus = accessibilityStatusProvider(context)
+        if (accessibilityStatus == PermissionHandler.STATUS_GRANTED) {
+            return false
+        }
+
+        PluginErrorHelper.missingPermission(
+            result = result,
+            feature = FEATURE,
+            action = action,
+            message = "Accessibility permission is required for restrictions",
+            missing = listOf(ANDROID_ACCESSIBILITY_KEY),
+            status = mapOf("androidAccessibilityStatus" to accessibilityStatus),
+        )
+        return true
     }
 }
 
