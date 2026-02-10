@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import com.example.pauza_screen_time.installed_apps.model.InstalledAppDto
 import com.example.pauza_screen_time.utils.AppInfoUtils
 
 /**
@@ -27,8 +28,8 @@ class InstalledAppsHandler(private val context: Context) {
     fun getInstalledApps(
         includeSystemApps: Boolean,
         includeIcons: Boolean = true
-    ): List<Map<String, Any?>> {
-        val installedApps = mutableListOf<Map<String, Any?>>()
+    ): List<InstalledAppDto> {
+        val installedApps = mutableListOf<InstalledAppDto>()
         // Get all installed packages
         val packages = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             packageManager.getInstalledApplications(PackageManager.ApplicationInfoFlags.of(0))
@@ -59,7 +60,7 @@ class InstalledAppsHandler(private val context: Context) {
     fun getAppInfo(
         packageId: String,
         includeIcons: Boolean = true
-    ): Map<String, Any?>? {
+    ): InstalledAppDto? {
         return try {
             val appInfo = packageManager.getApplicationInfo(packageId, 0)
             extractAppInfo(appInfo, includeIcons)
@@ -79,7 +80,7 @@ class InstalledAppsHandler(private val context: Context) {
     private fun extractAppInfo(
         appInfo: ApplicationInfo,
         includeIcons: Boolean
-    ): Map<String, Any?> {
+    ): InstalledAppDto {
         val packageId = appInfo.packageName
         val name = appInfo.loadLabel(packageManager).toString()
         val icon = if (includeIcons) {
@@ -90,13 +91,13 @@ class InstalledAppsHandler(private val context: Context) {
         val category = AppInfoUtils.getAppCategory(appInfo)
         val isSystemApp = AppInfoUtils.isSystemApp(appInfo)
 
-        return mapOf(
-            "platform" to "android",
-            "packageId" to packageId,
-            "name" to name,
-            "icon" to icon,
-            "category" to category,
-            "isSystemApp" to isSystemApp
+        return InstalledAppDto(
+            platform = "android",
+            packageId = packageId,
+            name = name,
+            icon = icon,
+            category = category,
+            isSystemApp = isSystemApp,
         )
     }
 }

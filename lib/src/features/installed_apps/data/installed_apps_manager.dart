@@ -48,17 +48,13 @@ class InstalledAppsManager {
         .throwTypedPauzaError();
     final apps = <AndroidAppInfo>[];
     for (var index = 0; index < result.length; index++) {
-      final appInfo = _decodeAppInfo(
-        payload: result[index],
-        action: 'getAndroidInstalledApps',
-        index: index,
-      );
+      final appInfo = result[index];
       if (appInfo is! AndroidAppInfo) {
         throw _typedDecodeFailure(
           action: 'getAndroidInstalledApps',
           message:
               'Expected Android app payload at index $index, but got ${appInfo.runtimeType}',
-          payload: result[index],
+          payload: appInfo,
         );
       }
       apps.add(appInfo);
@@ -96,15 +92,12 @@ class InstalledAppsManager {
         .throwTypedPauzaError();
     if (result == null) return null;
 
-    final appInfo = _decodeAppInfo(
-      payload: result,
-      action: 'getAndroidAppInfo',
-    );
+    final appInfo = result;
     if (appInfo is! AndroidAppInfo) {
       throw _typedDecodeFailure(
         action: 'getAndroidAppInfo',
         message: 'Expected Android app payload, but got ${appInfo.runtimeType}',
-        payload: result,
+        payload: appInfo,
       );
     }
     return appInfo;
@@ -162,46 +155,7 @@ class InstalledAppsManager {
     final result = await _platform
         .showFamilyActivityPicker(preSelectedTokens: preSelectedTokens)
         .throwTypedPauzaError();
-    final apps = <IOSAppInfo>[];
-    for (var index = 0; index < result.length; index++) {
-      final appInfo = _decodeAppInfo(
-        payload: result[index],
-        action: 'selectIOSApps',
-        index: index,
-      );
-      if (appInfo is! IOSAppInfo) {
-        throw _typedDecodeFailure(
-          action: 'selectIOSApps',
-          message:
-              'Expected iOS app payload at index $index, but got ${appInfo.runtimeType}',
-          payload: result[index],
-        );
-      }
-      apps.add(appInfo);
-    }
-    return apps;
-  }
-
-  AppInfo _decodeAppInfo({
-    required Object? payload,
-    required String action,
-    int? index,
-  }) {
-    try {
-      return AppInfo.fromMap(Map<String, dynamic>.from(payload as Map));
-    } on PlatformException catch (exception) {
-      throw PauzaError.fromPlatformException(exception);
-    } catch (error, stackTrace) {
-      throw _typedDecodeFailure(
-        action: action,
-        message: index == null
-            ? 'Failed to decode app info payload'
-            : 'Failed to decode app info payload at index $index',
-        payload: payload,
-        error: error,
-        stackTrace: stackTrace,
-      );
-    }
+    return result;
   }
 
   PauzaInternalFailureError _typedDecodeFailure({

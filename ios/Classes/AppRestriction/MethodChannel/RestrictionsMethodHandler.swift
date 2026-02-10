@@ -59,7 +59,8 @@ final class RestrictionsMethodHandler {
             configuration.removeValue(forKey: "iconBytes")
         }
 
-        switch ShieldConfigurationStore.storeConfiguration(configuration, appGroupId: appGroupId) {
+        let payload = ShieldConfigurationStoragePayload.fromChannelMap(configuration)
+        switch ShieldConfigurationStore.storeConfiguration(payload, appGroupId: appGroupId) {
         case .success:
             result(nil)
         case .appGroupUnavailable(let resolvedGroupId):
@@ -86,7 +87,7 @@ final class RestrictionsMethodHandler {
         let state = resolveSessionState()
         let isPausedNow = RestrictionStateStore.loadPausedUntilEpochMs() > 0
         let isPrerequisitesMet = restrictionMissingPrerequisites().isEmpty
-        let shouldEnforceSession = state.activeModeSource != "none"
+        let shouldEnforceSession = state.activeModeSource != .none
         result(!state.blockedAppIds.isEmpty && !isPausedNow && isPrerequisitesMet && shouldEnforceSession)
     }
 
@@ -316,17 +317,16 @@ final class RestrictionsMethodHandler {
 
     private func handleGetRestrictionSession(result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
-            result([
-                "isActiveNow": false,
-                "isPausedNow": false,
-                "isManuallyEnabled": false,
-                "isScheduleEnabled": false,
-                "isInScheduleNow": false,
-                "pausedUntilEpochMs": NSNull(),
-                "restrictedApps": [String](),
-                "activeModeId": NSNull(),
-                "activeModeSource": "none",
-            ])
+            result(RestrictionSessionSnapshot(
+                isActiveNow: false,
+                isPausedNow: false,
+                isScheduleEnabled: false,
+                isInScheduleNow: false,
+                pausedUntilEpochMs: nil,
+                restrictedApps: [],
+                activeModeId: nil,
+                activeModeSource: .none
+            ).toChannelMap())
             return
         }
 
@@ -335,18 +335,18 @@ final class RestrictionsMethodHandler {
         let pausedUntilEpochMs = RestrictionStateStore.loadPausedUntilEpochMs()
         let isPausedNow = pausedUntilEpochMs > 0
         let isPrerequisitesMet = restrictionMissingPrerequisites().isEmpty
-        let shouldEnforceSession = state.activeModeSource != "none"
-        result([
-            "isActiveNow": !state.blockedAppIds.isEmpty && !isPausedNow && isPrerequisitesMet && shouldEnforceSession,
-            "isPausedNow": isPausedNow,
-            "isManuallyEnabled": state.isManuallyEnabled,
-            "isScheduleEnabled": state.isScheduleEnabled,
-            "isInScheduleNow": state.isInScheduleNow,
-            "pausedUntilEpochMs": isPausedNow ? pausedUntilEpochMs : NSNull(),
-            "restrictedApps": state.blockedAppIds,
-            "activeModeId": state.activeModeId ?? NSNull(),
-            "activeModeSource": state.activeModeSource,
-        ])
+        let shouldEnforceSession = state.activeModeSource != .none
+        let payload = RestrictionSessionSnapshot(
+            isActiveNow: !state.blockedAppIds.isEmpty && !isPausedNow && isPrerequisitesMet && shouldEnforceSession,
+            isPausedNow: isPausedNow,
+            isScheduleEnabled: state.isScheduleEnabled,
+            isInScheduleNow: state.isInScheduleNow,
+            pausedUntilEpochMs: isPausedNow ? pausedUntilEpochMs : nil,
+            restrictedApps: state.blockedAppIds,
+            activeModeId: state.activeModeId,
+            activeModeSource: state.activeModeSource
+        )
+        result(payload.toChannelMap())
     }
 
     private func handleUpsertMode(call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -359,7 +359,7 @@ final class RestrictionsMethodHandler {
             return
         }
         guard let args = call.arguments as? [String: Any],
-              let mode = RestrictionScheduledMode(dictionary: args) else {
+              let mode = RestrictionScheduledMode(channelMap: args) else {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
                 action: MethodNames.upsertMode,
@@ -603,16 +603,14 @@ final class RestrictionsMethodHandler {
 
     private func handleGetModesConfig(result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
-            result([
-                "enabled": false,
-                "modes": [[String: Any]](),
-            ])
+            result(RestrictionScheduledModesConfig(enabled: false, modes: []).toChannelMap())
             return
         }
-        result([
-            "enabled": RestrictionStateStore.loadModesEnabled(),
-            "modes": RestrictionStateStore.loadModes().map { $0.toDictionary() },
-        ])
+        let config = RestrictionScheduledModesConfig(
+            enabled: RestrictionStateStore.loadModesEnabled(),
+            modes: RestrictionStateStore.loadModes()
+        )
+        result(config.toChannelMap())
     }
 
     @available(iOS 16.0, *)
@@ -629,7 +627,7 @@ final class RestrictionsMethodHandler {
         }
 
         let state = resolveSessionState()
-        if state.activeModeSource == "none" || state.blockedAppIds.isEmpty {
+        if state.activeModeSource == .none || state.blockedAppIds.isEmpty {
             ShieldManager.shared.clearRestrictions()
             return
         }
@@ -656,43 +654,39 @@ final class RestrictionsMethodHandler {
 
         if let manualMode {
             return SessionState(
-                isManuallyEnabled: true,
                 isScheduleEnabled: modesEnabled,
                 isInScheduleNow: resolution.isInScheduleNow,
                 blockedAppIds: manualMode.blockedAppIds,
                 activeModeId: manualMode.modeId,
-                activeModeSource: "manual"
+                activeModeSource: .manual
             )
         }
 
         if resolution.isInScheduleNow {
             return SessionState(
-                isManuallyEnabled: false,
                 isScheduleEnabled: modesEnabled,
                 isInScheduleNow: true,
                 blockedAppIds: resolution.blockedAppIds,
                 activeModeId: resolution.activeModeId,
-                activeModeSource: "schedule"
+                activeModeSource: .schedule
             )
         }
 
         return SessionState(
-            isManuallyEnabled: false,
             isScheduleEnabled: modesEnabled,
             isInScheduleNow: false,
             blockedAppIds: [],
             activeModeId: nil,
-            activeModeSource: "none"
+            activeModeSource: .none
         )
     }
 
     private struct SessionState {
-        let isManuallyEnabled: Bool
         let isScheduleEnabled: Bool
         let isInScheduleNow: Bool
         let blockedAppIds: [String]
         let activeModeId: String?
-        let activeModeSource: String
+        let activeModeSource: RestrictionModeSource
     }
 
     @available(iOS 16.0, *)
@@ -704,7 +698,7 @@ final class RestrictionsMethodHandler {
         let sorted = modes
             .filter(\.shouldPersistForScheduleEnforcement)
             .sorted { $0.modeId < $1.modeId }
-            .map { $0.toDictionary() }
+            .map { $0.toChannelMap() }
         guard let data = try? JSONSerialization.data(withJSONObject: sorted, options: [.sortedKeys]),
               let encoded = String(data: data, encoding: .utf8) else {
             return ""

@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:pauza_screen_time/src/core/cancel_token.dart';
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/usage_stats/data/usage_stats_manager.dart';
+import 'package:pauza_screen_time/src/features/usage_stats/model/app_usage_stats.dart';
 import 'package:pauza_screen_time/src/features/usage_stats/usage_stats_platform.dart';
 
 void main() {
@@ -52,7 +53,7 @@ void main() {
 
 class _MissingPermissionPlatform extends UsageStatsPlatform {
   @override
-  Future<Map<dynamic, dynamic>?> queryAppUsageStats({
+  Future<UsageStats?> queryAppUsageStats({
     required String packageId,
     required int startTimeMs,
     required int endTimeMs,
@@ -67,7 +68,7 @@ class _MissingPermissionPlatform extends UsageStatsPlatform {
   }
 
   @override
-  Future<List<Map<dynamic, dynamic>>> queryUsageStats({
+  Future<List<UsageStats>> queryUsageStats({
     required int startTimeMs,
     required int endTimeMs,
     bool includeIcons = true,

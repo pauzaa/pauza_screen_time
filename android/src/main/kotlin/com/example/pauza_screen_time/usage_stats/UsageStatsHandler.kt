@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import com.example.pauza_screen_time.permissions.PermissionHandler
+import com.example.pauza_screen_time.usage_stats.model.UsageStatsDto
 import com.example.pauza_screen_time.utils.AppInfoUtils
 
 /**
@@ -38,9 +39,9 @@ class UsageStatsHandler(private val context: Context) {
         startTimeMs: Long,
         endTimeMs: Long,
         includeIcons: Boolean = true
-    ): List<Map<String, Any?>> {
+    ): List<UsageStatsDto> {
         ensureUsageStatsPermission()
-        val usageStatsList = mutableListOf<Map<String, Any?>>()
+        val usageStatsList = mutableListOf<UsageStatsDto>()
 
         // Query usage stats for the specified time range
         val stats = usageStatsManager.queryUsageStats(
@@ -91,7 +92,7 @@ class UsageStatsHandler(private val context: Context) {
         startTimeMs: Long,
         endTimeMs: Long,
         includeIcons: Boolean = true
-    ): Map<String, Any?>? {
+    ): UsageStatsDto? {
         ensureUsageStatsPermission()
 
         val stats = usageStatsManager.queryUsageStats(
@@ -177,7 +178,7 @@ class UsageStatsHandler(private val context: Context) {
         usageStats: UsageStats,
         launchCount: Int,
         includeIcons: Boolean
-    ): Map<String, Any?>? {
+    ): UsageStatsDto? {
         val packageId = usageStats.packageName
 
         // Retrieve app metadata from PackageManager
@@ -201,25 +202,22 @@ class UsageStatsHandler(private val context: Context) {
         val isSystemApp = AppInfoUtils.isSystemApp(appInfo)
 
         // Build the usage stats map matching the Flutter model
-        val statsMap = mutableMapOf<String, Any?>(
-            "packageId" to packageId,
-            "appName" to appName,
-            "appIcon" to appIcon,
-            "category" to category,
-            "isSystemApp" to isSystemApp,
-            "totalDurationMs" to usageStats.totalTimeInForeground,
-            "totalLaunchCount" to launchCount,
-            "bucketStartMs" to if (usageStats.firstTimeStamp > 0) usageStats.firstTimeStamp else null,
-            "bucketEndMs" to if (usageStats.lastTimeStamp > 0) usageStats.lastTimeStamp else null,
-            "lastTimeUsedMs" to if (usageStats.lastTimeUsed > 0) usageStats.lastTimeUsed else null
+        return UsageStatsDto(
+            packageId = packageId,
+            appName = appName,
+            appIcon = appIcon,
+            category = category,
+            isSystemApp = isSystemApp,
+            totalDurationMs = usageStats.totalTimeInForeground,
+            totalLaunchCount = launchCount,
+            bucketStartMs = if (usageStats.firstTimeStamp > 0) usageStats.firstTimeStamp else null,
+            bucketEndMs = if (usageStats.lastTimeStamp > 0) usageStats.lastTimeStamp else null,
+            lastTimeUsedMs = if (usageStats.lastTimeUsed > 0) usageStats.lastTimeUsed else null,
+            lastTimeVisibleMs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                usageStats.lastTimeVisible.takeIf { it > 0 }
+            } else {
+                null
+            },
         )
-
-        // Add Android Q+ specific field (lastTimeVisible)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val lastTimeVisible = usageStats.lastTimeVisible
-            statsMap["lastTimeVisibleMs"] = if (lastTimeVisible > 0) lastTimeVisible else null
-        }
-
-        return statsMap
     }
 }

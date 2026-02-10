@@ -11,6 +11,7 @@ import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_m
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode_source.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -31,7 +32,6 @@ void main() {
               return {
                 'isActiveNow': true,
                 'isPausedNow': true,
-                'isManuallyEnabled': false,
                 'isScheduleEnabled': true,
                 'isInScheduleNow': true,
                 'pausedUntilEpochMs': 1,
@@ -277,7 +277,7 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   bool getRestrictionSessionCalled = false;
 
   @override
-  Future<void> configureShield(Map<String, dynamic> configuration) async {}
+  Future<void> configureShield(ShieldConfiguration configuration) async {}
 
   @override
   Future<RestrictionModesConfig> getModesConfig() async {
@@ -291,7 +291,6 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
     return const RestrictionSession(
       isActiveNow: true,
       isPausedNow: false,
-      isManuallyEnabled: true,
       isScheduleEnabled: false,
       isInScheduleNow: false,
       pausedUntil: null,

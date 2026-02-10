@@ -15,9 +15,7 @@ class AppRestrictionManager {
 
   /// Configures the appearance of the blocking shield.
   Future<void> configureShield(ShieldConfiguration configuration) {
-    return _platform
-        .configureShield(configuration.toMap())
-        .throwTypedPauzaError();
+    return _platform.configureShield(configuration).throwTypedPauzaError();
   }
 
   /// Upserts one mode.

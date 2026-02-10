@@ -8,6 +8,7 @@ import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_m
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode_source.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 void main() {
   test('manager throws typed PauzaError for platform exception', () async {
@@ -30,7 +31,7 @@ void main() {
 
 class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   @override
-  Future<void> configureShield(Map<String, dynamic> configuration) async {}
+  Future<void> configureShield(ShieldConfiguration configuration) async {}
 
   @override
   Future<RestrictionModesConfig> getModesConfig() async =>
@@ -41,7 +42,6 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
       const RestrictionSession(
         isActiveNow: false,
         isPausedNow: false,
-        isManuallyEnabled: false,
         isScheduleEnabled: false,
         isInScheduleNow: false,
         pausedUntil: null,

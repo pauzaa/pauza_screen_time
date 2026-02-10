@@ -2,6 +2,7 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 /// Platform interface for app restriction functionality.
 abstract class AppRestrictionPlatform extends PlatformInterface {
@@ -10,7 +11,7 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
   static final Object _token = Object();
 
   /// Configures the shield appearance for blocked apps.
-  Future<void> configureShield(Map<String, dynamic> configuration) {
+  Future<void> configureShield(ShieldConfiguration configuration) {
     throw UnimplementedError('configureShield() has not been implemented.');
   }
 

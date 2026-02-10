@@ -17,17 +17,17 @@ enum RestrictionStateStore {
         let modeId: String
         let blockedAppIds: [String]
 
-        func toDictionary() -> [String: Any] {
+        func toStorageMap() -> [String: Any] {
             [
                 "modeId": modeId,
                 "blockedAppIds": blockedAppIds,
             ]
         }
 
-        static func fromDictionary(_ dictionary: [String: Any]) -> ManualActiveMode? {
-            let modeId = (dictionary["modeId"] as? String ?? "")
+        static func fromStorageMap(_ map: [String: Any]) -> ManualActiveMode? {
+            let modeId = (map["modeId"] as? String ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let blockedAppIds = (dictionary["blockedAppIds"] as? [Any] ?? []).compactMap { value -> String? in
+            let blockedAppIds = (map["blockedAppIds"] as? [Any] ?? []).compactMap { value -> String? in
                 guard let raw = value as? String else {
                     return nil
                 }
@@ -68,7 +68,7 @@ enum RestrictionStateStore {
         guard let raw = defaults.dictionary(forKey: manualActiveModeKey) else {
             return nil
         }
-        guard let parsed = ManualActiveMode.fromDictionary(raw) else {
+        guard let parsed = ManualActiveMode.fromStorageMap(raw) else {
             _ = clearManualActiveMode()
             return nil
         }
@@ -82,7 +82,7 @@ enum RestrictionStateStore {
             return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
         }
         if let mode {
-            defaults.set(mode.toDictionary(), forKey: manualActiveModeKey)
+            defaults.set(mode.toStorageMap(), forKey: manualActiveModeKey)
         } else {
             defaults.removeObject(forKey: manualActiveModeKey)
         }
@@ -149,7 +149,7 @@ enum RestrictionStateStore {
         guard let values = defaults.array(forKey: modesKey) as? [[String: Any]] else {
             return []
         }
-        let parsed = values.compactMap(RestrictionScheduledMode.init(dictionary:))
+        let parsed = values.compactMap(RestrictionScheduledMode.init(storageMap:))
         let filtered = parsed.filter(\.shouldPersistForScheduleEnforcement)
         if filtered.count != parsed.count {
             _ = storeModes(filtered)
@@ -166,7 +166,7 @@ enum RestrictionStateStore {
         defaults.set(
             modes
                 .filter(\.shouldPersistForScheduleEnforcement)
-                .map { $0.toDictionary() },
+                .map { $0.toStorageMap() },
             forKey: modesKey
         )
         return .success

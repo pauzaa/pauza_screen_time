@@ -7,6 +7,8 @@ import com.example.pauza_screen_time.app_restriction.RestrictionManualModeResolv
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
 import com.example.pauza_screen_time.app_restriction.RestrictionModeUpsertCache
 import com.example.pauza_screen_time.app_restriction.ShieldOverlayManager
+import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
+import com.example.pauza_screen_time.app_restriction.model.RestrictionSessionDto
 import com.example.pauza_screen_time.app_restriction.alarm.RestrictionAlarmOrchestrator
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleConfig
@@ -344,25 +346,7 @@ class RestrictionsMethodHandler(
 
         try {
             val config = RestrictionScheduledModesStore(context).getConfig()
-            result.success(
-                mapOf(
-                    "enabled" to config.enabled,
-                    "modes" to config.modes.map { mode ->
-                        mapOf(
-                            "modeId" to mode.modeId,
-                            "isEnabled" to mode.isEnabled,
-                            "schedule" to mode.schedule?.let {
-                                mapOf(
-                                    "daysOfWeekIso" to it.daysOfWeekIso.sorted(),
-                                    "startMinutes" to it.startMinutes,
-                                    "endMinutes" to it.endMinutes,
-                                )
-                            },
-                            "blockedAppIds" to mode.blockedAppIds,
-                        )
-                    },
-                ),
-            )
+            result.success(config.toChannelMap())
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
                 result = result,
@@ -390,7 +374,7 @@ class RestrictionsMethodHandler(
             val sessionState = resolveSessionState(context)
             val isPausedNow = RestrictionManager.getInstance(context).isPausedNow()
             val isPrerequisitesMet = areRestrictionPrerequisitesMet(context)
-            val shouldEnforceSession = sessionState.activeModeSource != "none"
+            val shouldEnforceSession = sessionState.activeModeSource != RestrictionModeSource.NONE
             result.success(sessionState.blockedAppIds.isNotEmpty() && !isPausedNow && isPrerequisitesMet && shouldEnforceSession)
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
@@ -617,20 +601,18 @@ class RestrictionsMethodHandler(
             val isPausedNow = pausedUntilEpochMs > 0L
             val isPrerequisitesMet = areRestrictionPrerequisitesMet(context)
             val state = resolveSessionState(context)
-            val shouldEnforceSession = state.activeModeSource != "none"
-            result.success(
-                mapOf(
-                    "isActiveNow" to (state.blockedAppIds.isNotEmpty() && !isPausedNow && isPrerequisitesMet && shouldEnforceSession),
-                    "isPausedNow" to isPausedNow,
-                    "isManuallyEnabled" to state.isManuallyEnabled,
-                    "isScheduleEnabled" to state.isScheduleEnabled,
-                    "isInScheduleNow" to state.isInScheduleNow,
-                    "pausedUntilEpochMs" to if (isPausedNow) pausedUntilEpochMs else null,
-                    "restrictedApps" to state.blockedAppIds,
-                    "activeModeId" to state.activeModeId,
-                    "activeModeSource" to state.activeModeSource,
-                ),
+            val shouldEnforceSession = state.activeModeSource != RestrictionModeSource.NONE
+            val payload = RestrictionSessionDto(
+                isActiveNow = state.blockedAppIds.isNotEmpty() && !isPausedNow && isPrerequisitesMet && shouldEnforceSession,
+                isPausedNow = isPausedNow,
+                isScheduleEnabled = state.isScheduleEnabled,
+                isInScheduleNow = state.isInScheduleNow,
+                pausedUntilEpochMs = if (isPausedNow) pausedUntilEpochMs else null,
+                restrictedApps = state.blockedAppIds,
+                activeModeId = state.activeModeId,
+                activeModeSource = state.activeModeSource,
             )
+            result.success(payload.toChannelMap())
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
                 result = result,
@@ -651,7 +633,7 @@ class RestrictionsMethodHandler(
         val state = resolveSessionState(context)
         restrictionManager.setRestrictedApps(state.blockedAppIds)
 
-        val shouldEnforce = state.activeModeSource != "none"
+        val shouldEnforce = state.activeModeSource != RestrictionModeSource.NONE
         if (shouldEnforce) {
             AppMonitoringService.getInstance()?.enforceCurrentForegroundNow(trigger = trigger)
             return
@@ -670,39 +652,35 @@ class RestrictionsMethodHandler(
 
         return when {
             manualMode != null -> SessionState(
-                isManuallyEnabled = true,
                 isScheduleEnabled = modesConfig.enabled,
                 isInScheduleNow = scheduleResolution.isInScheduleNow,
                 blockedAppIds = manualMode.blockedAppIds,
                 activeModeId = manualMode.modeId,
-                activeModeSource = "manual",
+                activeModeSource = RestrictionModeSource.MANUAL,
             )
             scheduleResolution.isInScheduleNow -> SessionState(
-                isManuallyEnabled = false,
                 isScheduleEnabled = modesConfig.enabled,
                 isInScheduleNow = true,
                 blockedAppIds = scheduleResolution.blockedAppIds,
                 activeModeId = scheduleResolution.activeModeId,
-                activeModeSource = "schedule",
+                activeModeSource = RestrictionModeSource.SCHEDULE,
             )
             else -> SessionState(
-                isManuallyEnabled = false,
                 isScheduleEnabled = modesConfig.enabled,
                 isInScheduleNow = false,
                 blockedAppIds = emptyList(),
                 activeModeId = null,
-                activeModeSource = "none",
+                activeModeSource = RestrictionModeSource.NONE,
             )
         }
     }
 
     private data class SessionState(
-        val isManuallyEnabled: Boolean,
         val isScheduleEnabled: Boolean,
         val isInScheduleNow: Boolean,
         val blockedAppIds: List<String>,
         val activeModeId: String?,
-        val activeModeSource: String,
+        val activeModeSource: RestrictionModeSource,
     )
 
     private fun getMissingPrerequisites(context: Context): List<String> {

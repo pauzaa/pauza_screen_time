@@ -52,7 +52,7 @@ class InstalledAppsMethodHandler(
             try {
                 val apps = installedAppsHandler.getInstalledApps(includeSystemApps, includeIcons)
                 withContext(Dispatchers.Main) {
-                    result.success(apps)
+                    result.success(apps.map { it.toChannelMap() })
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
@@ -86,7 +86,7 @@ class InstalledAppsMethodHandler(
             try {
                 val appInfo = installedAppsHandler.getAppInfo(packageId, includeIcons)
                 withContext(Dispatchers.Main) {
-                    result.success(appInfo)
+                    result.success(appInfo?.toChannelMap())
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {

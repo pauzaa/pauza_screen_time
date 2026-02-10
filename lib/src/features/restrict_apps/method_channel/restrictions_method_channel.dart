@@ -7,6 +7,7 @@ import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/meth
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 /// Method-channel implementation for the Restrict Apps feature.
 class RestrictionsMethodChannel extends AppRestrictionPlatform {
@@ -17,10 +18,10 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
     : channel = channel ?? const MethodChannel(restrictionsChannelName);
 
   @override
-  Future<void> configureShield(Map<String, dynamic> configuration) {
+  Future<void> configureShield(ShieldConfiguration configuration) {
     return channel.invokeMethod<void>(
       RestrictionsMethodNames.configureShield,
-      configuration,
+      configuration.toMap(),
     );
   }
 

@@ -65,7 +65,7 @@ class UsageStatsMethodHandler(
             try {
                 val stats = usageStatsHandler.queryUsageStats(startTimeMs, endTimeMs, includeIcons)
                 withContext(Dispatchers.Main) {
-                    result.success(stats)
+                    result.success(stats.map { it.toChannelMap() })
                 }
             } catch (e: SecurityException) {
                 withContext(Dispatchers.Main) {
@@ -109,7 +109,7 @@ class UsageStatsMethodHandler(
             try {
                 val stats = usageStatsHandler.queryAppUsageStats(packageId, startTimeMs, endTimeMs, includeIcons)
                 withContext(Dispatchers.Main) {
-                    result.success(stats)
+                    result.success(stats?.toChannelMap())
                 }
             } catch (e: SecurityException) {
                 withContext(Dispatchers.Main) {

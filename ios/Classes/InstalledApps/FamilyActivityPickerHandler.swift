@@ -97,14 +97,28 @@ class FamilyActivityPickerHandler: ObservableObject {
         for token in activitySelection.applicationTokens {
             if let tokenData = try? JSONEncoder().encode(token) {
                 let base64Token = tokenData.base64EncodedString()
-                result.append([
-                    "platform": "ios",
-                    "applicationToken": base64Token
-                ])
+                result.append(
+                    IOSSelectedAppPayload(
+                        platform: "ios",
+                        applicationToken: base64Token
+                    ).toChannelMap()
+                )
             }
         }
         
         return result
+    }
+}
+
+private struct IOSSelectedAppPayload {
+    let platform: String
+    let applicationToken: String
+
+    func toChannelMap() -> [String: Any] {
+        return [
+            "platform": platform,
+            "applicationToken": applicationToken,
+        ]
     }
 }
 

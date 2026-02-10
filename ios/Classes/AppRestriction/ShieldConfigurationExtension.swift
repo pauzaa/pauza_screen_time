@@ -27,7 +27,7 @@ private struct ShieldConfigurationPayload {
     let secondaryButtonLabel: ShieldConfiguration.Label?
 
     static func load(appGroupId: String? = nil) -> ShieldConfigurationPayload {
-        let stored = ShieldConfigurationStore.loadConfiguration(appGroupId: appGroupId) ?? [:]
+        let stored = ShieldConfigurationStore.loadConfiguration(appGroupId: appGroupId)?.toStorageMap() ?? [:]
         return fromDictionary(stored)
     }
 

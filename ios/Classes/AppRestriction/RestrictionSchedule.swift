@@ -51,6 +51,22 @@ struct RestrictionSchedule {
             "endMinutes": endMinutes,
         ]
     }
+
+    init?(channelMap: [String: Any]) {
+        self.init(dictionary: channelMap)
+    }
+
+    init?(storageMap: [String: Any]) {
+        self.init(dictionary: storageMap)
+    }
+
+    func toChannelMap() -> [String: Any] {
+        return toDictionary()
+    }
+
+    func toStorageMap() -> [String: Any] {
+        return toDictionary()
+    }
 }
 
 enum RestrictionScheduleEvaluator {
@@ -178,6 +194,27 @@ struct RestrictionScheduledMode {
         ]
     }
 
+    init?(channelMap: [String: Any]) {
+        self.init(dictionary: channelMap)
+    }
+
+    init?(storageMap: [String: Any]) {
+        self.init(dictionary: storageMap)
+    }
+
+    func toChannelMap() -> [String: Any] {
+        return [
+            "modeId": modeId,
+            "isEnabled": isEnabled,
+            "schedule": schedule?.toChannelMap() as Any,
+            "blockedAppIds": blockedAppIds,
+        ]
+    }
+
+    func toStorageMap() -> [String: Any] {
+        return toChannelMap()
+    }
+
     var shouldPersistForScheduleEnforcement: Bool {
         return isEnabled && schedule != nil && !blockedAppIds.isEmpty
     }
@@ -190,6 +227,45 @@ struct RestrictionScheduledMode {
 struct RestrictionScheduledModesConfig {
     let enabled: Bool
     let modes: [RestrictionScheduledMode]
+
+    func toChannelMap() -> [String: Any] {
+        return [
+            "enabled": enabled,
+            "modes": modes.map { $0.toChannelMap() },
+        ]
+    }
+}
+
+struct RestrictionSessionSnapshot {
+    let isActiveNow: Bool
+    let isPausedNow: Bool
+    let isScheduleEnabled: Bool
+    let isInScheduleNow: Bool
+    let pausedUntilEpochMs: Int64?
+    let restrictedApps: [String]
+    let activeModeId: String?
+    let activeModeSource: RestrictionModeSource
+
+    func toChannelMap() -> [String: Any] {
+        return [
+            "isActiveNow": isActiveNow,
+            "isPausedNow": isPausedNow,
+            "isScheduleEnabled": isScheduleEnabled,
+            "isInScheduleNow": isInScheduleNow,
+            "pausedUntilEpochMs": pausedUntilEpochMs as Any,
+            "restrictedApps": restrictedApps,
+            "activeModeId": activeModeId as Any,
+            "activeModeSource": activeModeSource.wireValue,
+        ]
+    }
+}
+
+enum RestrictionModeSource: String {
+    case none
+    case manual
+    case schedule
+
+    var wireValue: String { rawValue }
 }
 
 enum RestrictionScheduledModeEvaluator {

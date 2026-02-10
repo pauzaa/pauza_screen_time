@@ -1,11 +1,14 @@
 import 'dart:io' show Platform;
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pauza_screen_time/src/core/cancel_token.dart';
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/installed_apps/data/installed_apps_manager.dart';
 import 'package:pauza_screen_time/src/features/installed_apps/installed_apps_platform.dart';
+import 'package:pauza_screen_time/src/features/installed_apps/model/app_info.dart';
 import 'package:pauza_screen_time/src/features/usage_stats/data/usage_stats_manager.dart';
+import 'package:pauza_screen_time/src/features/usage_stats/model/app_usage_stats.dart';
 import 'package:pauza_screen_time/src/features/usage_stats/usage_stats_platform.dart';
 
 void main() {
@@ -50,19 +53,20 @@ void main() {
 
 class _MalformedInstalledApps extends InstalledAppsPlatform {
   @override
-  Future<List<Map<dynamic, dynamic>>> getInstalledApps(
+  Future<List<AppInfo>> getInstalledApps(
     bool includeSystemApps, {
     bool includeIcons = true,
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    return const [
-      {'platform': 'android', 'name': 'Missing package id'},
-    ];
+    throw PlatformException(
+      code: 'INTERNAL_FAILURE',
+      message: 'Failed to decode installed apps payload',
+    );
   }
 
   @override
-  Future<Map<dynamic, dynamic>?> getAppInfo(
+  Future<AppInfo?> getAppInfo(
     String packageId, {
     bool includeIcons = true,
     CancelToken? cancelToken,
@@ -72,7 +76,7 @@ class _MalformedInstalledApps extends InstalledAppsPlatform {
   }
 
   @override
-  Future<List<Map<dynamic, dynamic>>> showFamilyActivityPicker({
+  Future<List<IOSAppInfo>> showFamilyActivityPicker({
     List<String>? preSelectedTokens,
   }) async {
     return const [];
@@ -81,7 +85,7 @@ class _MalformedInstalledApps extends InstalledAppsPlatform {
 
 class _MalformedUsageStatsPlatform extends UsageStatsPlatform {
   @override
-  Future<Map<dynamic, dynamic>?> queryAppUsageStats({
+  Future<UsageStats?> queryAppUsageStats({
     required String packageId,
     required int startTimeMs,
     required int endTimeMs,
@@ -93,20 +97,16 @@ class _MalformedUsageStatsPlatform extends UsageStatsPlatform {
   }
 
   @override
-  Future<List<Map<dynamic, dynamic>>> queryUsageStats({
+  Future<List<UsageStats>> queryUsageStats({
     required int startTimeMs,
     required int endTimeMs,
     bool includeIcons = true,
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    return const [
-      {
-        'packageId': 'com.example.bad',
-        'appName': 'Broken',
-        'totalDurationMs': 'bad',
-        'totalLaunchCount': 1,
-      },
-    ];
+    throw PlatformException(
+      code: 'INTERNAL_FAILURE',
+      message: 'Failed to decode usage stats payload',
+    );
   }
 }

@@ -6,7 +6,6 @@ class RestrictionSession {
   const RestrictionSession({
     required this.isActiveNow,
     required this.isPausedNow,
-    required this.isManuallyEnabled,
     required this.isScheduleEnabled,
     required this.isInScheduleNow,
     required this.pausedUntil,
@@ -20,9 +19,6 @@ class RestrictionSession {
 
   /// Whether restriction enforcement is currently paused.
   final bool isPausedNow;
-
-  /// Whether manual restriction session is enabled.
-  final bool isManuallyEnabled;
 
   /// Whether schedule-based restriction session is enabled.
   final bool isScheduleEnabled;
@@ -46,7 +42,6 @@ class RestrictionSession {
   factory RestrictionSession.fromMap(Map<String, dynamic> map) {
     final isActiveNow = map['isActiveNow'] as bool? ?? false;
     final isPausedNow = map['isPausedNow'] as bool? ?? false;
-    final isManuallyEnabled = map['isManuallyEnabled'] as bool? ?? false;
     final isScheduleEnabled = map['isScheduleEnabled'] as bool? ?? false;
     final isInScheduleNow = map['isInScheduleNow'] as bool? ?? false;
     final pausedUntilEpochMs = switch (map['pausedUntilEpochMs']) {
@@ -77,7 +72,6 @@ class RestrictionSession {
     return RestrictionSession(
       isActiveNow: isActiveNow,
       isPausedNow: isPausedNow,
-      isManuallyEnabled: isManuallyEnabled,
       isScheduleEnabled: isScheduleEnabled,
       isInScheduleNow: isInScheduleNow,
       pausedUntil: pausedUntilEpochMs == null || pausedUntilEpochMs <= 0
@@ -90,4 +84,8 @@ class RestrictionSession {
       activeModeSource: activeModeSource,
     );
   }
+
+  /// Whether the currently active mode source is manual.
+  bool get isManuallyEnabled =>
+      activeModeSource == RestrictionModeSource.manual;
 }

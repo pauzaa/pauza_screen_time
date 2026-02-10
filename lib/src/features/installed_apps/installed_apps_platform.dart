@@ -1,6 +1,7 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
 import 'package:pauza_screen_time/src/core/cancel_token.dart';
+import 'package:pauza_screen_time/src/features/installed_apps/model/app_info.dart';
 
 /// Platform interface for installed apps functionality.
 ///
@@ -15,7 +16,7 @@ abstract class InstalledAppsPlatform extends PlatformInterface {
   ///
   /// [includeSystemApps] - Whether to include system apps.
   /// [includeIcons] - Whether to include app icons (default: true).
-  Future<List<Map<dynamic, dynamic>>> getInstalledApps(
+  Future<List<AppInfo>> getInstalledApps(
     bool includeSystemApps, {
     bool includeIcons = true,
     CancelToken? cancelToken,
@@ -28,7 +29,7 @@ abstract class InstalledAppsPlatform extends PlatformInterface {
   ///
   /// Returns null if the app is not found.
   /// [includeIcons] - Whether to include app icons (default: true).
-  Future<Map<dynamic, dynamic>?> getAppInfo(
+  Future<AppInfo?> getAppInfo(
     String packageId, {
     bool includeIcons = true,
     CancelToken? cancelToken,
@@ -43,7 +44,7 @@ abstract class InstalledAppsPlatform extends PlatformInterface {
   /// that should appear pre-selected when the picker opens.
   ///
   /// Only available on iOS.
-  Future<List<Map<dynamic, dynamic>>> showFamilyActivityPicker({
+  Future<List<IOSAppInfo>> showFamilyActivityPicker({
     List<String>? preSelectedTokens,
   }) {
     throw UnimplementedError(
