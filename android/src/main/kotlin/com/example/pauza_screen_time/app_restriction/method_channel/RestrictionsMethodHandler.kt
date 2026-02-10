@@ -29,6 +29,7 @@ class RestrictionsMethodHandler(
     companion object {
         private const val ANDROID_ACCESSIBILITY_KEY = "android.accessibility"
         private const val FEATURE = "restrictions"
+        private const val MAX_RELIABLE_PAUSE_DURATION_MS = 24 * 60 * 60 * 1000L
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -40,7 +41,6 @@ class RestrictionsMethodHandler(
                 MethodNames.SET_MODES_ENABLED -> handleSetModesEnabled(call, result)
                 MethodNames.GET_MODES_CONFIG -> handleGetModesConfig(result)
                 MethodNames.IS_RESTRICTION_SESSION_ACTIVE_NOW -> handleIsRestrictionSessionActiveNow(result)
-                MethodNames.IS_RESTRICTION_SESSION_CONFIGURED -> handleIsRestrictionSessionConfigured(result)
                 MethodNames.PAUSE_ENFORCEMENT -> handlePauseEnforcement(call, result)
                 MethodNames.RESUME_ENFORCEMENT -> handleResumeEnforcement(result)
                 MethodNames.START_MODE_SESSION -> handleStartModeSession(call, result)
@@ -120,7 +120,6 @@ class RestrictionsMethodHandler(
         }
 
         val modeId = (payload["modeId"] as? String)?.trim().orEmpty()
-        val isEnabled = payload["isEnabled"] as? Boolean ?: true
         val blockedAppIdsRaw = payload["blockedAppIds"] as? List<*>
         if (modeId.isEmpty() || blockedAppIdsRaw == null) {
             PluginErrorHelper.invalidArgument(
@@ -174,16 +173,14 @@ class RestrictionsMethodHandler(
             val store = RestrictionScheduledModesStore(context)
             val mode = RestrictionScheduledModeEntry(
                 modeId = modeId,
-                isEnabled = isEnabled,
                 schedule = schedule,
                 blockedAppIds = blockedAppIds,
             )
-            val isStartableMode = mode.isEnabled && mode.blockedAppIds.isNotEmpty()
+            val isStartableMode = mode.blockedAppIds.isNotEmpty()
             if (isStartableMode) {
                 RestrictionModeUpsertCache.upsert(
                     RestrictionCachedMode(
                         modeId = mode.modeId,
-                        isEnabled = true,
                         blockedAppIds = mode.blockedAppIds,
                     ),
                 )
@@ -200,7 +197,7 @@ class RestrictionsMethodHandler(
             val shapeIsValid = scheduleCalculator.isScheduleShapeValid(
                 RestrictionScheduleConfig(
                     enabled = true,
-                    schedules = nextModes.filter { it.isEnabled && it.schedule != null }.mapNotNull { it.schedule },
+                    schedules = nextModes.filter { it.schedule != null }.mapNotNull { it.schedule },
                 ),
             )
             if (!shapeIsValid) {
@@ -387,32 +384,6 @@ class RestrictionsMethodHandler(
         }
     }
 
-    private fun handleIsRestrictionSessionConfigured(result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.IS_RESTRICTION_SESSION_CONFIGURED,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        try {
-            val hasConfig = RestrictionScheduledModesStore(context).getConfig().modes.any { it.blockedAppIds.isNotEmpty() }
-            result.success(hasConfig)
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.IS_RESTRICTION_SESSION_CONFIGURED,
-                message = "Failed to get restriction session configuration state: ${e.message}",
-                error = e,
-            )
-        }
-    }
-
     private fun handlePauseEnforcement(call: MethodCall, result: Result) {
         val context = contextProvider()
         if (context == null) {
@@ -432,6 +403,15 @@ class RestrictionsMethodHandler(
                 feature = FEATURE,
                 action = MethodNames.PAUSE_ENFORCEMENT,
                 message = "Missing or invalid 'durationMs' argument",
+            )
+            return
+        }
+        if (durationMs >= MAX_RELIABLE_PAUSE_DURATION_MS) {
+            PluginErrorHelper.invalidArgument(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.PAUSE_ENFORCEMENT,
+                message = "Pause duration must be less than 24 hours on Android",
             )
             return
         }
@@ -522,7 +502,7 @@ class RestrictionsMethodHandler(
             val cachedMode = RestrictionModeUpsertCache.get(modeId)
             val resolvedBlockedIds = when {
                 scheduledMode != null -> scheduledMode.blockedAppIds
-                cachedMode != null && cachedMode.isEnabled && cachedMode.blockedAppIds.isNotEmpty() -> cachedMode.blockedAppIds
+                cachedMode != null && cachedMode.blockedAppIds.isNotEmpty() -> cachedMode.blockedAppIds
                 else -> null
             }
             if (resolvedBlockedIds == null) {
@@ -530,7 +510,7 @@ class RestrictionsMethodHandler(
                     result = result,
                     feature = FEATURE,
                     action = MethodNames.START_MODE_SESSION,
-                    message = "Mode must exist and be enabled to start manual session. Call upsertMode first for unscheduled modes.",
+                    message = "Mode must exist with blocked apps to start manual session. Call upsertMode first for unscheduled modes.",
                 )
                 return
             }
@@ -694,5 +674,5 @@ class RestrictionsMethodHandler(
 }
 
 private fun RestrictionScheduledModeEntry.shouldPersistForScheduleEnforcement(): Boolean {
-    return isEnabled && schedule != null && blockedAppIds.isNotEmpty()
+    return schedule != null && blockedAppIds.isNotEmpty()
 }

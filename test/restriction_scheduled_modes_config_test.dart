@@ -12,7 +12,6 @@ void main() {
         modes: [
           RestrictionMode(
             modeId: 'mode_a',
-            isEnabled: true,
             schedule: RestrictionSchedule(
               daysOfWeekIso: {1},
               startMinutes: 60,
@@ -22,7 +21,6 @@ void main() {
           ),
           RestrictionMode(
             modeId: 'mode_b',
-            isEnabled: true,
             schedule: RestrictionSchedule(
               daysOfWeekIso: {1},
               startMinutes: 120,
@@ -42,7 +40,6 @@ void main() {
         modes: [
           RestrictionMode(
             modeId: 'mode_a',
-            isEnabled: true,
             schedule: RestrictionSchedule(
               daysOfWeekIso: {1},
               startMinutes: 60,
@@ -52,7 +49,6 @@ void main() {
           ),
           RestrictionMode(
             modeId: 'mode_b',
-            isEnabled: true,
             schedule: RestrictionSchedule(
               daysOfWeekIso: {1},
               startMinutes: 120,
@@ -72,12 +68,10 @@ void main() {
         modes: [
           RestrictionMode(
             modeId: 'manual_only',
-            isEnabled: true,
             blockedAppIds: [AppIdentifier('com.example.manual')],
           ),
           RestrictionMode(
             modeId: 'focus',
-            isEnabled: true,
             schedule: RestrictionSchedule(
               daysOfWeekIso: {1, 2},
               startMinutes: 9 * 60,
@@ -97,7 +91,6 @@ void main() {
         modes: [
           RestrictionMode(
             modeId: 'focus',
-            isEnabled: true,
             schedule: RestrictionSchedule(
               daysOfWeekIso: {1, 2},
               startMinutes: 9 * 60,
@@ -116,6 +109,23 @@ void main() {
         roundTrip.modes.first.blockedAppIds.first.value,
         'com.example.app',
       );
+    });
+
+    test('mode map contract does not include isEnabled', () {
+      const mode = RestrictionMode(
+        modeId: 'focus',
+        blockedAppIds: [AppIdentifier('com.example.app')],
+      );
+
+      final serialized = mode.toMap();
+      expect(serialized.containsKey('isEnabled'), isFalse);
+
+      final parsed = RestrictionMode.fromMap({
+        ...serialized,
+        'isEnabled': false,
+      });
+      expect(parsed.modeId, 'focus');
+      expect(parsed.blockedAppIds.first.value, 'com.example.app');
     });
   });
 }

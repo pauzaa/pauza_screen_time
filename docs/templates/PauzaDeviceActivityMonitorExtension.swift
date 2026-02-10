@@ -132,7 +132,7 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
             return ScheduleState(isInScheduleNow: false, blockedAppIds: [])
         }
         let activeModes = modes.filter { mode in
-            guard mode.isEnabled, let schedule = mode.schedule else {
+            guard let schedule = mode.schedule else {
                 return false
             }
             return isInScheduleNow(schedules: [schedule], enabled: true)
@@ -218,7 +218,6 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
 
     private struct RestrictionMode {
         let modeId: String
-        let isEnabled: Bool
         let schedule: RestrictionSchedule?
         let blockedAppIds: [String]
 
@@ -237,7 +236,6 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
                 schedule = nil
             }
             self.modeId = modeId
-            self.isEnabled = dictionary["isEnabled"] as? Bool ?? true
             self.blockedAppIds = (dictionary["blockedAppIds"] as? [Any] ?? []).compactMap { value in
                 guard let raw = value as? String else {
                     return nil

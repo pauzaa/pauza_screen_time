@@ -45,11 +45,11 @@ Restriction prerequisites are not satisfied. For Android restrictions, this mean
 
 ### Pause expires but app is still usable
 
-**Likely cause**: pause is still active or session is not configured.
+**Likely cause**: pause is still active or no enforceable mode is active.
 
 **Fix**:
-- Check `isRestrictionSessionConfigured()` and `getRestrictionSession()`
-- Ensure restricted apps are still configured after pause
+- Check `getRestrictionSession()`
+- Ensure there is a persisted enforceable mode (`schedule != null` with blocked apps) or an active manual mode
 - Confirm Accessibility service is still enabled
 
 **Verify**:
@@ -137,7 +137,7 @@ One or more tokens you passed to restrictions could not be decoded as iOS `Appli
 
 **Likely causes**:
 - duration is missing/zero/negative
-- iOS duration is `>= 24h`
+- duration is `>= 24h` (both Android and iOS)
 - enforcement is already paused
 
 **Fix**:

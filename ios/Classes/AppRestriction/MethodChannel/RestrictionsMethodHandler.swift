@@ -22,8 +22,6 @@ final class RestrictionsMethodHandler {
             handleGetModesConfig(result: result)
         case MethodNames.isRestrictionSessionActiveNow:
             handleIsRestrictionSessionActiveNow(result: result)
-        case MethodNames.isRestrictionSessionConfigured:
-            handleIsRestrictionSessionConfigured(result: result)
         case MethodNames.pauseEnforcement:
             handlePauseEnforcement(call: call, result: result)
         case MethodNames.resumeEnforcement:
@@ -89,16 +87,6 @@ final class RestrictionsMethodHandler {
         let isPrerequisitesMet = restrictionMissingPrerequisites().isEmpty
         let shouldEnforceSession = state.activeModeSource != .none
         result(!state.blockedAppIds.isEmpty && !isPausedNow && isPrerequisitesMet && shouldEnforceSession)
-    }
-
-    private func handleIsRestrictionSessionConfigured(result: @escaping FlutterResult) {
-        guard #available(iOS 16.0, *) else {
-            result(false)
-            return
-        }
-
-        let hasConfig = !RestrictionStateStore.loadModes().isEmpty
-        result(hasConfig)
     }
 
     private func handlePauseEnforcement(call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -240,7 +228,7 @@ final class RestrictionsMethodHandler {
         let blockedAppIds: [String]?
         if let scheduledMode, scheduledMode.isStartable {
             blockedAppIds = scheduledMode.blockedAppIds
-        } else if let cachedMode, cachedMode.isEnabled, !cachedMode.blockedAppIds.isEmpty {
+        } else if let cachedMode, !cachedMode.blockedAppIds.isEmpty {
             blockedAppIds = cachedMode.blockedAppIds
         } else {
             blockedAppIds = nil
@@ -249,7 +237,7 @@ final class RestrictionsMethodHandler {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
                 action: MethodNames.startModeSession,
-                message: "Mode must exist and be enabled to start manual session. Call upsertMode first for unscheduled modes."
+                message: "Mode must exist with blocked apps to start manual session. Call upsertMode first for unscheduled modes."
             ))
             return
         }
@@ -400,7 +388,6 @@ final class RestrictionsMethodHandler {
             RestrictionModeUpsertCache.upsert(
                 RestrictionCachedMode(
                     modeId: mode.modeId,
-                    isEnabled: true,
                     blockedAppIds: mode.blockedAppIds
                 )
             )

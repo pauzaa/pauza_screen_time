@@ -159,7 +159,6 @@ void main() {
       await manager.upsertMode(
         const RestrictionMode(
           modeId: 'focus',
-          isEnabled: true,
           blockedAppIds: [AppIdentifier('com.example.app')],
         ),
       );
@@ -191,7 +190,6 @@ void main() {
       final manager = AppRestrictionManager(platform: fakePlatform);
       const mode = RestrictionMode(
         modeId: 'manual-focus',
-        isEnabled: true,
         blockedAppIds: [AppIdentifier('com.example.social')],
       );
 
@@ -302,9 +300,6 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
 
   @override
   Future<bool> isRestrictionSessionActiveNow() async => true;
-
-  @override
-  Future<bool> isRestrictionSessionConfigured() async => true;
 
   @override
   Future<void> pauseEnforcement(Duration duration) async {

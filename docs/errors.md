@@ -30,7 +30,6 @@ try {
   await restrictions.upsertMode(
     RestrictionMode(
       modeId: 'focus-mode',
-      isEnabled: true,
       blockedAppIds: identifiers,
     ),
   );

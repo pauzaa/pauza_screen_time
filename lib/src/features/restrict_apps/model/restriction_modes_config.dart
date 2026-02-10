@@ -36,7 +36,7 @@ class RestrictionModesConfig {
     }
     return _validateNoOverlap(
       modes
-          .where((mode) => mode.isEnabled && mode.schedule != null)
+          .where((mode) => mode.schedule != null)
           .map((mode) => mode.schedule!)
           .toList(),
     );

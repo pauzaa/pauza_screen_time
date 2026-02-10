@@ -2,7 +2,6 @@ package com.example.pauza_screen_time.app_restriction
 
 internal data class RestrictionCachedMode(
     val modeId: String,
-    val isEnabled: Boolean,
     val blockedAppIds: List<String>,
 )
 

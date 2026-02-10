@@ -86,7 +86,7 @@ internal class RestrictionAlarmOrchestrator(
             enabled = modesConfig.enabled,
             schedules = modesConfig
                 .modes
-                .filter { it.isEnabled && it.schedule != null }
+                .filter { it.schedule != null }
                 .mapNotNull { it.schedule },
         )
         val boundary = scheduleCalculator.nextBoundary(config) ?: return

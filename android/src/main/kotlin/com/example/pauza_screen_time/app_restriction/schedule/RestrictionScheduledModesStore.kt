@@ -79,5 +79,5 @@ internal class RestrictionScheduledModesStore(
 }
 
 private fun RestrictionScheduledModeEntry.isEnforceableScheduled(): Boolean {
-    return isEnabled && schedule != null && blockedAppIds.isNotEmpty()
+    return schedule != null && blockedAppIds.isNotEmpty()
 }

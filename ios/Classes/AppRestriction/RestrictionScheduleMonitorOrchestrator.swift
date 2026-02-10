@@ -14,7 +14,7 @@ enum RestrictionScheduleMonitorOrchestrator {
         }
 
         let modes = RestrictionStateStore.loadModes()
-        let schedules = modes.filter { $0.isEnabled }.compactMap { $0.schedule }
+        let schedules = modes.compactMap { $0.schedule }
         let enabled = RestrictionStateStore.loadModesEnabled()
 
         guard enabled else {

@@ -48,7 +48,6 @@ final blocked = apps
 await restrictions.upsertMode(
   RestrictionMode(
     modeId: 'focus-mode',
-    isEnabled: true,
     blockedAppIds: blocked,
   ),
 );
@@ -61,7 +60,6 @@ await restrictions.setModesEnabled(true);
 await restrictions.startManualModeSession(
   RestrictionMode(
     modeId: 'focus-mode',
-    isEnabled: true,
     blockedAppIds: blocked,
   ),
 );
@@ -93,7 +91,6 @@ final blocked = picked
 await restrictions.upsertMode(
   RestrictionMode(
     modeId: 'focus-mode',
-    isEnabled: true,
     blockedAppIds: blocked,
   ),
 );
@@ -105,7 +102,6 @@ await restrictions.upsertMode(
 await restrictions.upsertMode(
   RestrictionMode(
     modeId: 'focus-mode',
-    isEnabled: true,
     schedule: const RestrictionSchedule(
       daysOfWeekIso: {1, 2, 3, 4, 5},
       startMinutes: 9 * 60,
@@ -123,6 +119,8 @@ await restrictions.setModesEnabled(true);
 await restrictions.pauseEnforcement(const Duration(minutes: 5));
 await restrictions.resumeEnforcement();
 ```
+
+Pause duration must be strictly less than 24 hours on both Android and iOS.
 
 ## Next
 

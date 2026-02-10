@@ -43,11 +43,6 @@ class AppRestrictionManager {
     return _platform.isRestrictionSessionActiveNow().throwTypedPauzaError();
   }
 
-  /// Returns whether a restriction session is configured.
-  Future<bool> isRestrictionSessionConfigured() {
-    return _platform.isRestrictionSessionConfigured().throwTypedPauzaError();
-  }
-
   /// Pauses restriction enforcement for the given [duration].
   Future<void> pauseEnforcement(Duration duration) {
     return _platform.pauseEnforcement(duration).throwTypedPauzaError();

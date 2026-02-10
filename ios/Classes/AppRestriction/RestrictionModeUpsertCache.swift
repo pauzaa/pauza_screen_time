@@ -2,7 +2,6 @@ import Foundation
 
 struct RestrictionCachedMode {
     let modeId: String
-    let isEnabled: Bool
     let blockedAppIds: [String]
 }
 

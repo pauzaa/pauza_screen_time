@@ -11,7 +11,6 @@ internal object RestrictionScheduledModesStorageCodec {
             mode.blockedAppIds.forEach(blockedAppIds::put)
             val modePayload = JSONObject()
                 .put("modeId", mode.modeId)
-                .put("isEnabled", mode.isEnabled)
                 .put("blockedAppIds", blockedAppIds)
             if (mode.schedule != null) {
                 val days = JSONArray()
@@ -49,12 +48,10 @@ internal object RestrictionScheduledModesStorageCodec {
         if (modeId.isEmpty()) {
             return null
         }
-        val isEnabled = mode.optBoolean("isEnabled", true)
         val blockedAppIds = parseBlockedAppIds(mode)
         val schedule = parseSchedule(mode.optJSONObject("schedule"))
         return RestrictionScheduledModeEntry(
             modeId = modeId,
-            isEnabled = isEnabled,
             schedule = schedule,
             blockedAppIds = blockedAppIds.distinct(),
         )

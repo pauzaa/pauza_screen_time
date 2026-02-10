@@ -20,7 +20,6 @@ void main() {
       manager.upsertMode(
         const RestrictionMode(
           modeId: 'focus',
-          isEnabled: true,
           blockedAppIds: [AppIdentifier('x')],
         ),
       ),
@@ -52,9 +51,6 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
 
   @override
   Future<bool> isRestrictionSessionActiveNow() async => false;
-
-  @override
-  Future<bool> isRestrictionSessionConfigured() async => false;
 
   @override
   Future<void> pauseEnforcement(Duration duration) async {}

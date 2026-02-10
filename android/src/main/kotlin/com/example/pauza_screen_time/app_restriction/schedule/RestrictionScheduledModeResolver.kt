@@ -14,13 +14,13 @@ internal object RestrictionScheduledModeResolver {
         if (!config.enabled) {
             return Resolution(isInScheduleNow = false, activeModeId = null, blockedAppIds = emptyList())
         }
-        val enabledModes = config.modes.filter { it.isEnabled && it.schedule != null }
-        if (enabledModes.isEmpty()) {
+        val scheduledModes = config.modes.filter { it.schedule != null }
+        if (scheduledModes.isEmpty()) {
             return Resolution(isInScheduleNow = false, activeModeId = null, blockedAppIds = emptyList())
         }
 
         var matchedMode: RestrictionScheduledModeEntry? = null
-        for (mode in enabledModes) {
+        for (mode in scheduledModes) {
             val schedule = mode.schedule ?: continue
             val isActive = scheduleCalculator.isInSessionNow(
                 RestrictionScheduleConfig(enabled = true, schedules = listOf(schedule)),

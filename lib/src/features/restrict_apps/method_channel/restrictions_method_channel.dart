@@ -82,14 +82,6 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   }
 
   @override
-  Future<bool> isRestrictionSessionConfigured() async {
-    final result = await channel.invokeMethod<bool>(
-      RestrictionsMethodNames.isRestrictionSessionConfigured,
-    );
-    return result ?? false;
-  }
-
-  @override
   Future<void> pauseEnforcement(Duration duration) {
     return channel.invokeMethod<void>(
       RestrictionsMethodNames.pauseEnforcement,

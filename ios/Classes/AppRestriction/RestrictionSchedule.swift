@@ -153,7 +153,6 @@ enum RestrictionScheduleEvaluator {
 
 struct RestrictionScheduledMode {
     let modeId: String
-    let isEnabled: Bool
     let schedule: RestrictionSchedule?
     let blockedAppIds: [String]
 
@@ -162,7 +161,6 @@ struct RestrictionScheduledMode {
         guard !modeId.isEmpty else {
             return nil
         }
-        let isEnabled = dictionary["isEnabled"] as? Bool ?? true
         let schedule: RestrictionSchedule?
         if let scheduleDictionary = dictionary["schedule"] as? [String: Any] {
             guard let parsedSchedule = RestrictionSchedule(dictionary: scheduleDictionary) else {
@@ -180,7 +178,6 @@ struct RestrictionScheduledMode {
             return trimmed.isEmpty ? nil : trimmed
         }
         self.modeId = modeId
-        self.isEnabled = isEnabled
         self.schedule = schedule
         self.blockedAppIds = Array(NSOrderedSet(array: blocked)) as? [String] ?? blocked
     }
@@ -188,7 +185,6 @@ struct RestrictionScheduledMode {
     func toDictionary() -> [String: Any] {
         [
             "modeId": modeId,
-            "isEnabled": isEnabled,
             "schedule": schedule?.toDictionary() as Any,
             "blockedAppIds": blockedAppIds,
         ]
@@ -205,7 +201,6 @@ struct RestrictionScheduledMode {
     func toChannelMap() -> [String: Any] {
         return [
             "modeId": modeId,
-            "isEnabled": isEnabled,
             "schedule": schedule?.toChannelMap() as Any,
             "blockedAppIds": blockedAppIds,
         ]
@@ -216,11 +211,11 @@ struct RestrictionScheduledMode {
     }
 
     var shouldPersistForScheduleEnforcement: Bool {
-        return isEnabled && schedule != nil && !blockedAppIds.isEmpty
+        return schedule != nil && !blockedAppIds.isEmpty
     }
 
     var isStartable: Bool {
-        return isEnabled && !blockedAppIds.isEmpty
+        return !blockedAppIds.isEmpty
     }
 }
 
@@ -284,7 +279,7 @@ enum RestrictionScheduledModeEvaluator {
             return Resolution(isInScheduleNow: false, activeModeId: nil, blockedAppIds: [])
         }
         let activeModes = config.modes.filter { mode in
-            guard mode.isEnabled, let schedule = mode.schedule else {
+            guard let schedule = mode.schedule else {
                 return false
             }
             return RestrictionScheduleEvaluator.isInScheduleNow(

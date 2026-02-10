@@ -6,7 +6,6 @@ This guide covers `AppRestrictionManager` with the mode-centric API.
 
 Restrictions are defined by `RestrictionMode`:
 - `modeId`: unique id
-- `isEnabled`: whether mode is eligible for activation
 - `blockedAppIds`: app identifiers to shield
 - `schedule` (optional): when the mode is automatically active
 
@@ -30,7 +29,6 @@ final restrictions = AppRestrictionManager();
 await restrictions.upsertMode(
   RestrictionMode(
     modeId: 'focus-mode',
-    isEnabled: true,
     schedule: const RestrictionSchedule(
       daysOfWeekIso: {1, 2, 3, 4, 5},
       startMinutes: 9 * 60,
@@ -56,7 +54,6 @@ Notes:
 await restrictions.startManualModeSession(
   RestrictionMode(
     modeId: 'focus-mode',
-    isEnabled: true,
     blockedAppIds: [
       AppIdentifier.android('com.instagram.android'),
     ],
@@ -67,7 +64,7 @@ await restrictions.endModeSession();
 
 Manual session rules:
 - `startManualModeSession(mode)` performs `upsertMode(mode)` then `startModeSession(modeId)`.
-- `startModeSession(modeId)` requires mode to exist and be enabled. For unscheduled modes, call `upsertMode` first in the same app run.
+- `startModeSession(modeId)` requires mode to exist with non-empty blocked app ids. For unscheduled modes, call `upsertMode` first in the same app run.
 - Manual session overrides scheduled activation until `endModeSession()`.
 
 ## 4) Pause / resume
@@ -102,9 +99,9 @@ final config = await restrictions.getModesConfig();
 
 Returns:
 - `enabled`: global schedule engine flag
-- `modes`: only persisted scheduled modes used for background enforcement (`isEnabled && schedule != null && blockedAppIds.isNotEmpty`)
+- `modes`: only persisted scheduled modes used for background enforcement (`schedule != null && blockedAppIds.isNotEmpty`)
 
-The plugin does not persist every configured mode. Host apps should store the full user mode catalog separately.
+The plugin persists only enforceable scheduled modes and the current manual active mode. Host apps should store the full user mode catalog separately and represent disabled schedules by removing the schedule-backed mode from plugin storage.
 
 ## 7) Remove mode
 

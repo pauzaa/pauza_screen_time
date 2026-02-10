@@ -20,7 +20,6 @@ enum MethodNames {
     static let setModesEnabled = "setModesEnabled"
     static let getModesConfig = "getModesConfig"
     static let isRestrictionSessionActiveNow = "isRestrictionSessionActiveNow"
-    static let isRestrictionSessionConfigured = "isRestrictionSessionConfigured"
     static let pauseEnforcement = "pauseEnforcement"
     static let resumeEnforcement = "resumeEnforcement"
     static let startModeSession = "startModeSession"

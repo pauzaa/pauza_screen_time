@@ -1,3 +1,10 @@
+## 0.5.1
+
+* BREAKING: Removed `RestrictionMode.isEnabled` from Dart and native restriction mode payload contracts.
+* BREAKING: Removed `isRestrictionSessionConfigured` from Dart manager/platform and native method channels.
+* Restriction mode persistence is now explicit: only enforceable scheduled modes (`schedule != null && blockedAppIds.isNotEmpty`) are stored by native schedule stores.
+* Android now rejects `pauseEnforcement` durations `>= 24h` with `INVALID_ARGUMENT` ("Pause duration must be less than 24 hours on Android").
+
 ## 0.5.0
 
 * BREAKING: Restriction APIs are now mode-centric. Added `RestrictionMode` and `RestrictionModesConfig`; removed global app-list restriction entry points from manager/channel contracts.

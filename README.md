@@ -43,7 +43,6 @@ final blocked = androidApps
 await restrictions.upsertMode(
   RestrictionMode(
     modeId: 'focus-mode',
-    isEnabled: true,
     blockedAppIds: blocked,
   ),
 );
@@ -51,7 +50,6 @@ await restrictions.setModesEnabled(true);
 await restrictions.startManualModeSession(
   RestrictionMode(
     modeId: 'focus-mode',
-    isEnabled: true,
     blockedAppIds: blocked,
   ),
 );
@@ -83,7 +81,6 @@ try {
   await AppRestrictionManager().upsertMode(
     const RestrictionMode(
       modeId: 'focus-mode',
-      isEnabled: true,
       blockedAppIds: [AppIdentifier.android('com.instagram.android')],
     ),
   );
