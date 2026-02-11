@@ -107,3 +107,10 @@ DeviceActivityReport.Context(reportContextId)
 
 Your report extension must support the same context identifiers.
 The provided template includes context `daily`.
+
+## Next
+
+- [Docs index](README.md)
+- [Permissions](permissions.md)
+- [iOS setup](ios-setup.md)
+- [Troubleshooting](troubleshooting.md)

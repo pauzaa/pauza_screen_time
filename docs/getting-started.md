@@ -2,6 +2,14 @@
 
 This guide shows the mode-based restriction flow on Android and iOS.
 
+## When to use this guide
+
+Use this guide for a full end-to-end restriction flow. If you only need a
+specific area, jump to:
+- [Permissions](permissions.md)
+- [Usage stats](usage-stats.md)
+- [Restrict / block apps](restrict-apps.md)
+
 ## 0) Install
 
 ```bash
@@ -13,6 +21,9 @@ import 'package:pauza_screen_time/pauza_screen_time.dart';
 ```
 
 ## 1) Platform setup first
+
+Complete platform setup before calling restriction APIs; they will fail fast if
+prerequisites are missing.
 
 - Android: [android-setup.md](android-setup.md)
 - iOS: [ios-setup.md](ios-setup.md)
@@ -124,6 +135,7 @@ Pause duration must be strictly less than 24 hours on both Android and iOS.
 
 ## Next
 
+- [Docs index](README.md)
 - [restrict-apps.md](restrict-apps.md)
 - [permissions.md](permissions.md)
 - [installed-apps.md](installed-apps.md)

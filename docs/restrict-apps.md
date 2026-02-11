@@ -135,8 +135,9 @@ await restrictions.removeMode('focus-mode');
 
 If the removed mode is currently active, the active session is cleared.
 
-## Breaking migration map
+## Next
 
-- `restrictApps`, `restrictApp`, `unrestrictApp`, `clearAllRestrictions` -> `upsertMode` / `removeMode`
-- `upsertScheduledMode`, `removeScheduledMode`, `setScheduledModesEnabled`, `getScheduledModesConfig` -> `upsertMode`, `removeMode`, `setModesEnabled`, `getModesConfig`
-- `startRestrictionSession`, `endRestrictionSession` -> `startSession(mode)`, `endSession()`
+- [Docs index](README.md)
+- [Permissions](permissions.md)
+- [Installed apps](installed-apps.md)
+- [Troubleshooting](troubleshooting.md)

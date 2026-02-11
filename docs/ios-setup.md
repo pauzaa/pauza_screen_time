@@ -174,6 +174,7 @@ If the extension is missing, the view will not render correctly.
 
 ## Next
 
+- [Docs index](README.md)
 - [Restrict / block apps](restrict-apps.md)
 - [Usage stats](usage-stats.md)
 - [Troubleshooting](troubleshooting.md)

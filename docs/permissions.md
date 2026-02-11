@@ -116,3 +116,9 @@ On Android, `QUERY_ALL_PACKAGES` is a manifest-level capability and cannot be gr
 
 - [Android setup](android-setup.md)
 - [iOS setup](ios-setup.md)
+
+## Next
+
+- [Docs index](README.md)
+- [Restrict / block apps](restrict-apps.md)
+- [Installed apps](installed-apps.md)

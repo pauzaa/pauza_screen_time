@@ -157,3 +157,9 @@ One or more tokens you passed to restrictions could not be decoded as iOS `Appli
 **Fix**:
 - Pass a positive duration (for example `Duration(minutes: 5)`)
 - Check `getRestrictionSession().isPausedNow` before re-pausing
+
+## Next
+
+- [Docs index](README.md)
+- [Permissions](permissions.md)
+- [Restrict / block apps](restrict-apps.md)

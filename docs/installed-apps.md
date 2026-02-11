@@ -63,6 +63,7 @@ final picked = await installed.selectIOSApps(preSelectedApps: previouslyPicked);
 
 ## Next
 
+- [Docs index](README.md)
 - [Restrict / block apps](restrict-apps.md)
 - [iOS setup](ios-setup.md)
 - [Troubleshooting](troubleshooting.md)

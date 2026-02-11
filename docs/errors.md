@@ -54,3 +54,8 @@ For restrictions, enforcement mutation APIs preflight permissions and fail fast:
 
 Read/inspection APIs do not preflight-fail and continue returning session/config
 state payloads.
+
+## Next
+
+- [Docs index](README.md)
+- [Troubleshooting](troubleshooting.md)

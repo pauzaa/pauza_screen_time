@@ -126,3 +126,10 @@ If blocking doesn’t work:
 - Confirm you called `AppRestrictionManager.upsertMode(...)` with valid `AppIdentifier.android(packageId)` values and started/activated a mode
 
 See [Troubleshooting](troubleshooting.md) for more.
+
+## Next
+
+- [Docs index](README.md)
+- [Restrict / block apps](restrict-apps.md)
+- [Permissions](permissions.md)
+- [Usage stats](usage-stats.md)
