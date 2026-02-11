@@ -1,5 +1,8 @@
 package com.example.pauza_screen_time.app_restriction.model
 
+import android.util.Base64
+import org.json.JSONObject
+
 /**
  * Data class representing shield overlay configuration from Flutter.
  *
@@ -39,6 +42,19 @@ data class ShieldConfig(
             secondaryButtonTextColor = null
         )
 
+        private const val KEY_TITLE = "title"
+        private const val KEY_SUBTITLE = "subtitle"
+        private const val KEY_BACKGROUND_COLOR = "backgroundColor"
+        private const val KEY_TITLE_COLOR = "titleColor"
+        private const val KEY_SUBTITLE_COLOR = "subtitleColor"
+        private const val KEY_BACKGROUND_BLUR_STYLE = "backgroundBlurStyle"
+        private const val KEY_ICON_BASE64 = "iconBase64"
+        private const val KEY_PRIMARY_BUTTON_LABEL = "primaryButtonLabel"
+        private const val KEY_PRIMARY_BUTTON_BACKGROUND_COLOR = "primaryButtonBackgroundColor"
+        private const val KEY_PRIMARY_BUTTON_TEXT_COLOR = "primaryButtonTextColor"
+        private const val KEY_SECONDARY_BUTTON_LABEL = "secondaryButtonLabel"
+        private const val KEY_SECONDARY_BUTTON_TEXT_COLOR = "secondaryButtonTextColor"
+
         /**
          * Creates a ShieldConfig from a Flutter method channel map.
          *
@@ -60,6 +76,63 @@ data class ShieldConfig(
                 secondaryButtonLabel = configMap["secondaryButtonLabel"] as? String,
                 secondaryButtonTextColor = (configMap["secondaryButtonTextColor"] as? Number)?.toInt()
             )
+        }
+
+        fun toJson(config: ShieldConfig): String {
+            val payload = JSONObject()
+                .put(KEY_TITLE, config.title)
+                .put(KEY_SUBTITLE, config.subtitle)
+                .put(KEY_BACKGROUND_COLOR, config.backgroundColor)
+                .put(KEY_TITLE_COLOR, config.titleColor)
+                .put(KEY_SUBTITLE_COLOR, config.subtitleColor)
+                .put(KEY_BACKGROUND_BLUR_STYLE, config.backgroundBlurStyle)
+                .put(KEY_PRIMARY_BUTTON_LABEL, config.primaryButtonLabel)
+                .put(KEY_PRIMARY_BUTTON_BACKGROUND_COLOR, config.primaryButtonBackgroundColor)
+                .put(KEY_PRIMARY_BUTTON_TEXT_COLOR, config.primaryButtonTextColor)
+                .put(KEY_SECONDARY_BUTTON_LABEL, config.secondaryButtonLabel)
+                .put(KEY_SECONDARY_BUTTON_TEXT_COLOR, config.secondaryButtonTextColor)
+
+            val iconBytes = config.iconBytes
+            if (iconBytes != null) {
+                payload.put(KEY_ICON_BASE64, Base64.encodeToString(iconBytes, Base64.NO_WRAP))
+            } else {
+                payload.put(KEY_ICON_BASE64, JSONObject.NULL)
+            }
+
+            return payload.toString()
+        }
+
+        fun fromJson(serialized: String): ShieldConfig? {
+            return try {
+                val payload = JSONObject(serialized)
+                val iconBase64 = payload.optString(KEY_ICON_BASE64, "").trim()
+                val iconBytes = if (iconBase64.isNotEmpty()) {
+                    try {
+                        Base64.decode(iconBase64, Base64.DEFAULT)
+                    } catch (e: IllegalArgumentException) {
+                        null
+                    }
+                } else {
+                    null
+                }
+
+                ShieldConfig(
+                    title = payload.optString(KEY_TITLE, "App Blocked"),
+                    subtitle = payload.optStringOrNull(KEY_SUBTITLE),
+                    backgroundColor = payload.optInt(KEY_BACKGROUND_COLOR, 0xFF1A1A2E.toInt()),
+                    titleColor = payload.optInt(KEY_TITLE_COLOR, 0xFFFFFFFF.toInt()),
+                    subtitleColor = payload.optInt(KEY_SUBTITLE_COLOR, 0xFFB0B0B0.toInt()),
+                    backgroundBlurStyle = payload.optStringOrNull(KEY_BACKGROUND_BLUR_STYLE),
+                    iconBytes = iconBytes,
+                    primaryButtonLabel = payload.optStringOrNull(KEY_PRIMARY_BUTTON_LABEL),
+                    primaryButtonBackgroundColor = payload.optIntOrNull(KEY_PRIMARY_BUTTON_BACKGROUND_COLOR),
+                    primaryButtonTextColor = payload.optIntOrNull(KEY_PRIMARY_BUTTON_TEXT_COLOR),
+                    secondaryButtonLabel = payload.optStringOrNull(KEY_SECONDARY_BUTTON_LABEL),
+                    secondaryButtonTextColor = payload.optIntOrNull(KEY_SECONDARY_BUTTON_TEXT_COLOR)
+                )
+            } catch (e: Exception) {
+                null
+            }
         }
     }
 
@@ -95,5 +168,21 @@ data class ShieldConfig(
         result = 31 * result + (secondaryButtonLabel?.hashCode() ?: 0)
         result = 31 * result + (secondaryButtonTextColor ?: 0)
         return result
+    }
+}
+
+private fun JSONObject.optStringOrNull(key: String): String? {
+    return if (has(key) && !isNull(key)) {
+        getString(key)
+    } else {
+        null
+    }
+}
+
+private fun JSONObject.optIntOrNull(key: String): Int? {
+    return if (has(key) && !isNull(key)) {
+        optInt(key)
+    } else {
+        null
     }
 }

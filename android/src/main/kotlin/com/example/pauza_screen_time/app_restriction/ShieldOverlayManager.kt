@@ -33,6 +33,8 @@ class ShieldOverlayManager private constructor(context: Context) {
 
     companion object {
         private const val TAG = "ShieldOverlayManager"
+        private const val PREFS_NAME = "app_restriction_shield_prefs"
+        private const val KEY_SHIELD_CONFIG = "shield_config"
 
         @Volatile
         private var instance: ShieldOverlayManager? = null
@@ -72,8 +74,15 @@ class ShieldOverlayManager private constructor(context: Context) {
     // Current blocked package (for event emission)
     private var currentBlockedPackage: String? = null
 
+    private val preferences =
+        appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
     // Shield configuration (stored from Flutter)
     private var configuration by mutableStateOf<ShieldConfig?>(null)
+
+    init {
+        configuration = loadPersistedConfig()
+    }
 
     /**
      * Configures the shield appearance from Flutter method channel data.
@@ -82,6 +91,7 @@ class ShieldOverlayManager private constructor(context: Context) {
      */
     fun configure(configMap: Map<String, Any?>) {
         configuration = ShieldConfig.fromMap(configMap)
+        persistConfig(configuration)
         Log.d(TAG, "Shield configured: ${configuration?.title}")
     }
 
@@ -207,5 +217,32 @@ class ShieldOverlayManager private constructor(context: Context) {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         appContext.startActivity(homeIntent)
+    }
+
+    private fun persistConfig(config: ShieldConfig?) {
+        if (config == null) {
+            preferences.edit()
+                .remove(KEY_SHIELD_CONFIG)
+                .apply()
+            return
+        }
+        preferences.edit()
+            .putString(KEY_SHIELD_CONFIG, ShieldConfig.toJson(config))
+            .apply()
+    }
+
+    private fun loadPersistedConfig(): ShieldConfig? {
+        val serialized = preferences.getString(KEY_SHIELD_CONFIG, null)?.trim().orEmpty()
+        if (serialized.isEmpty()) {
+            return null
+        }
+        val config = ShieldConfig.fromJson(serialized)
+        if (config == null) {
+            Log.w(TAG, "Failed to parse persisted shield config; clearing stored value")
+            preferences.edit()
+                .remove(KEY_SHIELD_CONFIG)
+                .apply()
+        }
+        return config
     }
 }
