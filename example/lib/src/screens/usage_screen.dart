@@ -290,7 +290,7 @@ class _UsageScreenState extends State<UsageScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    stat.appInfo.packageId,
+                                    stat.appInfo.packageId.raw,
                                     style: const TextStyle(fontSize: 11),
                                   ),
                                   const SizedBox(height: 4),

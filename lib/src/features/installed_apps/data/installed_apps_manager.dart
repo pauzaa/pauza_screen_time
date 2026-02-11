@@ -1,12 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:pauza_screen_time/pauza_screen_time.dart';
 
-import 'package:pauza_screen_time/src/core/cancel_token.dart';
-import 'package:pauza_screen_time/src/core/pauza_error.dart';
-import 'package:pauza_screen_time/src/features/installed_apps/installed_apps_platform.dart';
 import 'package:pauza_screen_time/src/features/installed_apps/method_channel/installed_apps_method_channel.dart';
-import 'package:pauza_screen_time/src/features/installed_apps/model/app_info.dart';
 
 /// Manages installed applications enumeration.
 class InstalledAppsManager {
@@ -52,8 +49,7 @@ class InstalledAppsManager {
       if (appInfo is! AndroidAppInfo) {
         throw _typedDecodeFailure(
           action: 'getAndroidInstalledApps',
-          message:
-              'Expected Android app payload at index $index, but got ${appInfo.runtimeType}',
+          message: 'Expected Android app payload at index $index, but got ${appInfo.runtimeType}',
           payload: appInfo,
         );
       }
@@ -70,7 +66,7 @@ class InstalledAppsManager {
   /// [includeIcons] - Whether to include app icons (default: true).
   /// Returns null if the app is not found.
   Future<AndroidAppInfo?> getAndroidAppInfo(
-    String packageId, {
+    AppIdentifier packageId, {
     bool includeIcons = true,
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 30),
@@ -84,7 +80,7 @@ class InstalledAppsManager {
 
     final result = await _platform
         .getAppInfo(
-          packageId,
+          packageId.raw,
           includeIcons: includeIcons,
           cancelToken: cancelToken,
           timeout: timeout,
@@ -109,7 +105,7 @@ class InstalledAppsManager {
   ///
   /// [packageId] - Package identifier of the app.
   /// Returns true if the app is installed, false otherwise.
-  Future<bool> isAndroidAppInstalled(String packageId) async {
+  Future<bool> isAndroidAppInstalled(AppIdentifier packageId) async {
     if (!Platform.isAndroid) {
       throw const PauzaUnsupportedError(
         message: 'isAndroidAppInstalled is only available on Android',
@@ -137,9 +133,7 @@ class InstalledAppsManager {
   ///
   /// iOS does not allow enumerating installed apps. Persist these tokens yourself
   /// if you want to re-open the picker with a previous selection.
-  Future<List<IOSAppInfo>> selectIOSApps({
-    List<IOSAppInfo>? preSelectedApps,
-  }) async {
+  Future<List<IOSAppInfo>> selectIOSApps({List<IOSAppInfo>? preSelectedApps}) async {
     if (!Platform.isIOS) {
       throw const PauzaUnsupportedError(
         message: 'selectIOSApps is only available on iOS',
@@ -148,9 +142,7 @@ class InstalledAppsManager {
     }
 
     // Extract tokens from pre-selected apps
-    final preSelectedTokens = preSelectedApps
-        ?.map((app) => app.applicationToken)
-        .toList();
+    final preSelectedTokens = preSelectedApps?.map((app) => app.applicationToken.raw).toList();
 
     final result = await _platform
         .showFamilyActivityPicker(preSelectedTokens: preSelectedTokens)
@@ -181,7 +173,6 @@ class InstalledAppsManager {
           ].join('\n'),
       },
     );
-    return PauzaError.fromPlatformException(exception)
-        as PauzaInternalFailureError;
+    return PauzaError.fromPlatformException(exception) as PauzaInternalFailureError;
   }
 }

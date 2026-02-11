@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
-
-import 'package:pauza_screen_time/src/features/installed_apps/model/app_info.dart';
+import 'package:pauza_screen_time/pauza_screen_time.dart';
 
 /// Usage statistics for an application over a time period.
 ///
@@ -54,7 +53,7 @@ class UsageStats {
 
     return UsageStats(
       appInfo: AndroidAppInfo(
-        packageId: map['packageId'] as String,
+        packageId: AppIdentifier.android(map['packageId'] as String),
         name: map['appName'] as String? ?? map['packageId'] as String,
         icon: icon,
         category: map['category'] as String?,

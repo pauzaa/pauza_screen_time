@@ -28,7 +28,7 @@ class AppListTile extends StatelessWidget {
           : const Icon(Icons.apps),
       title: Text(app.name),
       subtitle: Text(
-        app.packageId,
+        app.packageId.raw,
         style: const TextStyle(fontSize: 11),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,

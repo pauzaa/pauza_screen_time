@@ -23,8 +23,7 @@ class _AppsScreenState extends State<AppsScreen> {
   bool _includeIcons = true;
   final TextEditingController _searchController = TextEditingController();
 
-  AppIdentifier _androidIdentifier(AndroidAppInfo app) =>
-      AppIdentifier.android(app.packageId);
+  AppIdentifier _androidIdentifier(AndroidAppInfo app) => app.packageId;
 
   @override
   void initState() {
@@ -48,7 +47,7 @@ class _AppsScreenState extends State<AppsScreen> {
             .where(
               (app) =>
                   app.name.toLowerCase().contains(query) ||
-                  app.packageId.toLowerCase().contains(query),
+                  app.packageId.raw.toLowerCase().contains(query),
             )
             .toList();
       }
@@ -57,10 +56,7 @@ class _AppsScreenState extends State<AppsScreen> {
 
   Future<void> _loadApps() async {
     if (!Platform.isAndroid) {
-      widget.deps.logController.warn(
-        'apps',
-        'Loading apps skipped (Android only)',
-      );
+      widget.deps.logController.warn('apps', 'Loading apps skipped (Android only)');
       return;
     }
 
@@ -74,11 +70,10 @@ class _AppsScreenState extends State<AppsScreen> {
         'Loading apps (system: $_includeSystemApps, icons: $_includeIcons)...',
       );
 
-      final apps = await widget.deps.installedAppsManager
-          .getAndroidInstalledApps(
-            includeSystemApps: _includeSystemApps,
-            includeIcons: _includeIcons,
-          );
+      final apps = await widget.deps.installedAppsManager.getAndroidInstalledApps(
+        includeSystemApps: _includeSystemApps,
+        includeIcons: _includeIcons,
+      );
 
       widget.deps.logController.info('apps', 'Loaded ${apps.length} apps');
 
@@ -173,9 +168,7 @@ class _AppsScreenState extends State<AppsScreen> {
                         )
                       : const Icon(Icons.refresh),
                   label: const Text('Load Apps'),
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 48),
-                  ),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
                 ),
                 const SizedBox(height: 8),
                 ValueListenableBuilder<Set<AppIdentifier>>(
@@ -223,9 +216,7 @@ class _AppsScreenState extends State<AppsScreen> {
                             app: app,
                             isSelected: selected.contains(identifier),
                             onTap: () {
-                              widget.deps.selectionController.toggle(
-                                identifier,
-                              );
+                              widget.deps.selectionController.toggle(identifier);
                             },
                           );
                         },

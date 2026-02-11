@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:pauza_screen_time/src/core/core.dart';
 
 /// Information about an installed application on the device.
 ///
@@ -31,14 +32,14 @@ sealed class AppInfo {
   /// Returns a common identifier that can be used as a key.
   /// - Android: Returns packageId
   /// - iOS: Returns base64-encoded token
-  String get identifier;
+  AppIdentifier get identifier;
 }
 
 /// Android app information with full metadata from PackageManager.
 @immutable
 class AndroidAppInfo extends AppInfo {
   /// Package name (e.g., "com.whatsapp").
-  final String packageId;
+  final AppIdentifier packageId;
 
   /// Display name from PackageManager.
   final String name;
@@ -63,7 +64,7 @@ class AndroidAppInfo extends AppInfo {
   /// Creates an AndroidAppInfo from a map (platform channel deserialization).
   factory AndroidAppInfo.fromMap(Map<String, dynamic> map) {
     return AndroidAppInfo(
-      packageId: map['packageId'] as String,
+      packageId: AppIdentifier.android(map['packageId'] as String),
       name: map['name'] as String,
       icon: map['icon'] as Uint8List?,
       category: map['category'] as String?,
@@ -84,7 +85,7 @@ class AndroidAppInfo extends AppInfo {
   }
 
   @override
-  String get identifier => packageId;
+  AppIdentifier get identifier => packageId;
 
   @override
   bool operator ==(Object other) {
@@ -111,13 +112,13 @@ class IOSAppInfo extends AppInfo {
   /// - Stored in database
   /// - Used with ManagedSettings for restrictions
   /// - Passed to native UI for display (via platform view)
-  final String applicationToken;
+  final AppIdentifier applicationToken;
 
   const IOSAppInfo({required this.applicationToken});
 
   /// Creates an IOSAppInfo from a map (platform channel deserialization).
   factory IOSAppInfo.fromMap(Map<String, dynamic> map) {
-    return IOSAppInfo(applicationToken: map['applicationToken'] as String);
+    return IOSAppInfo(applicationToken: AppIdentifier.ios(map['applicationToken'] as String));
   }
 
   @override
@@ -126,7 +127,7 @@ class IOSAppInfo extends AppInfo {
   }
 
   @override
-  String get identifier => applicationToken;
+  AppIdentifier get identifier => applicationToken;
 
   @override
   bool operator ==(Object other) {
@@ -139,5 +140,5 @@ class IOSAppInfo extends AppInfo {
 
   @override
   String toString() =>
-      'IOSAppInfo(token: ${applicationToken.length > 20 ? applicationToken.substring(0, 20) : applicationToken}...)';
+      'IOSAppInfo(token: ${applicationToken.raw.length > 20 ? applicationToken.raw.substring(0, 20) : applicationToken.raw}...)';
 }
