@@ -44,6 +44,8 @@ class RestrictionsMethodHandler(
                 MethodNames.RESUME_ENFORCEMENT -> handleResumeEnforcement(result)
                 MethodNames.START_SESSION -> handleStartSession(call, result)
                 MethodNames.END_SESSION -> handleEndSession(result)
+                MethodNames.GET_PENDING_LIFECYCLE_EVENTS -> handleGetPendingLifecycleEvents(call, result)
+                MethodNames.ACK_LIFECYCLE_EVENTS -> handleAckLifecycleEvents(call, result)
                 MethodNames.GET_RESTRICTION_SESSION -> handleGetRestrictionSession(result)
                 else -> result.notImplemented()
             }
@@ -411,6 +413,8 @@ class RestrictionsMethodHandler(
 
         try {
             val restrictionManager = RestrictionManager.getInstance(context)
+            val sessionController = RestrictionSessionController(context)
+            val previousSnapshot = sessionController.captureLifecycleSnapshot()
             if (restrictionManager.isPausedNow()) {
                 PluginErrorHelper.invalidArgument(
                     result = result,
@@ -424,6 +428,10 @@ class RestrictionsMethodHandler(
             restrictionManager.pauseFor(durationMs)
             RestrictionAlarmOrchestrator(context).rescheduleAll()
             com.example.pauza_screen_time.app_restriction.ShieldOverlayManager.getInstanceOrNull()?.hideShield()
+            sessionController.applyCurrentEnforcementState(
+                trigger = "pause_enforcement",
+                previousLifecycleSnapshot = previousSnapshot,
+            )
             result.success(null)
         } catch (e: Exception) {
             PluginErrorHelper.internalFailure(
@@ -452,10 +460,13 @@ class RestrictionsMethodHandler(
         }
 
         try {
+            val sessionController = RestrictionSessionController(context)
+            val previousSnapshot = sessionController.captureLifecycleSnapshot()
             RestrictionManager.getInstance(context).clearPause()
             RestrictionAlarmOrchestrator(context).rescheduleAll()
-            RestrictionSessionController(context).applyCurrentEnforcementState(
+            sessionController.applyCurrentEnforcementState(
                 trigger = "resume_enforcement",
+                previousLifecycleSnapshot = previousSnapshot,
             )
             result.success(null)
         } catch (e: Exception) {
@@ -604,6 +615,91 @@ class RestrictionsMethodHandler(
                 feature = FEATURE,
                 action = MethodNames.GET_RESTRICTION_SESSION,
                 message = "Failed to get restriction session: ${e.message}",
+                error = e,
+            )
+        }
+    }
+
+    private fun handleGetPendingLifecycleEvents(call: MethodCall, result: Result) {
+        val context = contextProvider()
+        if (context == null) {
+            PluginErrorHelper.internalFailure(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.GET_PENDING_LIFECYCLE_EVENTS,
+                message = "Application context is not available",
+            )
+            return
+        }
+
+        val payload = call.arguments as? Map<*, *>
+        val limit = (payload?.get("limit") as? Number)?.toInt() ?: 200
+        if (limit <= 0) {
+            PluginErrorHelper.invalidArgument(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.GET_PENDING_LIFECYCLE_EVENTS,
+                message = "Missing or invalid 'limit' argument",
+            )
+            return
+        }
+
+        try {
+            val events = RestrictionManager.getInstance(context).getPendingLifecycleEvents(limit)
+            result.success(events.map { it.toChannelMap() })
+        } catch (e: Exception) {
+            PluginErrorHelper.internalFailure(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.GET_PENDING_LIFECYCLE_EVENTS,
+                message = "Failed to load pending lifecycle events: ${e.message}",
+                error = e,
+            )
+        }
+    }
+
+    private fun handleAckLifecycleEvents(call: MethodCall, result: Result) {
+        val context = contextProvider()
+        if (context == null) {
+            PluginErrorHelper.internalFailure(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.ACK_LIFECYCLE_EVENTS,
+                message = "Application context is not available",
+            )
+            return
+        }
+
+        val payload = call.arguments as? Map<*, *>
+        val throughEventId = (payload?.get("throughEventId") as? String)?.trim().orEmpty()
+        if (throughEventId.isEmpty()) {
+            PluginErrorHelper.invalidArgument(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.ACK_LIFECYCLE_EVENTS,
+                message = "Missing or invalid 'throughEventId' argument",
+            )
+            return
+        }
+
+        try {
+            val success = RestrictionManager.getInstance(context).ackLifecycleEventsThrough(throughEventId)
+            if (!success) {
+                PluginErrorHelper.internalFailure(
+                    result = result,
+                    feature = FEATURE,
+                    action = MethodNames.ACK_LIFECYCLE_EVENTS,
+                    message = "Failed to acknowledge lifecycle events",
+                )
+                return
+            }
+            result.success(null)
+        } catch (e: Exception) {
+            PluginErrorHelper.internalFailure(
+                result = result,
+                feature = FEATURE,
+                action = MethodNames.ACK_LIFECYCLE_EVENTS,
+                message = "Failed to acknowledge lifecycle events: ${e.message}",
                 error = e,
             )
         }

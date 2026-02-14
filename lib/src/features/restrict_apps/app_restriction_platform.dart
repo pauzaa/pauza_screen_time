@@ -1,4 +1,5 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_lifecycle_event.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
@@ -60,6 +61,20 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
   /// Ends the current active restriction session.
   Future<void> endSession() {
     throw UnimplementedError('endSession() has not been implemented.');
+  }
+
+  /// Returns pending lifecycle events ordered oldest-first.
+  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
+    int limit = 200,
+  }) {
+    throw UnimplementedError(
+      'getPendingLifecycleEvents() has not been implemented.',
+    );
+  }
+
+  /// Acknowledges lifecycle events through [throughEventId] inclusively.
+  Future<void> ackLifecycleEvents({required String throughEventId}) {
+    throw UnimplementedError('ackLifecycleEvents() has not been implemented.');
   }
 
   /// Returns the current restriction session snapshot.

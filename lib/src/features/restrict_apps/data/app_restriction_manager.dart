@@ -1,6 +1,7 @@
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/restrictions_method_channel.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_lifecycle_event.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
@@ -61,6 +62,22 @@ class AppRestrictionManager {
   /// Ends the current active session.
   Future<void> endSession() {
     return _platform.endSession().throwTypedPauzaError();
+  }
+
+  /// Returns pending lifecycle events ordered oldest-first.
+  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
+    int limit = 200,
+  }) {
+    return _platform
+        .getPendingLifecycleEvents(limit: limit)
+        .throwTypedPauzaError();
+  }
+
+  /// Acknowledges lifecycle events through [throughEventId] inclusively.
+  Future<void> ackLifecycleEvents({required String throughEventId}) {
+    return _platform
+        .ackLifecycleEvents(throughEventId: throughEventId)
+        .throwTypedPauzaError();
   }
 
   /// Returns the current restriction session snapshot.

@@ -15,5 +15,7 @@ class RestrictionsMethodNames {
   static const String resumeEnforcement = 'resumeEnforcement';
   static const String startSession = 'startSession';
   static const String endSession = 'endSession';
+  static const String getPendingLifecycleEvents = 'getPendingLifecycleEvents';
+  static const String ackLifecycleEvents = 'ackLifecycleEvents';
   static const String getRestrictionSession = 'getRestrictionSession';
 }

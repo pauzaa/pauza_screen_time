@@ -24,5 +24,7 @@ enum MethodNames {
     static let resumeEnforcement = "resumeEnforcement"
     static let startSession = "startSession"
     static let endSession = "endSession"
+    static let getPendingLifecycleEvents = "getPendingLifecycleEvents"
+    static let ackLifecycleEvents = "ackLifecycleEvents"
     static let getRestrictionSession = "getRestrictionSession"
 }

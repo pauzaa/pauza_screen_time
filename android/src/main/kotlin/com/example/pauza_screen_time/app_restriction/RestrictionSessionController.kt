@@ -2,6 +2,7 @@ package com.example.pauza_screen_time.app_restriction
 
 import android.content.Context
 import com.example.pauza_screen_time.app_restriction.alarm.RestrictionAlarmOrchestrator
+import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleSnapshot
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeResolver
@@ -22,11 +23,12 @@ internal class RestrictionSessionController(
         trigger: String,
         rescheduleAlarms: Boolean = true,
     ) {
+        val previousSnapshot = captureLifecycleSnapshot()
         restrictionManager.setActiveSession(modeId, blockedAppIds, source)
         if (rescheduleAlarms) {
             RestrictionAlarmOrchestrator(appContext).rescheduleAll()
         }
-        applyCurrentEnforcementState(trigger = trigger)
+        applyCurrentEnforcementState(trigger = trigger, previousLifecycleSnapshot = previousSnapshot)
     }
 
     fun endSession(
@@ -34,6 +36,7 @@ internal class RestrictionSessionController(
         trigger: String,
         rescheduleAlarms: Boolean = true,
     ) {
+        val previousSnapshot = captureLifecycleSnapshot()
         val activeSession = restrictionManager.getActiveSession()
         if (activeSession != null) {
             val shouldClear = when (source) {
@@ -50,10 +53,14 @@ internal class RestrictionSessionController(
         if (rescheduleAlarms) {
             RestrictionAlarmOrchestrator(appContext).rescheduleAll()
         }
-        applyCurrentEnforcementState(trigger = trigger)
+        applyCurrentEnforcementState(trigger = trigger, previousLifecycleSnapshot = previousSnapshot)
     }
 
-    fun applyCurrentEnforcementState(trigger: String): SessionState {
+    fun applyCurrentEnforcementState(
+        trigger: String,
+        previousLifecycleSnapshot: RestrictionLifecycleSnapshot? = null,
+    ): SessionState {
+        val previousSnapshot = previousLifecycleSnapshot ?: captureLifecycleSnapshot()
         val state = resolveSessionState()
         restrictionManager.setRestrictedApps(state.blockedAppIds)
 
@@ -63,8 +70,18 @@ internal class RestrictionSessionController(
         } else {
             ShieldOverlayManager.getInstanceOrNull()?.hideShield()
         }
+        val nextSnapshot = captureLifecycleSnapshot()
+        restrictionManager.appendLifecycleTransition(
+            previous = previousSnapshot,
+            next = nextSnapshot,
+            reason = trigger,
+        )
 
         return state
+    }
+
+    fun captureLifecycleSnapshot(): RestrictionLifecycleSnapshot {
+        return restrictionManager.snapshotLifecycleState()
     }
 
     fun resolveSessionState(): SessionState {

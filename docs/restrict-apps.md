@@ -138,9 +138,44 @@ await restrictions.removeMode('focus-mode');
 
 If the removed mode is currently active, the active session is cleared.
 
+## 8) Lifecycle events queue (durable transition log)
+
+Use lifecycle events when your host app needs complete mode history, including
+scheduled/background transitions.
+
+```dart
+final restrictions = AppRestrictionManager();
+
+final events = await restrictions.getPendingLifecycleEvents(limit: 200);
+if (events.isNotEmpty) {
+  // 1) Persist idempotently in your DB (keyed by event.id)
+  // 2) Ack only after successful commit
+  await restrictions.ackLifecycleEvents(
+    throughEventId: events.last.id,
+  );
+}
+```
+
+New APIs:
+- `getPendingLifecycleEvents({int limit = 200})`
+- `ackLifecycleEvents({required String throughEventId})`
+
+Delivery semantics:
+- Ordered oldest-first within the plugin queue.
+- At-least-once delivery.
+- Redelivery occurs until acknowledged.
+- Ack is inclusive (`<= throughEventId` is removed).
+
+Important:
+- Persist before ack.
+- Use idempotent insert (`event.id` unique) to handle redelivery.
+- Recommended polling triggers: app startup, app foreground resume, and after
+  manual restriction mutations.
+
 ## Next
 
 - [Docs index](README.md)
 - [Permissions](permissions.md)
 - [Installed apps](installed-apps.md)
+- [Restriction lifecycle events](restriction-lifecycle-events.md)
 - [Troubleshooting](troubleshooting.md)

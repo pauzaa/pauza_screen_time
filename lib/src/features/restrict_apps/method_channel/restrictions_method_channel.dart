@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/channel_name.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/method_names.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_lifecycle_event.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
@@ -107,6 +108,46 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   @override
   Future<void> endSession() {
     return channel.invokeMethod<void>(RestrictionsMethodNames.endSession);
+  }
+
+  @override
+  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
+    int limit = 200,
+  }) async {
+    final result = await channel.invokeMethod<List<dynamic>>(
+      RestrictionsMethodNames.getPendingLifecycleEvents,
+      {'limit': limit},
+    );
+    if (result == null) {
+      return const <RestrictionLifecycleEvent>[];
+    }
+    try {
+      return result
+          .map(
+            (value) => RestrictionLifecycleEvent.fromMap(
+              Map<String, dynamic>.from(value as Map),
+            ),
+          )
+          .toList(growable: false);
+    } on PlatformException {
+      rethrow;
+    } catch (error, stackTrace) {
+      throw _decodeFailure(
+        action: RestrictionsMethodNames.getPendingLifecycleEvents,
+        message: 'Failed to decode lifecycle events payload',
+        payload: result,
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
+  @override
+  Future<void> ackLifecycleEvents({required String throughEventId}) {
+    return channel.invokeMethod<void>(
+      RestrictionsMethodNames.ackLifecycleEvents,
+      {'throughEventId': throughEventId},
+    );
   }
 
   @override

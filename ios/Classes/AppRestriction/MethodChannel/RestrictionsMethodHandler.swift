@@ -30,6 +30,10 @@ final class RestrictionsMethodHandler {
             handleStartSession(call: call, result: result)
         case MethodNames.endSession:
             handleEndSession(result: result)
+        case MethodNames.getPendingLifecycleEvents:
+            handleGetPendingLifecycleEvents(call: call, result: result)
+        case MethodNames.ackLifecycleEvents:
+            handleAckLifecycleEvents(call: call, result: result)
         case MethodNames.getRestrictionSession:
             handleGetRestrictionSession(result: result)
         default:
@@ -81,7 +85,7 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        applyDesiredRestrictionsIfNeeded()
+        applyDesiredRestrictionsIfNeeded(trigger: "is_restriction_session_active_now")
         let state = resolveSessionState()
         let isPausedNow = RestrictionStateStore.loadPausedUntilEpochMs() > 0
         let isPrerequisitesMet = restrictionMissingPrerequisites().isEmpty
@@ -139,6 +143,7 @@ final class RestrictionsMethodHandler {
             return
         }
 
+        let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         let pausedUntilEpochMs = RestrictionStateStore.currentEpochMs() + durationMs
         switch RestrictionStateStore.storePausedUntilEpochMs(pausedUntilEpochMs) {
         case .success:
@@ -157,7 +162,7 @@ final class RestrictionsMethodHandler {
             try PauseAutoResumeMonitor.startMonitoring(untilEpochMs: pausedUntilEpochMs)
         } catch {
             _ = RestrictionStateStore.storePausedUntilEpochMs(0)
-            applyDesiredRestrictionsIfNeeded()
+            applyDesiredRestrictionsIfNeeded(trigger: "pause_enforcement_rollback")
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
                 action: MethodNames.pauseEnforcement,
@@ -168,6 +173,10 @@ final class RestrictionsMethodHandler {
         }
 
         ShieldManager.shared.clearRestrictions()
+        applyDesiredRestrictionsIfNeeded(
+            trigger: "pause_enforcement",
+            previousLifecycleSnapshot: previousSnapshot
+        )
         result(nil)
     }
 
@@ -185,6 +194,7 @@ final class RestrictionsMethodHandler {
             return
         }
 
+        let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         switch RestrictionStateStore.storePausedUntilEpochMs(0) {
         case .success:
             break
@@ -199,7 +209,10 @@ final class RestrictionsMethodHandler {
         }
 
         PauseAutoResumeMonitor.stopMonitoring()
-        applyDesiredRestrictionsIfNeeded()
+        applyDesiredRestrictionsIfNeeded(
+            trigger: "resume_enforcement",
+            previousLifecycleSnapshot: previousSnapshot
+        )
         result(nil)
     }
 
@@ -255,8 +268,14 @@ final class RestrictionsMethodHandler {
             return
         }
 
+        let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         switch RestrictionStateStore.storeActiveSession(
-            RestrictionStateStore.ActiveSession(modeId: modeId, blockedAppIds: blockedAppIds, source: .manual)
+            RestrictionStateStore.ActiveSession(
+                sessionId: "",
+                modeId: modeId,
+                blockedAppIds: blockedAppIds,
+                source: .manual
+            )
         ) {
         case .success:
             break
@@ -270,7 +289,10 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        applyDesiredRestrictionsIfNeeded()
+        applyDesiredRestrictionsIfNeeded(
+            trigger: "start_session_manual",
+            previousLifecycleSnapshot: previousSnapshot
+        )
         result(nil)
     }
 
@@ -284,14 +306,74 @@ final class RestrictionsMethodHandler {
             return
         }
 
+        let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         switch endSession(for: .manual) {
         case .success:
-            applyDesiredRestrictionsIfNeeded()
+            applyDesiredRestrictionsIfNeeded(
+                trigger: "end_session_manual",
+                previousLifecycleSnapshot: previousSnapshot
+            )
             result(nil)
         case .appGroupUnavailable(let resolvedGroupId):
             result(PluginErrors.internalFailure(
                 feature: Self.featureRestrictions,
                 action: MethodNames.endSession,
+                message: PluginErrorMessage.appGroupUnavailable,
+                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+            ))
+        }
+    }
+
+    private func handleGetPendingLifecycleEvents(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard #available(iOS 16.0, *) else {
+            result([])
+            return
+        }
+        let args = call.arguments as? [String: Any]
+        let limit = (args?["limit"] as? NSNumber)?.intValue ?? 200
+        if limit <= 0 {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.getPendingLifecycleEvents,
+                message: "Missing or invalid 'limit' argument"
+            ))
+            return
+        }
+        let events = RestrictionStateStore.loadPendingLifecycleEvents(limit: limit)
+        result(events.map { $0.toChannelMap() })
+    }
+
+    private func handleAckLifecycleEvents(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard #available(iOS 16.0, *) else {
+            result(nil)
+            return
+        }
+        guard let args = call.arguments as? [String: Any],
+              let throughEventIdRaw = args["throughEventId"] as? String else {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.ackLifecycleEvents,
+                message: "Missing or invalid 'throughEventId' argument"
+            ))
+            return
+        }
+        let throughEventId = throughEventIdRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if throughEventId.isEmpty {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.ackLifecycleEvents,
+                message: "Missing or invalid 'throughEventId' argument"
+            ))
+            return
+        }
+
+        switch RestrictionStateStore.ackLifecycleEvents(throughEventId: throughEventId) {
+        case .success:
+            result(nil)
+        case .appGroupUnavailable(let resolvedGroupId):
+            result(PluginErrors.internalFailure(
+                feature: Self.featureRestrictions,
+                action: MethodNames.ackLifecycleEvents,
                 message: PluginErrorMessage.appGroupUnavailable,
                 diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
             ))
@@ -310,7 +392,7 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        applyDesiredRestrictionsIfNeeded()
+        applyDesiredRestrictionsIfNeeded(trigger: "get_restriction_session")
         let state = resolveSessionState()
         let pausedUntilEpochMs = RestrictionStateStore.loadPausedUntilEpochMs()
         let isPausedNow = pausedUntilEpochMs > 0
@@ -367,6 +449,7 @@ final class RestrictionsMethodHandler {
         }
 
         let existing = RestrictionStateStore.loadModes()
+        let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         var nextModes = existing.filter { $0.modeId != mode.modeId }
         if mode.shouldPersistForScheduleEnforcement {
             nextModes.append(mode)
@@ -415,6 +498,7 @@ final class RestrictionsMethodHandler {
             if mode.isStartable {
                 storeResult = RestrictionStateStore.storeActiveSession(
                     RestrictionStateStore.ActiveSession(
+                        sessionId: activeSession.sessionId,
                         modeId: mode.modeId,
                         blockedAppIds: mode.blockedAppIds,
                         source: activeSession.source
@@ -434,7 +518,10 @@ final class RestrictionsMethodHandler {
             }
         }
 
-        applyDesiredRestrictionsIfNeeded()
+        applyDesiredRestrictionsIfNeeded(
+            trigger: "upsert_mode",
+            previousLifecycleSnapshot: previousSnapshot
+        )
         result(nil)
     }
 
@@ -467,6 +554,7 @@ final class RestrictionsMethodHandler {
         }
 
         let existing = RestrictionStateStore.loadModes()
+        let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         let nextModes = existing.filter { $0.modeId != modeId }
         let shouldRescheduleMonitors = scheduleModesSignature(existing) != scheduleModesSignature(nextModes)
         if shouldRescheduleMonitors {
@@ -513,7 +601,10 @@ final class RestrictionsMethodHandler {
             }
         }
 
-        applyDesiredRestrictionsIfNeeded()
+        applyDesiredRestrictionsIfNeeded(
+            trigger: "remove_mode",
+            previousLifecycleSnapshot: previousSnapshot
+        )
         result(nil)
     }
 
@@ -540,6 +631,7 @@ final class RestrictionsMethodHandler {
             return
         }
 
+        let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         switch RestrictionStateStore.storeModesEnabled(enabled) {
         case .success:
             break
@@ -565,7 +657,10 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        applyDesiredRestrictionsIfNeeded()
+        applyDesiredRestrictionsIfNeeded(
+            trigger: "set_modes_enabled",
+            previousLifecycleSnapshot: previousSnapshot
+        )
         result(nil)
     }
 
@@ -582,7 +677,19 @@ final class RestrictionsMethodHandler {
     }
 
     @available(iOS 16.0, *)
-    private func applyDesiredRestrictionsIfNeeded() {
+    private func applyDesiredRestrictionsIfNeeded(
+        trigger: String,
+        previousLifecycleSnapshot: RestrictionLifecycleSnapshot? = nil
+    ) {
+        let previousSnapshot = previousLifecycleSnapshot ?? RestrictionStateStore.snapshotLifecycleState()
+        defer {
+            _ = RestrictionStateStore.appendLifecycleTransition(
+                previous: previousSnapshot,
+                next: RestrictionStateStore.snapshotLifecycleState(),
+                reason: trigger
+            )
+        }
+
         guard restrictionMissingPrerequisites().isEmpty else {
             ShieldManager.shared.clearRestrictions()
             return
@@ -649,6 +756,7 @@ final class RestrictionsMethodHandler {
            !resolution.blockedAppIds.isEmpty {
             _ = RestrictionStateStore.storeActiveSession(
                 RestrictionStateStore.ActiveSession(
+                    sessionId: "",
                     modeId: activeModeId,
                     blockedAppIds: resolution.blockedAppIds,
                     source: .schedule

@@ -7,6 +7,7 @@ import 'package:pauza_screen_time/src/features/restrict_apps/data/app_restrictio
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/channel_name.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/method_names.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/restrictions_method_channel.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_lifecycle_event.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode_source.dart';
@@ -157,6 +158,68 @@ void main() {
       expect(capturedModeId, 'focus');
       expect(capturedBlockedAppIds, ['com.example.focus']);
     });
+
+    test('lifecycle event APIs invoke platform methods', () async {
+      Object? capturedLimit;
+      Object? capturedAckId;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method ==
+                RestrictionsMethodNames.getPendingLifecycleEvents) {
+              capturedLimit = (call.arguments as Map)['limit'];
+              return [
+                {
+                  'id': '0000000000001-0000000001',
+                  'sessionId': 'session-1',
+                  'modeId': 'focus',
+                  'action': 'START',
+                  'source': 'manual',
+                  'reason': 'test',
+                  'occurredAtEpochMs': 1,
+                },
+              ];
+            }
+            if (call.method == RestrictionsMethodNames.ackLifecycleEvents) {
+              capturedAckId = (call.arguments as Map)['throughEventId'];
+              return null;
+            }
+            return null;
+          });
+
+      final events = await methodChannel.getPendingLifecycleEvents(limit: 50);
+      await methodChannel.ackLifecycleEvents(
+        throughEventId: '0000000000001-0000000001',
+      );
+
+      expect(capturedLimit, 50);
+      expect(events, hasLength(1));
+      expect(events.first.action, RestrictionLifecycleAction.start);
+      expect(capturedAckId, '0000000000001-0000000001');
+    });
+
+    test('getPendingLifecycleEvents throws on malformed payload', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            if (call.method ==
+                RestrictionsMethodNames.getPendingLifecycleEvents) {
+              return [
+                {'id': 'event-1', 'sessionId': ''},
+              ];
+            }
+            return null;
+          });
+
+      await expectLater(
+        methodChannel.getPendingLifecycleEvents(),
+        throwsA(
+          isA<PlatformException>().having(
+            (error) => error.code,
+            'code',
+            'INTERNAL_FAILURE',
+          ),
+        ),
+      );
+    });
   });
 
   group('AppRestrictionManager delegation', () {
@@ -182,6 +245,8 @@ void main() {
         ),
       );
       await manager.endSession();
+      final lifecycleEvents = await manager.getPendingLifecycleEvents();
+      await manager.ackLifecycleEvents(throughEventId: 'event-1');
       final session = await manager.getRestrictionSession();
 
       expect(fakePlatform.upsertModeCalled, isTrue);
@@ -192,8 +257,11 @@ void main() {
       expect(fakePlatform.resumeEnforcementCalled, isTrue);
       expect(fakePlatform.startSessionCalled, isTrue);
       expect(fakePlatform.endSessionCalled, isTrue);
+      expect(fakePlatform.getPendingLifecycleEventsCalled, isTrue);
+      expect(fakePlatform.ackLifecycleEventsCalled, isTrue);
       expect(fakePlatform.getRestrictionSessionCalled, isTrue);
       expect(modesConfig.enabled, isTrue);
+      expect(lifecycleEvents, hasLength(1));
       expect(session.activeMode?.modeId, 'focus');
       expect(session.activeModeSource, RestrictionModeSource.manual);
     });
@@ -285,6 +353,8 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   bool resumeEnforcementCalled = false;
   bool startSessionCalled = false;
   bool endSessionCalled = false;
+  bool getPendingLifecycleEventsCalled = false;
+  bool ackLifecycleEventsCalled = false;
   bool getRestrictionSessionCalled = false;
 
   @override
@@ -294,6 +364,24 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   Future<RestrictionModesConfig> getModesConfig() async {
     getModesConfigCalled = true;
     return const RestrictionModesConfig(enabled: true, modes: []);
+  }
+
+  @override
+  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
+    int limit = 200,
+  }) async {
+    getPendingLifecycleEventsCalled = true;
+    return <RestrictionLifecycleEvent>[
+      RestrictionLifecycleEvent(
+        id: 'event-1',
+        sessionId: 'session-1',
+        modeId: 'focus',
+        action: RestrictionLifecycleAction.start,
+        source: RestrictionLifecycleSource.manual,
+        reason: 'test',
+        occurredAt: DateTime.utc(1970, 1, 1, 0, 0, 0, 1),
+      ),
+    ];
   }
 
   @override
@@ -334,6 +422,12 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   Future<void> endSession() async {
     endSessionCalled = true;
     calls.add('endSession');
+  }
+
+  @override
+  Future<void> ackLifecycleEvents({required String throughEventId}) async {
+    ackLifecycleEventsCalled = true;
+    calls.add('ackLifecycleEvents:$throughEventId');
   }
 
   @override

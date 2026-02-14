@@ -1,3 +1,17 @@
+## 0.6.0
+
+* Added durable restriction lifecycle queue APIs:
+  * `AppRestrictionManager.getPendingLifecycleEvents({int limit = 200})`
+  * `AppRestrictionManager.ackLifecycleEvents({required String throughEventId})`
+* Added typed Dart lifecycle event model: `RestrictionLifecycleEvent` with
+  `id`, `sessionId`, `modeId`, `action`, `source`, `reason`, `occurredAt`.
+* Added plugin-level lifecycle transition emission for manual and scheduled
+  restriction changes across Android and iOS.
+* Delivery semantics: at-least-once with inclusive ack checkpoint and bounded
+  native queue pruning policy.
+* Additive and backward compatible: existing restriction APIs and behavior
+  remain supported.
+
 ## 0.5.1
 
 * BREAKING: Removed `RestrictionMode.isEnabled` from Dart and native restriction mode payload contracts.

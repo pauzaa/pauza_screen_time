@@ -64,6 +64,46 @@ Affected methods:
 - `getRestrictionSession().isPausedNow` becomes `false` (derived from `pausedUntil`)
 - Opening a restricted app shows the shield again
 
+### Lifecycle queue keeps redelivering same events
+
+**Likely cause**: events were fetched but not acknowledged.
+
+**Fix**:
+- Persist events durably first (transaction commit)
+- Call `ackLifecycleEvents(throughEventId: lastPersistedId)` only after commit
+
+**Expected behavior**:
+- Redelivery before ack is normal (at-least-once delivery).
+- Use idempotent DB writes keyed by `event.id`.
+
+### Lifecycle events missing after long offline period
+
+**Likely cause**: queue reached bounded capacity and pruned oldest events.
+
+**Fix**:
+- Sync on app startup and foreground resume
+- Reduce time between sync runs
+- Process larger batches (`limit`) until queue drains
+
+### Ack call returns `INVALID_ARGUMENT`
+
+**Likely cause**: `throughEventId` is missing or empty.
+
+**Fix**:
+- Pass the last successfully persisted event id from the fetched batch.
+
+### Scheduled transitions missing on iOS
+
+**Likely causes**:
+- Device Activity Monitor extension is not configured
+- extension and Runner do not share the same App Group
+- extension template is outdated or not installed
+
+**Fix**:
+- Follow [iOS setup](ios-setup.md) extension setup
+- Ensure Runner + extension share the same `AppGroupIdentifier`
+- Use the latest plugin monitor template in host app target
+
 ## iOS
 
 ### `requestIOSPermission(...)` returns false
@@ -164,3 +204,4 @@ One or more tokens you passed to restrictions could not be decoded as iOS `Appli
 - [Docs index](README.md)
 - [Permissions](permissions.md)
 - [Restrict / block apps](restrict-apps.md)
+- [Restriction lifecycle events](restriction-lifecycle-events.md)

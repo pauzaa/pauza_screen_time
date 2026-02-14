@@ -3,6 +3,10 @@ package com.example.pauza_screen_time.app_restriction
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleEvent
+import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleEventDraft
+import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleTransitionMapper
+import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleSnapshot
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
 import org.json.JSONArray
 import org.json.JSONObject
@@ -19,6 +23,11 @@ class RestrictionManager private constructor(context: Context) {
         private const val KEY_ACTIVE_SESSION_MODE_ID = "modeId"
         private const val KEY_ACTIVE_SESSION_BLOCKED_APPS = "blockedAppIds"
         private const val KEY_ACTIVE_SESSION_SOURCE = "source"
+        private const val KEY_ACTIVE_SESSION_ID = "sessionId"
+        private const val KEY_LIFECYCLE_EVENTS = "lifecycle_events"
+        private const val KEY_LIFECYCLE_EVENT_SEQ = "lifecycle_event_seq"
+        private const val KEY_SESSION_ID_SEQ = "session_id_seq"
+        private const val MAX_LIFECYCLE_EVENTS = 10_000
 
         @Volatile
         private var instance: RestrictionManager? = null
@@ -42,6 +51,7 @@ class RestrictionManager private constructor(context: Context) {
     }
 
     data class ActiveSession(
+        val sessionId: String,
         val modeId: String,
         val blockedAppIds: List<String>,
         val source: RestrictionModeSource,
@@ -66,10 +76,13 @@ class RestrictionManager private constructor(context: Context) {
     }
 
     @Synchronized
-    fun getPausedUntilEpochMs(nowMs: Long = System.currentTimeMillis()): Long {
+    fun getPausedUntilEpochMs(
+        nowMs: Long = System.currentTimeMillis(),
+        clearExpired: Boolean = true,
+    ): Long {
         val pausedUntil = preferences.getLong(KEY_PAUSED_UNTIL_EPOCH_MS, 0L)
         if (pausedUntil <= nowMs) {
-            if (pausedUntil != 0L) {
+            if (clearExpired && pausedUntil != 0L) {
                 preferences.edit()
                     .putLong(KEY_PAUSED_UNTIL_EPOCH_MS, 0L)
                     .apply()
@@ -82,6 +95,11 @@ class RestrictionManager private constructor(context: Context) {
     @Synchronized
     fun isPausedNow(nowMs: Long = System.currentTimeMillis()): Boolean {
         return getPausedUntilEpochMs(nowMs) > nowMs
+    }
+
+    @Synchronized
+    fun hasPauseMarker(): Boolean {
+        return preferences.getLong(KEY_PAUSED_UNTIL_EPOCH_MS, 0L) > 0L
     }
 
     @Synchronized
@@ -131,11 +149,22 @@ class RestrictionManager private constructor(context: Context) {
             val sourceRaw = payload.optString(KEY_ACTIVE_SESSION_SOURCE, RestrictionModeSource.MANUAL.wireValue)
             val source = RestrictionModeSource.entries.firstOrNull { it.wireValue == sourceRaw }
                 ?: RestrictionModeSource.MANUAL
-            ActiveSession(
+            val sessionIdRaw = payload.optString(KEY_ACTIVE_SESSION_ID, "").trim()
+            val sessionId = if (sessionIdRaw.isNotEmpty()) {
+                sessionIdRaw
+            } else {
+                nextSessionId()
+            }
+            val activeSession = ActiveSession(
+                sessionId = sessionId,
                 modeId = modeId,
                 blockedAppIds = blockedAppIds.distinct(),
                 source = source,
             )
+            if (sessionIdRaw.isEmpty()) {
+                persistActiveSession(activeSession)
+            }
+            activeSession
         } catch (e: Exception) {
             Log.w(TAG, "Failed to parse active session payload", e)
             clearActiveSession()
@@ -144,23 +173,41 @@ class RestrictionManager private constructor(context: Context) {
     }
 
     @Synchronized
-    fun setActiveSession(modeId: String, blockedAppIds: List<String>, source: RestrictionModeSource) {
+    fun setActiveSession(
+        modeId: String,
+        blockedAppIds: List<String>,
+        source: RestrictionModeSource,
+        sessionId: String? = null,
+    ) {
         val normalizedModeId = modeId.trim()
         val normalizedBlockedIds = blockedAppIds.map(String::trim).filter { it.isNotEmpty() }.distinct()
         if (normalizedModeId.isEmpty() || normalizedBlockedIds.isEmpty()) {
             clearActiveSession()
             return
         }
-        val blockedPayload = JSONArray()
-        normalizedBlockedIds.forEach(blockedPayload::put)
-        val payload = JSONObject()
-            .put(KEY_ACTIVE_SESSION_MODE_ID, normalizedModeId)
-            .put(KEY_ACTIVE_SESSION_BLOCKED_APPS, blockedPayload)
-            .put(KEY_ACTIVE_SESSION_SOURCE, source.wireValue)
-        preferences.edit()
-            .putString(KEY_ACTIVE_SESSION, payload.toString())
-            .apply()
-        Log.d(TAG, "Active session set to: $normalizedModeId [${source.wireValue}]")
+
+        val persisted = getActiveSession()
+        val resolvedSessionId = sessionId?.trim().takeUnless { it.isNullOrEmpty() }
+            ?: if (
+                persisted != null &&
+                persisted.modeId == normalizedModeId &&
+                persisted.source == source
+            ) {
+                persisted.sessionId
+            } else {
+                nextSessionId()
+            }
+        val nextSession = ActiveSession(
+            sessionId = resolvedSessionId,
+            modeId = normalizedModeId,
+            blockedAppIds = normalizedBlockedIds,
+            source = source,
+        )
+        persistActiveSession(nextSession)
+        Log.d(
+            TAG,
+            "Active session set to: $normalizedModeId [${source.wireValue}] sessionId=${nextSession.sessionId}",
+        )
     }
 
     @Synchronized
@@ -169,6 +216,97 @@ class RestrictionManager private constructor(context: Context) {
             .remove(KEY_ACTIVE_SESSION)
             .apply()
         Log.d(TAG, "Active session cleared")
+    }
+
+    @Synchronized
+    fun snapshotLifecycleState(): RestrictionLifecycleSnapshot {
+        val activeSession = getActiveSession()
+        if (activeSession == null) {
+            return RestrictionLifecycleSnapshot.inactive(isPaused = hasPauseMarker())
+        }
+        return RestrictionLifecycleSnapshot(
+            isActive = true,
+            isPaused = hasPauseMarker(),
+            modeId = activeSession.modeId,
+            source = activeSession.source,
+            sessionId = activeSession.sessionId,
+        )
+    }
+
+    @Synchronized
+    fun appendLifecycleTransition(
+        previous: RestrictionLifecycleSnapshot,
+        next: RestrictionLifecycleSnapshot,
+        reason: String,
+        occurredAtEpochMs: Long = System.currentTimeMillis(),
+    ): Boolean {
+        val drafts = RestrictionLifecycleTransitionMapper.map(
+            previous = previous,
+            next = next,
+            reason = reason,
+            occurredAtEpochMs = occurredAtEpochMs,
+        )
+        return appendLifecycleEvents(drafts)
+    }
+
+    @Synchronized
+    fun appendLifecycleEvents(events: List<RestrictionLifecycleEventDraft>): Boolean {
+        if (events.isEmpty()) {
+            return true
+        }
+
+        return try {
+            val persisted = loadLifecycleEvents().toMutableList()
+            var nextSeq = preferences.getLong(KEY_LIFECYCLE_EVENT_SEQ, 0L)
+            events.forEach { draft ->
+                val normalized = normalizeLifecycleDraft(draft) ?: return@forEach
+                nextSeq += 1
+                persisted += RestrictionLifecycleEvent(
+                    id = nextLifecycleEventId(nextSeq, normalized.occurredAtEpochMs),
+                    sessionId = normalized.sessionId,
+                    modeId = normalized.modeId,
+                    action = normalized.action,
+                    source = normalized.source,
+                    reason = normalized.reason,
+                    occurredAtEpochMs = normalized.occurredAtEpochMs,
+                )
+            }
+            if (persisted.size > MAX_LIFECYCLE_EVENTS) {
+                val overflow = persisted.size - MAX_LIFECYCLE_EVENTS
+                repeat(overflow) { persisted.removeAt(0) }
+            }
+            persistLifecycleEvents(persisted, nextSeq)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to append lifecycle events", e)
+            false
+        }
+    }
+
+    @Synchronized
+    fun getPendingLifecycleEvents(limit: Int): List<RestrictionLifecycleEvent> {
+        val normalizedLimit = limit.coerceIn(1, MAX_LIFECYCLE_EVENTS)
+        return loadLifecycleEvents().take(normalizedLimit)
+    }
+
+    @Synchronized
+    fun ackLifecycleEventsThrough(throughEventId: String): Boolean {
+        val normalizedId = throughEventId.trim()
+        if (normalizedId.isEmpty()) {
+            return false
+        }
+
+        return try {
+            val events = loadLifecycleEvents()
+            val next = events.filter { it.id > normalizedId }
+            if (events.size != next.size) {
+                persistLifecycleEvents(next, preferences.getLong(KEY_LIFECYCLE_EVENT_SEQ, 0L))
+            }
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to ack lifecycle events through id=$normalizedId", e)
+            false
+        }
     }
 
     private fun loadBlockedApps() {
@@ -211,5 +349,82 @@ class RestrictionManager private constructor(context: Context) {
             Log.w(TAG, "Failed to parse blocked apps JSON payload", e)
             false
         }
+    }
+
+    private fun persistActiveSession(session: ActiveSession) {
+        val blockedPayload = JSONArray()
+        session.blockedAppIds.forEach(blockedPayload::put)
+        val payload = JSONObject()
+            .put(KEY_ACTIVE_SESSION_ID, session.sessionId)
+            .put(KEY_ACTIVE_SESSION_MODE_ID, session.modeId)
+            .put(KEY_ACTIVE_SESSION_BLOCKED_APPS, blockedPayload)
+            .put(KEY_ACTIVE_SESSION_SOURCE, session.source.wireValue)
+        preferences.edit()
+            .putString(KEY_ACTIVE_SESSION, payload.toString())
+            .apply()
+    }
+
+    private fun nextSessionId(nowMs: Long = System.currentTimeMillis()): String {
+        val nextSeq = preferences.getLong(KEY_SESSION_ID_SEQ, 0L) + 1L
+        preferences.edit()
+            .putLong(KEY_SESSION_ID_SEQ, nextSeq)
+            .apply()
+        return "s-${formatCounter(nextSeq, 12)}-${formatEpochMs(nowMs)}"
+    }
+
+    private fun loadLifecycleEvents(): List<RestrictionLifecycleEvent> {
+        val serialized = preferences.getString(KEY_LIFECYCLE_EVENTS, null)?.trim().orEmpty()
+        if (serialized.isEmpty()) {
+            return emptyList()
+        }
+        return try {
+            val payload = JSONArray(serialized)
+            val events = mutableListOf<RestrictionLifecycleEvent>()
+            for (index in 0 until payload.length()) {
+                val raw = payload.optJSONObject(index) ?: continue
+                val parsed = RestrictionLifecycleEvent.fromStorageJson(raw) ?: continue
+                events += parsed
+            }
+            events.sortedBy { it.id }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse lifecycle queue payload", e)
+            emptyList()
+        }
+    }
+
+    private fun persistLifecycleEvents(events: List<RestrictionLifecycleEvent>, seq: Long) {
+        val payload = JSONArray()
+        events.forEach { payload.put(it.toStorageJson()) }
+        preferences.edit()
+            .putString(KEY_LIFECYCLE_EVENTS, payload.toString())
+            .putLong(KEY_LIFECYCLE_EVENT_SEQ, seq.coerceAtLeast(0L))
+            .apply()
+    }
+
+    private fun normalizeLifecycleDraft(
+        draft: RestrictionLifecycleEventDraft,
+    ): RestrictionLifecycleEventDraft? {
+        val sessionId = draft.sessionId.trim()
+        val modeId = draft.modeId.trim()
+        val reason = draft.reason.trim()
+        if (sessionId.isEmpty() || modeId.isEmpty() || reason.isEmpty()) {
+            return null
+        }
+        if (draft.occurredAtEpochMs <= 0L) {
+            return null
+        }
+        return draft.copy(sessionId = sessionId, modeId = modeId, reason = reason)
+    }
+
+    private fun nextLifecycleEventId(seq: Long, occurredAtEpochMs: Long): String {
+        return "${formatCounter(seq, 20)}-${formatEpochMs(occurredAtEpochMs)}"
+    }
+
+    private fun formatCounter(value: Long, width: Int): String {
+        return value.coerceAtLeast(0L).toString().padStart(width, '0')
+    }
+
+    private fun formatEpochMs(value: Long): String {
+        return value.coerceAtLeast(0L).toString().padStart(13, '0')
     }
 }

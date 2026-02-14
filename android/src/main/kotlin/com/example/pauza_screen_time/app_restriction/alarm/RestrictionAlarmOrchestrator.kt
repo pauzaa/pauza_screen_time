@@ -36,9 +36,19 @@ internal class RestrictionAlarmOrchestrator(
 
     fun onPauseEndFired() {
         val nowMs = System.currentTimeMillis()
-        val pausedUntilMs = restrictionManager.getPausedUntilEpochMs(nowMs)
+        val pausedUntilMs = restrictionManager.getPausedUntilEpochMs(nowMs, clearExpired = false)
         if (pausedUntilMs > 0L) {
-            schedulePauseEnd(pausedUntilMs, nowMs)
+            if (pausedUntilMs > nowMs) {
+                schedulePauseEnd(pausedUntilMs, nowMs)
+                return
+            }
+            val previousSnapshot = sessionController.captureLifecycleSnapshot()
+            restrictionManager.clearPause()
+            sessionController.applyCurrentEnforcementState(
+                trigger = "pause_end_alarm",
+                previousLifecycleSnapshot = previousSnapshot,
+            )
+            rescheduleScheduleBoundary()
             return
         }
 

@@ -28,5 +28,7 @@ object MethodNames {
     const val RESUME_ENFORCEMENT = "resumeEnforcement"
     const val START_SESSION = "startSession"
     const val END_SESSION = "endSession"
+    const val GET_PENDING_LIFECYCLE_EVENTS = "getPendingLifecycleEvents"
+    const val ACK_LIFECYCLE_EVENTS = "ackLifecycleEvents"
     const val GET_RESTRICTION_SESSION = "getRestrictionSession"
 }

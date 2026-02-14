@@ -4,6 +4,7 @@ import 'package:pauza_screen_time/src/core/app_identifier.dart';
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/data/app_restriction_manager.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_lifecycle_event.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode_source.dart';
@@ -78,6 +79,31 @@ void main() {
       throwsA(isA<PauzaMissingPermissionError>()),
     );
   });
+
+  test(
+    'manager throws typed PauzaError for getPendingLifecycleEvents',
+    () async {
+      final manager = AppRestrictionManager(
+        platform: _FailingRestrictionPlatform(),
+      );
+
+      await expectLater(
+        manager.getPendingLifecycleEvents(),
+        throwsA(isA<PauzaMissingPermissionError>()),
+      );
+    },
+  );
+
+  test('manager throws typed PauzaError for ackLifecycleEvents', () async {
+    final manager = AppRestrictionManager(
+      platform: _FailingRestrictionPlatform(),
+    );
+
+    await expectLater(
+      manager.ackLifecycleEvents(throughEventId: 'event-1'),
+      throwsA(isA<PauzaMissingPermissionError>()),
+    );
+  });
 }
 
 class _FailingRestrictionPlatform extends AppRestrictionPlatform {
@@ -108,6 +134,13 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   Future<void> endSession() async {}
 
   @override
+  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
+    int limit = 200,
+  }) async {
+    throw PlatformException(code: 'MISSING_PERMISSION', message: 'missing');
+  }
+
+  @override
   Future<void> setModesEnabled(bool enabled) async {
     throw PlatformException(code: 'MISSING_PERMISSION', message: 'missing');
   }
@@ -129,6 +162,11 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
 
   @override
   Future<void> resumeEnforcement() async {
+    throw PlatformException(code: 'MISSING_PERMISSION', message: 'missing');
+  }
+
+  @override
+  Future<void> ackLifecycleEvents({required String throughEventId}) async {
     throw PlatformException(code: 'MISSING_PERMISSION', message: 'missing');
   }
 }
