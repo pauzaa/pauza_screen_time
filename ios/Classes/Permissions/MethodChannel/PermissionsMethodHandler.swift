@@ -70,12 +70,13 @@ final class PermissionsMethodHandler {
         }
 
         if UIApplication.shared.canOpenURL(settingsUrl) {
+            let featureName = feature
             UIApplication.shared.open(settingsUrl, options: [:]) { success in
                 if success {
                     result(nil)
                 } else {
                     result(PluginErrors.internalFailure(
-                        feature: feature,
+                        feature: featureName,
                         action: MethodNames.openPermissionSettings,
                         message: PluginErrorMessage.settingsOpenFailed
                     ))

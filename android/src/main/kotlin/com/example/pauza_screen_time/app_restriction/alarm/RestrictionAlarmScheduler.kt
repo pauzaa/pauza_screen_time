@@ -20,6 +20,10 @@ internal class RestrictionAlarmScheduler(
 
     fun schedule(type: RestrictionAlarmType, timebase: RestrictionAlarmTimebase) {
         val pendingIntent = createPendingIntent(type, PendingIntent.FLAG_UPDATE_CURRENT)
+            ?: run {
+                Log.e(TAG, "Failed to create pending intent for ${type.value} alarm")
+                return
+            }
         val triggerAtMs = when (timebase) {
             is RestrictionAlarmTimebase.ElapsedRealtime -> timebase.triggerAtElapsedMs
             is RestrictionAlarmTimebase.Rtc -> timebase.triggerAtEpochMs

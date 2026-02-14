@@ -10,7 +10,7 @@ enum RestrictionScheduleMonitorOrchestrator {
 
         let existing = RestrictionStateStore.loadScheduleMonitorNames()
         for name in existing {
-            center.stopMonitoring(DeviceActivityName(name))
+            center.stopMonitoring([DeviceActivityName(name)])
         }
 
         let modes = RestrictionStateStore.loadModes()
@@ -31,12 +31,13 @@ enum RestrictionScheduleMonitorOrchestrator {
             let name = DeviceActivityName(nameRaw)
             let eventName = DeviceActivityEvent.Name("\(nameRaw).event")
             let scheduleConfig = makeDeviceActivitySchedule(from: schedule)
-            let events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [
-                eventName: DeviceActivityEvent(
+            let allActivityEvent = DeviceActivityEvent(
                     applications: [],
-                    categories: .all,
+                    categories: [],
                     threshold: DateComponents(minute: 1)
-                ),
+            )
+            let events: [DeviceActivityEvent.Name: DeviceActivityEvent] = [
+                eventName: allActivityEvent,
             ]
             try center.startMonitoring(name, during: scheduleConfig, events: events)
             names.append(nameRaw)

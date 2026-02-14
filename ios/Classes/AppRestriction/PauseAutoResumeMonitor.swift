@@ -36,7 +36,7 @@ enum PauseAutoResumeMonitor {
     }
 
     static func stopMonitoring() {
-        DeviceActivityCenter().stopMonitoring(Set([activityName]))
+        DeviceActivityCenter().stopMonitoring([activityName])
     }
 
     private static func dateComponents(for date: Date, calendar: Calendar) -> DateComponents {

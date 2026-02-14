@@ -2,7 +2,7 @@ PODS:
   - Flutter (1.0.0)
   - integration_test (0.0.1):
     - Flutter
-  - pauza_screen_time (0.0.1):
+  - pauza_screen_time (0.3.0):
     - Flutter
 
 DEPENDENCIES:
@@ -21,7 +21,7 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
   integration_test: 4a889634ef21a45d28d50d622cf412dc6d9f586e
-  pauza_screen_time: 0bfe03d0feb8bf0d259d9031b2749b75ee4f786f
+  pauza_screen_time: 3a0605306f23ddb9af325a7515839a0609d76ce7
 
 PODFILE CHECKSUM: 1857a7cdb7dfafe45f2b0e9a9af44644190f7506
 
