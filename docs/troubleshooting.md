@@ -60,7 +60,8 @@ Affected methods:
 - Confirm Accessibility service is still enabled
 
 **Verify**:
-- `getRestrictionSession().isPausedNow` becomes `false` after pause end
+- `getRestrictionSession().pausedUntil` becomes `null` after pause end
+- `getRestrictionSession().isPausedNow` becomes `false` (derived from `pausedUntil`)
 - Opening a restricted app shows the shield again
 
 ## iOS
@@ -156,7 +157,7 @@ One or more tokens you passed to restrictions could not be decoded as iOS `Appli
 
 **Fix**:
 - Pass a positive duration (for example `Duration(minutes: 5)`)
-- Check `getRestrictionSession().isPausedNow` before re-pausing
+- Check `getRestrictionSession().isPausedNow` (or `pausedUntil != null`) before re-pausing
 
 ## Next
 

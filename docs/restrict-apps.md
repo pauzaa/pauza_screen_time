@@ -111,9 +111,12 @@ final session = await restrictions.getRestrictionSession();
 - `isScheduleEnabled`
 - `isInScheduleNow`
 - `pausedUntil`
-- `restrictedApps`
-- `activeModeId`
+- `activeMode` (`RestrictionMode?`)
 - `activeModeSource` (`none` | `manual` | `schedule`)
+
+Derived semantics:
+- `isActiveNow == (activeMode != null)`
+- `isPausedNow == (pausedUntil != null)`
 
 ## 6) Modes config snapshot
 

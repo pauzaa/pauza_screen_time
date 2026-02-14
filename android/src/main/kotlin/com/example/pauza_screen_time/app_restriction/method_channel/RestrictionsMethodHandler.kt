@@ -3,6 +3,7 @@ package com.example.pauza_screen_time.app_restriction.method_channel
 import android.content.Context
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
 import com.example.pauza_screen_time.app_restriction.RestrictionSessionController
+import com.example.pauza_screen_time.app_restriction.model.RestrictionModeDto
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
 import com.example.pauza_screen_time.app_restriction.model.RestrictionSessionDto
 import com.example.pauza_screen_time.app_restriction.alarm.RestrictionAlarmOrchestrator
@@ -583,17 +584,17 @@ class RestrictionsMethodHandler(
             val restrictionManager = RestrictionManager.getInstance(context)
             val pausedUntilEpochMs = restrictionManager.getPausedUntilEpochMs()
             val isPausedNow = pausedUntilEpochMs > 0L
-            val isPrerequisitesMet = areRestrictionPrerequisitesMet(context)
             val state = RestrictionSessionController(context).resolveSessionState()
-            val shouldEnforceSession = state.activeModeSource != RestrictionModeSource.NONE
             val payload = RestrictionSessionDto(
-                isActiveNow = state.blockedAppIds.isNotEmpty() && !isPausedNow && isPrerequisitesMet && shouldEnforceSession,
-                isPausedNow = isPausedNow,
                 isScheduleEnabled = state.isScheduleEnabled,
                 isInScheduleNow = state.isInScheduleNow,
                 pausedUntilEpochMs = if (isPausedNow) pausedUntilEpochMs else null,
-                restrictedApps = state.blockedAppIds,
-                activeModeId = state.activeModeId,
+                activeMode = state.activeModeId?.let { activeModeId ->
+                    RestrictionModeDto(
+                        modeId = activeModeId,
+                        blockedAppIds = state.blockedAppIds,
+                    )
+                },
                 activeModeSource = state.activeModeSource,
             )
             result.success(payload.toChannelMap())

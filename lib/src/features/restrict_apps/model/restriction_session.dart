@@ -1,24 +1,15 @@
-import 'package:pauza_screen_time/src/core/app_identifier.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode_source.dart';
 
 /// Snapshot of the current restriction session state.
 class RestrictionSession {
   const RestrictionSession({
-    required this.isActiveNow,
-    required this.isPausedNow,
     required this.isScheduleEnabled,
     required this.isInScheduleNow,
     required this.pausedUntil,
-    required this.restrictedApps,
-    required this.activeModeId,
+    required this.activeMode,
     required this.activeModeSource,
   });
-
-  /// Whether restrictions are currently considered active.
-  final bool isActiveNow;
-
-  /// Whether restriction enforcement is currently paused.
-  final bool isPausedNow;
 
   /// Whether schedule-based restriction session is enabled.
   final bool isScheduleEnabled;
@@ -29,19 +20,20 @@ class RestrictionSession {
   /// When pause ends, if paused.
   final DateTime? pausedUntil;
 
-  /// Current restricted app identifiers.
-  final List<AppIdentifier> restrictedApps;
-
-  /// Active mode identifier when resolved.
-  final String? activeModeId;
+  /// Active mode when resolved.
+  final RestrictionMode? activeMode;
 
   /// Source that selected the active mode.
   final RestrictionModeSource activeModeSource;
 
+  /// Whether restrictions are currently considered active.
+  bool get isActiveNow => activeMode != null;
+
+  /// Whether restriction enforcement is currently paused.
+  bool get isPausedNow => pausedUntil != null;
+
   /// Parses session payload from platform channels.
   factory RestrictionSession.fromMap(Map<String, dynamic> map) {
-    final isActiveNow = map['isActiveNow'] as bool? ?? false;
-    final isPausedNow = map['isPausedNow'] as bool? ?? false;
     final isScheduleEnabled = map['isScheduleEnabled'] as bool? ?? false;
     final isInScheduleNow = map['isInScheduleNow'] as bool? ?? false;
     final pausedUntilEpochMs = switch (map['pausedUntilEpochMs']) {
@@ -49,14 +41,13 @@ class RestrictionSession {
       final num value => value.toInt(),
       _ => null,
     };
-    final rawRestrictedApps = map['restrictedApps'];
-    final restrictedApps = switch (rawRestrictedApps) {
-      final List<dynamic> values =>
-        values.whereType<String>().map(AppIdentifier.new).toList(),
-      _ => const <AppIdentifier>[],
+    final activeMode = switch (map['activeMode']) {
+      final Map<dynamic, dynamic> value => RestrictionMode.fromMap(
+        Map<String, dynamic>.from(value),
+      ),
+      _ => null,
     };
 
-    final activeModeId = (map['activeModeId'] as String?)?.trim();
     final sourceRaw = map['activeModeSource'] as String? ?? 'none';
     final activeModeSource = switch (sourceRaw) {
       'none' => RestrictionModeSource.none,
@@ -70,17 +61,12 @@ class RestrictionSession {
     };
 
     return RestrictionSession(
-      isActiveNow: isActiveNow,
-      isPausedNow: isPausedNow,
       isScheduleEnabled: isScheduleEnabled,
       isInScheduleNow: isInScheduleNow,
       pausedUntil: pausedUntilEpochMs == null || pausedUntilEpochMs <= 0
           ? null
           : DateTime.fromMillisecondsSinceEpoch(pausedUntilEpochMs),
-      restrictedApps: restrictedApps,
-      activeModeId: (activeModeId == null || activeModeId.isEmpty)
-          ? null
-          : activeModeId,
+      activeMode: activeMode,
       activeModeSource: activeModeSource,
     );
   }

@@ -232,24 +232,18 @@ struct RestrictionScheduledModesConfig {
 }
 
 struct RestrictionSessionSnapshot {
-    let isActiveNow: Bool
-    let isPausedNow: Bool
     let isScheduleEnabled: Bool
     let isInScheduleNow: Bool
     let pausedUntilEpochMs: Int64?
-    let restrictedApps: [String]
-    let activeModeId: String?
+    let activeMode: RestrictionScheduledMode?
     let activeModeSource: RestrictionModeSource
 
     func toChannelMap() -> [String: Any] {
         return [
-            "isActiveNow": isActiveNow,
-            "isPausedNow": isPausedNow,
             "isScheduleEnabled": isScheduleEnabled,
             "isInScheduleNow": isInScheduleNow,
             "pausedUntilEpochMs": pausedUntilEpochMs as Any,
-            "restrictedApps": restrictedApps,
-            "activeModeId": activeModeId as Any,
+            "activeMode": activeMode?.toChannelMap() as Any,
             "activeModeSource": activeModeSource.wireValue,
         ]
     }

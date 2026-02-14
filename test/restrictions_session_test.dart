@@ -30,13 +30,13 @@ void main() {
           .setMockMethodCallHandler(channel, (call) async {
             if (call.method == RestrictionsMethodNames.getRestrictionSession) {
               return {
-                'isActiveNow': true,
-                'isPausedNow': true,
                 'isScheduleEnabled': true,
                 'isInScheduleNow': true,
                 'pausedUntilEpochMs': 1,
-                'restrictedApps': ['x'],
-                'activeModeId': 'focus',
+                'activeMode': {
+                  'modeId': 'focus',
+                  'blockedAppIds': ['x'],
+                },
                 'activeModeSource': 'schedule',
               };
             }
@@ -50,8 +50,9 @@ void main() {
       expect(session.isScheduleEnabled, isTrue);
       expect(session.isInScheduleNow, isTrue);
       expect(session.pausedUntil, DateTime.fromMillisecondsSinceEpoch(1));
-      expect(session.restrictedApps, const [AppIdentifier('x')]);
-      expect(session.activeModeId, 'focus');
+      expect(session.activeMode, isNotNull);
+      expect(session.activeMode!.modeId, 'focus');
+      expect(session.activeMode!.blockedAppIds, const [AppIdentifier('x')]);
       expect(session.activeModeSource, RestrictionModeSource.schedule);
     });
 
@@ -72,8 +73,7 @@ void main() {
       expect(session.isScheduleEnabled, isFalse);
       expect(session.isInScheduleNow, isFalse);
       expect(session.pausedUntil, isNull);
-      expect(session.restrictedApps, isEmpty);
-      expect(session.activeModeId, isNull);
+      expect(session.activeMode, isNull);
       expect(session.activeModeSource, RestrictionModeSource.none);
     });
 
@@ -194,7 +194,7 @@ void main() {
       expect(fakePlatform.endSessionCalled, isTrue);
       expect(fakePlatform.getRestrictionSessionCalled, isTrue);
       expect(modesConfig.enabled, isTrue);
-      expect(session.activeModeId, 'focus');
+      expect(session.activeMode?.modeId, 'focus');
       expect(session.activeModeSource, RestrictionModeSource.manual);
     });
 
@@ -300,13 +300,13 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   Future<RestrictionSession> getRestrictionSession() async {
     getRestrictionSessionCalled = true;
     return const RestrictionSession(
-      isActiveNow: true,
-      isPausedNow: false,
       isScheduleEnabled: false,
       isInScheduleNow: false,
       pausedUntil: null,
-      restrictedApps: [AppIdentifier('com.example.app')],
-      activeModeId: 'focus',
+      activeMode: RestrictionMode(
+        modeId: 'focus',
+        blockedAppIds: [AppIdentifier('com.example.app')],
+      ),
       activeModeSource: RestrictionModeSource.manual,
     );
   }

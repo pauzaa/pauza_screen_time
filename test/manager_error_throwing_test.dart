@@ -11,21 +11,24 @@ import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_s
 import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 void main() {
-  test('manager throws typed PauzaError for upsertMode platform exception', () async {
-    final manager = AppRestrictionManager(
-      platform: _FailingRestrictionPlatform(),
-    );
+  test(
+    'manager throws typed PauzaError for upsertMode platform exception',
+    () async {
+      final manager = AppRestrictionManager(
+        platform: _FailingRestrictionPlatform(),
+      );
 
-    await expectLater(
-      manager.upsertMode(
-        const RestrictionMode(
-          modeId: 'focus',
-          blockedAppIds: [AppIdentifier('x')],
+      await expectLater(
+        manager.upsertMode(
+          const RestrictionMode(
+            modeId: 'focus',
+            blockedAppIds: [AppIdentifier('x')],
+          ),
         ),
-      ),
-      throwsA(isA<PauzaMissingPermissionError>()),
-    );
-  });
+        throwsA(isA<PauzaMissingPermissionError>()),
+      );
+    },
+  );
 
   test('manager throws typed PauzaError for setModesEnabled', () async {
     final manager = AppRestrictionManager(
@@ -88,13 +91,10 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   @override
   Future<RestrictionSession> getRestrictionSession() async =>
       const RestrictionSession(
-        isActiveNow: false,
-        isPausedNow: false,
         isScheduleEnabled: false,
         isInScheduleNow: false,
         pausedUntil: null,
-        restrictedApps: [],
-        activeModeId: null,
+        activeMode: null,
         activeModeSource: RestrictionModeSource.none,
       );
 

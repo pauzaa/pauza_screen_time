@@ -7,25 +7,33 @@ enum class RestrictionModeSource(val wireValue: String) {
 }
 
 data class RestrictionSessionDto(
-    val isActiveNow: Boolean,
-    val isPausedNow: Boolean,
     val isScheduleEnabled: Boolean,
     val isInScheduleNow: Boolean,
     val pausedUntilEpochMs: Long?,
-    val restrictedApps: List<String>,
-    val activeModeId: String?,
+    val activeMode: RestrictionModeDto?,
     val activeModeSource: RestrictionModeSource,
 ) {
     fun toChannelMap(): Map<String, Any?> {
         return mapOf(
-            "isActiveNow" to isActiveNow,
-            "isPausedNow" to isPausedNow,
             "isScheduleEnabled" to isScheduleEnabled,
             "isInScheduleNow" to isInScheduleNow,
             "pausedUntilEpochMs" to pausedUntilEpochMs,
-            "restrictedApps" to restrictedApps,
-            "activeModeId" to activeModeId,
+            "activeMode" to activeMode?.toChannelMap(),
             "activeModeSource" to activeModeSource.wireValue,
+        )
+    }
+}
+
+data class RestrictionModeDto(
+    val modeId: String,
+    val blockedAppIds: List<String>,
+    val schedule: Any? = null,
+) {
+    fun toChannelMap(): Map<String, Any?> {
+        return mapOf(
+            "modeId" to modeId,
+            "blockedAppIds" to blockedAppIds,
+            "schedule" to schedule,
         )
     }
 }

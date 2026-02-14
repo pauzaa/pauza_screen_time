@@ -301,13 +301,10 @@ final class RestrictionsMethodHandler {
     private func handleGetRestrictionSession(result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(RestrictionSessionSnapshot(
-                isActiveNow: false,
-                isPausedNow: false,
                 isScheduleEnabled: false,
                 isInScheduleNow: false,
                 pausedUntilEpochMs: nil,
-                restrictedApps: [],
-                activeModeId: nil,
+                activeMode: nil,
                 activeModeSource: .none
             ).toChannelMap())
             return
@@ -317,16 +314,17 @@ final class RestrictionsMethodHandler {
         let state = resolveSessionState()
         let pausedUntilEpochMs = RestrictionStateStore.loadPausedUntilEpochMs()
         let isPausedNow = pausedUntilEpochMs > 0
-        let isPrerequisitesMet = restrictionMissingPrerequisites().isEmpty
-        let shouldEnforceSession = state.activeModeSource != .none
         let payload = RestrictionSessionSnapshot(
-            isActiveNow: !state.blockedAppIds.isEmpty && !isPausedNow && isPrerequisitesMet && shouldEnforceSession,
-            isPausedNow: isPausedNow,
             isScheduleEnabled: state.isScheduleEnabled,
             isInScheduleNow: state.isInScheduleNow,
             pausedUntilEpochMs: isPausedNow ? pausedUntilEpochMs : nil,
-            restrictedApps: state.blockedAppIds,
-            activeModeId: state.activeModeId,
+            activeMode: state.activeModeId.map { activeModeId in
+                RestrictionScheduledMode(
+                    modeId: activeModeId,
+                    schedule: nil,
+                    blockedAppIds: state.blockedAppIds
+                )
+            },
             activeModeSource: state.activeModeSource
         )
         result(payload.toChannelMap())
