@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import 'package:pauza_screen_time/src/core/background_channel_runner.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/channel_name.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/method_names.dart';
@@ -114,9 +115,10 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
     int limit = 200,
   }) async {
-    final result = await channel.invokeMethod<List<dynamic>>(
+    final result = await BackgroundChannelRunner.invokeMethod<List<dynamic>>(
+      channel.name,
       RestrictionsMethodNames.getPendingLifecycleEvents,
-      {'limit': limit},
+      arguments: {'limit': limit},
     );
     if (result == null) {
       return const <RestrictionLifecycleEvent>[];

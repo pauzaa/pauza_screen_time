@@ -40,7 +40,7 @@ class BackgroundChannelRunner {
 
     // In tests (or unusual initialization flows) the binding may not be
     // initialized. Fall back to running on the current isolate.
-    if (token == null) {
+    if (token == null || _usesTestBinaryMessenger()) {
       return _invokeOnCurrentIsolate<T>(
         channelName,
         method,
@@ -63,6 +63,15 @@ class BackgroundChannelRunner {
 
     _enqueue(request);
     return completer.future;
+  }
+
+  static bool _usesTestBinaryMessenger() {
+    final messengerType = ServicesBinding
+        .instance
+        .defaultBinaryMessenger
+        .runtimeType
+        .toString();
+    return messengerType.contains('TestDefaultBinaryMessenger');
   }
 
   static Future<void> shutdown() async {

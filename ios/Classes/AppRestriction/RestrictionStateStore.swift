@@ -7,11 +7,16 @@ enum RestrictionStateStore {
     static let scheduleMonitorNamesKey = "scheduleMonitorNames"
     static let modesEnabledKey = "modesEnabled"
     static let modesKey = "modes"
-    static let lifecycleEventsKey = "lifecycleEvents"
-    static let lifecycleEventSeqKey = "lifecycleEventSeq"
     static let sessionIdSeqKey = "sessionIdSeq"
+    static let lifecycleQueueVersionKey = "lifecycleQueueVersion"
+    static let lifecycleHeadSeqKey = "lifecycleHeadSeq"
+    static let lifecycleTailSeqKey = "lifecycleTailSeq"
+    static let lifecycleGcFloorSeqKey = "lifecycleGcFloorSeq"
+    static let lifecycleEventPrefix = "lifecycleEvent."
 
     private static let maxLifecycleEvents = 10_000
+    private static let lifecycleQueueVersion: Int64 = 2
+    private static let lifecycleGcBatchSize: Int64 = 128
     private static let lifecycleLock = NSLock()
 
     enum StoreResult {
@@ -173,13 +178,31 @@ enum RestrictionStateStore {
         let normalizedLimit = max(1, min(limit, maxLifecycleEvents))
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
-        return loadLifecycleEvents(defaults: defaults).prefix(normalizedLimit).map { $0 }
+
+        let (headSeq, tailSeq) = readHeadTail(defaults: defaults)
+        if isQueueEmpty(head: headSeq, tail: tailSeq) {
+            return []
+        }
+
+        let endSeq = min(tailSeq, headSeq + Int64(normalizedLimit) - 1)
+        var events: [RestrictionLifecycleEvent] = []
+        var seq = headSeq
+        while seq <= endSeq {
+            if let event = loadLifecycleEvent(defaults: defaults, seq: seq) {
+                events.append(event)
+            }
+            seq += 1
+        }
+        return events
     }
 
     @discardableResult
     static func ackLifecycleEvents(throughEventId: String) -> StoreResult {
         let normalizedId = throughEventId.trimmingCharacters(in: .whitespacesAndNewlines)
         if normalizedId.isEmpty {
+            return .success
+        }
+        guard let throughSeq = parseSeq(fromEventId: normalizedId) else {
             return .success
         }
 
@@ -190,14 +213,14 @@ enum RestrictionStateStore {
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
 
-        let events = loadLifecycleEvents(defaults: defaults)
-        let filtered = events.filter { $0.id > normalizedId }
-        if filtered.count != events.count {
-            persistLifecycleEvents(
-                filtered,
-                seq: sequenceValue(defaults, key: lifecycleEventSeqKey),
-                defaults: defaults
-            )
+        let (headSeq, tailSeq) = readHeadTail(defaults: defaults)
+        if isQueueEmpty(head: headSeq, tail: tailSeq) {
+            return .success
+        }
+        let nextHead = max(headSeq, min(throughSeq + 1, tailSeq + 1))
+        if nextHead != headSeq {
+            storeLifecycleMetadata(defaults: defaults, headSeq: nextHead, tailSeq: tailSeq)
+            compactUpTo(defaults: defaults, seqInclusive: nextHead - 1)
         }
         return .success
     }
@@ -214,29 +237,35 @@ enum RestrictionStateStore {
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
 
-        var events = loadLifecycleEvents(defaults: defaults)
-        var nextSeq = sequenceValue(defaults, key: lifecycleEventSeqKey)
+        var (headSeq, tailSeq) = readHeadTail(defaults: defaults)
         for draft in drafts {
             guard let normalized = normalizeLifecycleDraft(draft) else {
                 continue
             }
-            nextSeq += 1
-            events.append(
-                RestrictionLifecycleEvent(
-                    id: nextLifecycleEventId(seq: nextSeq, occurredAtEpochMs: normalized.occurredAtEpochMs),
-                    sessionId: normalized.sessionId,
-                    modeId: normalized.modeId,
-                    action: normalized.action,
-                    source: normalized.source,
-                    reason: normalized.reason,
-                    occurredAtEpochMs: normalized.occurredAtEpochMs
-                )
+            let nextSeq = isQueueEmpty(head: headSeq, tail: tailSeq) ? headSeq : tailSeq + 1
+            let event = RestrictionLifecycleEvent(
+                id: nextLifecycleEventId(seq: nextSeq, occurredAtEpochMs: normalized.occurredAtEpochMs),
+                sessionId: normalized.sessionId,
+                modeId: normalized.modeId,
+                action: normalized.action,
+                source: normalized.source,
+                reason: normalized.reason,
+                occurredAtEpochMs: normalized.occurredAtEpochMs
             )
+            defaults.set(event.toStorageMap(), forKey: eventKey(nextSeq))
+
+            if isQueueEmpty(head: headSeq, tail: tailSeq) {
+                headSeq = nextSeq
+            }
+            tailSeq = nextSeq
+
+            while !isQueueEmpty(head: headSeq, tail: tailSeq) &&
+                (tailSeq - headSeq + 1) > Int64(maxLifecycleEvents) {
+                headSeq += 1
+            }
         }
-        if events.count > maxLifecycleEvents {
-            events = Array(events.suffix(maxLifecycleEvents))
-        }
-        persistLifecycleEvents(events, seq: nextSeq, defaults: defaults)
+        storeLifecycleMetadata(defaults: defaults, headSeq: headSeq, tailSeq: tailSeq)
+        compactUpTo(defaults: defaults, seqInclusive: headSeq - 1)
         return .success
     }
 
@@ -350,22 +379,67 @@ enum RestrictionStateStore {
         return "s-\(formatCounter(nextSeq, width: 12))-\(formatEpochMs(currentEpochMs()))"
     }
 
-    private static func loadLifecycleEvents(defaults: UserDefaults) -> [RestrictionLifecycleEvent] {
-        guard let values = defaults.array(forKey: lifecycleEventsKey) as? [[String: Any]] else {
-            return []
+    private static func readHeadTail(defaults: UserDefaults) -> (Int64, Int64) {
+        var head = sequenceValue(defaults, key: lifecycleHeadSeqKey)
+        var tail = sequenceValue(defaults, key: lifecycleTailSeqKey)
+        if head <= 0 {
+            head = 1
         }
-        return values
-            .compactMap(RestrictionLifecycleEvent.init)
-            .sorted { $0.id < $1.id }
+        if tail < 0 {
+            tail = 0
+        }
+        if head > tail + 1 {
+            head = tail + 1
+        }
+        return (head, tail)
     }
 
-    private static func persistLifecycleEvents(
-        _ events: [RestrictionLifecycleEvent],
-        seq: Int64,
-        defaults: UserDefaults
-    ) {
-        defaults.set(events.map { $0.toStorageMap() }, forKey: lifecycleEventsKey)
-        defaults.set(max(seq, 0), forKey: lifecycleEventSeqKey)
+    private static func isQueueEmpty(head: Int64, tail: Int64) -> Bool {
+        return head > tail
+    }
+
+    private static func parseSeq(fromEventId eventId: String) -> Int64? {
+        let seqPart = eventId.split(separator: "-", maxSplits: 1).first.map(String.init) ?? ""
+        if seqPart.isEmpty {
+            return nil
+        }
+        return Int64(seqPart)
+    }
+
+    private static func eventKey(_ seq: Int64) -> String {
+        return "\(lifecycleEventPrefix)\(formatCounter(seq, width: 20))"
+    }
+
+    private static func loadLifecycleEvent(defaults: UserDefaults, seq: Int64) -> RestrictionLifecycleEvent? {
+        guard let map = defaults.dictionary(forKey: eventKey(seq)) else {
+            return nil
+        }
+        return RestrictionLifecycleEvent(map)
+    }
+
+    private static func storeLifecycleMetadata(defaults: UserDefaults, headSeq: Int64, tailSeq: Int64) {
+        defaults.set(lifecycleQueueVersion, forKey: lifecycleQueueVersionKey)
+        defaults.set(max(headSeq, 1), forKey: lifecycleHeadSeqKey)
+        defaults.set(max(tailSeq, 0), forKey: lifecycleTailSeqKey)
+    }
+
+    private static func compactUpTo(defaults: UserDefaults, seqInclusive: Int64) {
+        if seqInclusive < 0 {
+            return
+        }
+        let gcFloor = max(sequenceValue(defaults, key: lifecycleGcFloorSeqKey), 0)
+        let startSeq = gcFloor + 1
+        if startSeq > seqInclusive {
+            return
+        }
+        let endSeq = min(seqInclusive, startSeq + lifecycleGcBatchSize - 1)
+        var seq = startSeq
+        while seq <= endSeq {
+            defaults.removeObject(forKey: eventKey(seq))
+            seq += 1
+        }
+        defaults.set(lifecycleQueueVersion, forKey: lifecycleQueueVersionKey)
+        defaults.set(max(endSeq, 0), forKey: lifecycleGcFloorSeqKey)
     }
 
     private static func normalizeLifecycleDraft(

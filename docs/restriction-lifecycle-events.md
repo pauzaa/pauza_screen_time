@@ -69,6 +69,10 @@ Additional rules:
 - Redelivery before ack is expected.
 - Bounded queue capacity with deterministic oldest-first pruning.
 
+Implementation note:
+- Native queue storage uses a cursor-indexed internal layout for efficient
+  reads/acks; host-facing semantics above are unchanged.
+
 Implication:
 - Host ingestion must be idempotent.
 
