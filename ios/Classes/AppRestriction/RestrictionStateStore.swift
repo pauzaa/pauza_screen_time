@@ -243,15 +243,17 @@ enum RestrictionStateStore {
                 continue
             }
             let nextSeq = isQueueEmpty(head: headSeq, tail: tailSeq) ? headSeq : tailSeq + 1
-            let event = RestrictionLifecycleEvent(
-                id: nextLifecycleEventId(seq: nextSeq, occurredAtEpochMs: normalized.occurredAtEpochMs),
-                sessionId: normalized.sessionId,
-                modeId: normalized.modeId,
-                action: normalized.action,
-                source: normalized.source,
-                reason: normalized.reason,
-                occurredAtEpochMs: normalized.occurredAtEpochMs
-            )
+            guard let event = RestrictionLifecycleEvent([
+                "id": nextLifecycleEventId(seq: nextSeq, occurredAtEpochMs: normalized.occurredAtEpochMs),
+                "sessionId": normalized.sessionId,
+                "modeId": normalized.modeId,
+                "action": normalized.action.rawValue,
+                "source": normalized.source.rawValue,
+                "reason": normalized.reason,
+                "occurredAtEpochMs": normalized.occurredAtEpochMs,
+            ]) else {
+                continue
+            }
             defaults.set(event.toStorageMap(), forKey: eventKey(nextSeq))
 
             if isQueueEmpty(head: headSeq, tail: tailSeq) {

@@ -406,17 +406,17 @@ final class RestrictionsMethodHandler {
         } else {
             currentSessionEvents = []
         }
+        let activeMode = state.activeModeId.flatMap { activeModeId in
+            RestrictionScheduledMode(channelMap: [
+                "modeId": activeModeId,
+                "blockedAppIds": state.blockedAppIds,
+            ])
+        }
         let payload = RestrictionSessionSnapshot(
             isScheduleEnabled: state.isScheduleEnabled,
             isInScheduleNow: state.isInScheduleNow,
             pausedUntilEpochMs: isPausedNow ? pausedUntilEpochMs : nil,
-            activeMode: state.activeModeId.map { activeModeId in
-                RestrictionScheduledMode(
-                    modeId: activeModeId,
-                    schedule: nil,
-                    blockedAppIds: state.blockedAppIds
-                )
-            },
+            activeMode: activeMode,
             activeModeSource: state.activeModeSource,
             currentSessionEvents: currentSessionEvents
         )

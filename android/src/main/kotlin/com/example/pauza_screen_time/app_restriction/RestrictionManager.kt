@@ -224,7 +224,7 @@ class RestrictionManager private constructor(context: Context) {
     }
 
     @Synchronized
-    fun snapshotLifecycleState(): RestrictionLifecycleSnapshot {
+    internal fun snapshotLifecycleState(): RestrictionLifecycleSnapshot {
         val activeSession = getActiveSession()
         if (activeSession == null) {
             return RestrictionLifecycleSnapshot.inactive(isPaused = hasPauseMarker())
@@ -239,7 +239,7 @@ class RestrictionManager private constructor(context: Context) {
     }
 
     @Synchronized
-    fun appendLifecycleTransition(
+    internal fun appendLifecycleTransition(
         previous: RestrictionLifecycleSnapshot,
         next: RestrictionLifecycleSnapshot,
         reason: String,
@@ -255,7 +255,7 @@ class RestrictionManager private constructor(context: Context) {
     }
 
     @Synchronized
-    fun appendLifecycleEvents(events: List<RestrictionLifecycleEventDraft>): Boolean {
+    internal fun appendLifecycleEvents(events: List<RestrictionLifecycleEventDraft>): Boolean {
         if (events.isEmpty()) {
             return true
         }
@@ -298,7 +298,7 @@ class RestrictionManager private constructor(context: Context) {
     }
 
     @Synchronized
-    fun getPendingLifecycleEvents(limit: Int): List<RestrictionLifecycleEvent> {
+    internal fun getPendingLifecycleEvents(limit: Int): List<RestrictionLifecycleEvent> {
         val normalizedLimit = limit.coerceIn(1, MAX_LIFECYCLE_EVENTS)
         val (headSeq, tailSeq) = readHeadTail()
         if (isQueueEmpty(headSeq, tailSeq)) {
