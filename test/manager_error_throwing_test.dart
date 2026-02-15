@@ -8,7 +8,7 @@ import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_l
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode_source.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_state.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 void main() {
@@ -115,13 +115,14 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
       const RestrictionModesConfig(enabled: false, modes: []);
 
   @override
-  Future<RestrictionSession> getRestrictionSession() async =>
-      const RestrictionSession(
+  Future<RestrictionState> getRestrictionSession() async =>
+      const RestrictionState(
         isScheduleEnabled: false,
         isInScheduleNow: false,
         pausedUntil: null,
         activeMode: null,
         activeModeSource: RestrictionModeSource.none,
+        currentSessionEvents: <RestrictionLifecycleEvent>[],
       );
 
   @override

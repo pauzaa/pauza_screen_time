@@ -81,6 +81,7 @@ await restrictions.startSession(
 ```dart
 final session = await restrictions.getRestrictionSession();
 final activeMode = session.activeMode; // RestrictionMode? (null when inactive)
+// session is RestrictionState
 ```
 
 ## 4) iOS flow

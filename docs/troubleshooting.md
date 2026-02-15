@@ -56,6 +56,7 @@ Affected methods:
 
 **Fix**:
 - Check `getRestrictionSession()`
+- `getRestrictionSession()` returns `RestrictionState`
 - Ensure there is a persisted enforceable mode (`schedule != null` with blocked apps) or an active manual mode
 - Confirm Accessibility service is still enabled
 

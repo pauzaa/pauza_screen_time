@@ -104,7 +104,7 @@ Methods that do not preflight-fail and still return state/cleanup behavior:
 final session = await restrictions.getRestrictionSession();
 ```
 
-`RestrictionSession` fields:
+`RestrictionState` fields:
 - `isActiveNow`
 - `isPausedNow`
 - `isManuallyEnabled`
@@ -113,6 +113,7 @@ final session = await restrictions.getRestrictionSession();
 - `pausedUntil`
 - `activeMode` (`RestrictionMode?`)
 - `activeModeSource` (`none` | `manual` | `schedule`)
+- `currentSessionEvents` (`List<RestrictionLifecycleEvent>`, active-session pending events only)
 
 Derived semantics:
 - `isActiveNow == (activeMode != null)`

@@ -596,6 +596,15 @@ class RestrictionsMethodHandler(
             val pausedUntilEpochMs = restrictionManager.getPausedUntilEpochMs()
             val isPausedNow = pausedUntilEpochMs > 0L
             val state = RestrictionSessionController(context).resolveSessionState()
+            val activeSession = restrictionManager.getActiveSession()
+            val currentSessionEvents = if (activeSession == null) {
+                emptyList()
+            } else {
+                restrictionManager
+                    .getPendingLifecycleEvents(Int.MAX_VALUE)
+                    .filter { it.sessionId == activeSession.sessionId }
+                    .map { it.toChannelMap() }
+            }
             val payload = RestrictionSessionDto(
                 isScheduleEnabled = state.isScheduleEnabled,
                 isInScheduleNow = state.isInScheduleNow,
@@ -607,6 +616,7 @@ class RestrictionsMethodHandler(
                     )
                 },
                 activeModeSource = state.activeModeSource,
+                currentSessionEvents = currentSessionEvents,
             )
             result.success(payload.toChannelMap())
         } catch (e: Exception) {

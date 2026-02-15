@@ -387,7 +387,8 @@ final class RestrictionsMethodHandler {
                 isInScheduleNow: false,
                 pausedUntilEpochMs: nil,
                 activeMode: nil,
-                activeModeSource: .none
+                activeModeSource: .none,
+                currentSessionEvents: []
             ).toChannelMap())
             return
         }
@@ -396,6 +397,15 @@ final class RestrictionsMethodHandler {
         let state = resolveSessionState()
         let pausedUntilEpochMs = RestrictionStateStore.loadPausedUntilEpochMs()
         let isPausedNow = pausedUntilEpochMs > 0
+        let activeSessionId = RestrictionStateStore.loadActiveSession()?.sessionId
+        let currentSessionEvents: [RestrictionLifecycleEvent]
+        if let activeSessionId, !activeSessionId.isEmpty {
+            currentSessionEvents = RestrictionStateStore
+                .loadPendingLifecycleEvents(limit: Int.max)
+                .filter { $0.sessionId == activeSessionId }
+        } else {
+            currentSessionEvents = []
+        }
         let payload = RestrictionSessionSnapshot(
             isScheduleEnabled: state.isScheduleEnabled,
             isInScheduleNow: state.isInScheduleNow,
@@ -407,7 +417,8 @@ final class RestrictionsMethodHandler {
                     blockedAppIds: state.blockedAppIds
                 )
             },
-            activeModeSource: state.activeModeSource
+            activeModeSource: state.activeModeSource,
+            currentSessionEvents: currentSessionEvents
         )
         result(payload.toChannelMap())
     }

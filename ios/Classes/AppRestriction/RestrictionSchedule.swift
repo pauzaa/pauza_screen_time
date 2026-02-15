@@ -237,6 +237,7 @@ struct RestrictionSessionSnapshot {
     let pausedUntilEpochMs: Int64?
     let activeMode: RestrictionScheduledMode?
     let activeModeSource: RestrictionModeSource
+    let currentSessionEvents: [RestrictionLifecycleEvent]
 
     func toChannelMap() -> [String: Any] {
         return [
@@ -245,6 +246,7 @@ struct RestrictionSessionSnapshot {
             "pausedUntilEpochMs": pausedUntilEpochMs as Any,
             "activeMode": activeMode?.toChannelMap() as Any,
             "activeModeSource": activeModeSource.wireValue,
+            "currentSessionEvents": currentSessionEvents.map { $0.toChannelMap() },
         ]
     }
 }

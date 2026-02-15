@@ -2,7 +2,7 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_lifecycle_event.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_state.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 /// Platform interface for app restriction functionality.
@@ -78,7 +78,7 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
   }
 
   /// Returns the current restriction session snapshot.
-  Future<RestrictionSession> getRestrictionSession() {
+  Future<RestrictionState> getRestrictionSession() {
     throw UnimplementedError(
       'getRestrictionSession() has not been implemented.',
     );

@@ -7,7 +7,7 @@ import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/meth
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_lifecycle_event.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_state.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 /// Method-channel implementation for the Restrict Apps feature.
@@ -151,7 +151,7 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   }
 
   @override
-  Future<RestrictionSession> getRestrictionSession() async {
+  Future<RestrictionState> getRestrictionSession() async {
     final result = await channel.invokeMethod<Map<dynamic, dynamic>>(
       RestrictionsMethodNames.getRestrictionSession,
     );
@@ -164,7 +164,7 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
 
     try {
       final normalized = Map<String, dynamic>.from(result);
-      return RestrictionSession.fromMap(normalized);
+      return RestrictionState.fromMap(normalized);
     } on PlatformException {
       rethrow;
     } catch (error, stackTrace) {

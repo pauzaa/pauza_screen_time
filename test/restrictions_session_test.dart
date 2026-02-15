@@ -11,7 +11,7 @@ import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_l
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode_source.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_state.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 void main() {
@@ -39,6 +39,17 @@ void main() {
                   'blockedAppIds': ['x'],
                 },
                 'activeModeSource': 'schedule',
+                'currentSessionEvents': [
+                  {
+                    'id': '0000000000001-0000000001',
+                    'sessionId': 'session-1',
+                    'modeId': 'focus',
+                    'action': 'START',
+                    'source': 'schedule',
+                    'reason': 'schedule_start',
+                    'occurredAtEpochMs': 1,
+                  },
+                ],
               };
             }
             return null;
@@ -55,19 +66,23 @@ void main() {
       expect(session.activeMode!.modeId, 'focus');
       expect(session.activeMode!.blockedAppIds, const [AppIdentifier('x')]);
       expect(session.activeModeSource, RestrictionModeSource.schedule);
+      expect(session.currentSessionEvents, hasLength(1));
+      expect(session.currentSessionEvents.first.sessionId, 'session-1');
     });
 
     test('getRestrictionSession defaults missing keys', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {
             if (call.method == RestrictionsMethodNames.getRestrictionSession) {
-              return <String, dynamic>{};
+              return <String, dynamic>{
+                'currentSessionEvents': <String, dynamic>{'bad': true},
+              };
             }
             return null;
           });
 
       final session = await methodChannel.getRestrictionSession();
-      expect(session, isA<RestrictionSession>());
+      expect(session, isA<RestrictionState>());
       expect(session.isActiveNow, isFalse);
       expect(session.isPausedNow, isFalse);
       expect(session.isManuallyEnabled, isFalse);
@@ -76,6 +91,7 @@ void main() {
       expect(session.pausedUntil, isNull);
       expect(session.activeMode, isNull);
       expect(session.activeModeSource, RestrictionModeSource.none);
+      expect(session.currentSessionEvents, isEmpty);
     });
 
     test(
@@ -385,9 +401,9 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   }
 
   @override
-  Future<RestrictionSession> getRestrictionSession() async {
+  Future<RestrictionState> getRestrictionSession() async {
     getRestrictionSessionCalled = true;
-    return const RestrictionSession(
+    return const RestrictionState(
       isScheduleEnabled: false,
       isInScheduleNow: false,
       pausedUntil: null,
@@ -396,6 +412,7 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
         blockedAppIds: [AppIdentifier('com.example.app')],
       ),
       activeModeSource: RestrictionModeSource.manual,
+      currentSessionEvents: <RestrictionLifecycleEvent>[],
     );
   }
 

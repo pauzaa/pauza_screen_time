@@ -4,7 +4,7 @@ import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/rest
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_lifecycle_event.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_mode.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_modes_config.dart';
-import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_session.dart';
+import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_state.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 /// Manages app blocking and restriction functionality.
@@ -81,7 +81,7 @@ class AppRestrictionManager {
   }
 
   /// Returns the current restriction session snapshot.
-  Future<RestrictionSession> getRestrictionSession() {
+  Future<RestrictionState> getRestrictionSession() {
     return _platform.getRestrictionSession().throwTypedPauzaError();
   }
 }

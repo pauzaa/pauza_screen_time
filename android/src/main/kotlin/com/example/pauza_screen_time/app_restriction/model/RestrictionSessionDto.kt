@@ -12,6 +12,7 @@ data class RestrictionSessionDto(
     val pausedUntilEpochMs: Long?,
     val activeMode: RestrictionModeDto?,
     val activeModeSource: RestrictionModeSource,
+    val currentSessionEvents: List<Map<String, Any?>>,
 ) {
     fun toChannelMap(): Map<String, Any?> {
         return mapOf(
@@ -20,6 +21,7 @@ data class RestrictionSessionDto(
             "pausedUntilEpochMs" to pausedUntilEpochMs,
             "activeMode" to activeMode?.toChannelMap(),
             "activeModeSource" to activeModeSource.wireValue,
+            "currentSessionEvents" to currentSessionEvents,
         )
     }
 }
