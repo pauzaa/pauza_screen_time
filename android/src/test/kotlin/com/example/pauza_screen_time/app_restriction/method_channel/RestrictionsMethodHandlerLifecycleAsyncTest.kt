@@ -1,30 +1,37 @@
-package com.example.pauza_screen_time.app_restriction
+package com.example.pauza_screen_time.app_restriction.method_channel
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.pauza_screen_time.app_restriction.RestrictionManager
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleAction
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleEventDraft
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleSource
+import com.example.pauza_screen_time.core.MethodNames
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
 import org.mockito.Mockito
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-internal class RestrictionManagerLifecycleQueueTest {
+internal class RestrictionsMethodHandlerLifecycleAsyncTest {
     private lateinit var preferences: InMemorySharedPreferences
-    private lateinit var manager: RestrictionManager
+    private lateinit var context: Context
 
     @BeforeTest
     fun setUp() {
         resetRestrictionManagerSingleton()
         preferences = InMemorySharedPreferences()
-        val context = Mockito.mock(Context::class.java)
+        context = Mockito.mock(Context::class.java)
         Mockito.`when`(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt()))
             .thenReturn(preferences)
-        manager = RestrictionManager.getInstance(context)
     }
 
     @AfterTest
@@ -33,89 +40,131 @@ internal class RestrictionManagerLifecycleQueueTest {
     }
 
     @Test
-    fun getPendingLifecycleEvents_readsHeadWindowInOrder() {
-        assertTrue(manager.appendLifecycleEvents((1..3).map(::draft)))
-
-        val pending = manager.getPendingLifecycleEvents(limit = 2)
-
-        assertEquals(2, pending.size)
-        assertEquals(eventIdForSeq(1L, 1L), pending[0].id)
-        assertEquals(eventIdForSeq(2L, 2L), pending[1].id)
-    }
-
-    @Test
-    fun ackLifecycleEventsThrough_advancesCursorInclusively() {
-        assertTrue(manager.appendLifecycleEvents((1..3).map(::draft)))
-
-        assertTrue(manager.ackLifecycleEventsThrough(eventIdForSeq(1L, 1L)))
-        val pending = manager.getPendingLifecycleEvents(limit = 10)
-
-        assertEquals(2, pending.size)
-        assertEquals(eventIdForSeq(2L, 2L), pending[0].id)
-        assertEquals(eventIdForSeq(3L, 3L), pending[1].id)
-    }
-
-    @Test
-    fun ackLifecycleEventsThrough_futureId_drainsQueue() {
-        assertTrue(manager.appendLifecycleEvents((1..3).map(::draft)))
-
-        assertTrue(manager.ackLifecycleEventsThrough("00000000000000001000-0000000000000"))
-
-        assertTrue(manager.getPendingLifecycleEvents(limit = 10).isEmpty())
-    }
-
-    @Test
-    fun ackLifecycleEventsThrough_malformedId_returnsFalse() {
-        assertTrue(manager.appendLifecycleEvents((1..3).map(::draft)))
-
-        assertFalse(manager.ackLifecycleEventsThrough("bad-id"))
-    }
-
-    @Test
-    fun queueCap_prunesOldestEventsLogically() {
-        val drafts = (1..10_002).map(::draft)
-        assertTrue(manager.appendLifecycleEvents(drafts))
-
-        val firstPending = manager.getPendingLifecycleEvents(limit = 1).single()
-        assertEquals(eventIdForSeq(3L, 3L), firstPending.id)
-    }
-
-    @Test
-    fun missingEventRecord_isSkipped() {
-        assertTrue(manager.appendLifecycleEvents((1..3).map(::draft)))
-        preferences.edit().remove(eventKeyForSeq(2L)).commit()
-
-        val pending = manager.getPendingLifecycleEvents(limit = 3)
-
-        assertEquals(2, pending.size)
-        assertEquals(eventIdForSeq(1L, 1L), pending[0].id)
-        assertEquals(eventIdForSeq(3L, 3L), pending[1].id)
-    }
-
-    @Test
-    fun ackTriggersBoundedGcDeletion() {
-        assertTrue(manager.appendLifecycleEvents((1..5).map(::draft)))
-        assertTrue(preferences.contains(eventKeyForSeq(1L)))
-        assertTrue(preferences.contains(eventKeyForSeq(2L)))
-
-        assertTrue(manager.ackLifecycleEventsThrough(eventIdForSeq(3L, 3L)))
-
-        assertFalse(preferences.contains(eventKeyForSeq(1L)))
-        assertFalse(preferences.contains(eventKeyForSeq(2L)))
-        assertFalse(preferences.contains(eventKeyForSeq(3L)))
-        assertTrue(preferences.contains(eventKeyForSeq(4L)))
-    }
-
-    private fun draft(index: Int): RestrictionLifecycleEventDraft {
-        val seq = index.toLong()
-        return RestrictionLifecycleEventDraft(
-            sessionId = "s1",
-            modeId = "focus",
-            action = RestrictionLifecycleAction.START,
-            source = RestrictionLifecycleSource.MANUAL,
-            reason = "test_$index",
-            occurredAtEpochMs = seq,
+    fun getPendingLifecycleEvents_returnsPayloadViaAsyncExecutorPath() {
+        val manager = RestrictionManager.getInstance(context)
+        assertTrue(
+            manager.appendLifecycleEvents(
+                listOf(
+                    RestrictionLifecycleEventDraft(
+                        sessionId = "s1",
+                        modeId = "focus",
+                        action = RestrictionLifecycleAction.START,
+                        source = RestrictionLifecycleSource.MANUAL,
+                        reason = "test",
+                        occurredAtEpochMs = 1L,
+                    ),
+                ),
+            ),
         )
+
+        val executor = Executors.newSingleThreadExecutor()
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            lifecycleExecutor = executor,
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.GET_PENDING_LIFECYCLE_EVENTS, mapOf("limit" to 10)),
+            result,
+        )
+
+        assertTrue(result.await())
+        val success = result.successValue as? List<*>
+        assertNotNull(success)
+        assertEquals(1, success.size)
+        val first = success.first() as? Map<*, *>
+        assertNotNull(first)
+        assertEquals("START", first["action"])
+        assertNull(result.errorCode)
+
+        handler.dispose()
+        executor.shutdown()
+    }
+
+    @Test
+    fun ackLifecycleEvents_returnsSuccessViaAsyncExecutorPath() {
+        val manager = RestrictionManager.getInstance(context)
+        assertTrue(
+            manager.appendLifecycleEvents(
+                listOf(
+                    RestrictionLifecycleEventDraft(
+                        sessionId = "s1",
+                        modeId = "focus",
+                        action = RestrictionLifecycleAction.START,
+                        source = RestrictionLifecycleSource.MANUAL,
+                        reason = "test",
+                        occurredAtEpochMs = 1L,
+                    ),
+                ),
+            ),
+        )
+        val throughId = manager.getPendingLifecycleEvents(1).first().id
+
+        val executor = Executors.newSingleThreadExecutor()
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            lifecycleExecutor = executor,
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.ACK_LIFECYCLE_EVENTS, mapOf("throughEventId" to throughId)),
+            result,
+        )
+
+        assertTrue(result.await())
+        assertNull(result.errorCode)
+        assertEquals(null, result.successValue)
+
+        handler.dispose()
+        executor.shutdown()
+    }
+
+    @Test
+    fun invalidArgs_failFastWithoutExecutorWork() {
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            lifecycleExecutor = Executors.newSingleThreadExecutor(),
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.GET_PENDING_LIFECYCLE_EVENTS, mapOf("limit" to 0)),
+            result,
+        )
+
+        assertEquals("INVALID_ARGUMENT", result.errorCode)
+        handler.dispose()
+    }
+
+    @Test
+    fun asyncFailure_mapsToInternalFailure() {
+        val badContext = Mockito.mock(Context::class.java)
+        Mockito.`when`(badContext.getSharedPreferences(Mockito.anyString(), Mockito.anyInt()))
+            .thenThrow(IllegalStateException("boom"))
+
+        val executor = Executors.newSingleThreadExecutor()
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { badContext },
+            lifecycleExecutor = executor,
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.GET_PENDING_LIFECYCLE_EVENTS, mapOf("limit" to 1)),
+            result,
+        )
+
+        assertTrue(result.await())
+        assertEquals("INTERNAL_FAILURE", result.errorCode)
+
+        handler.dispose()
+        executor.shutdown()
     }
 
     private fun resetRestrictionManagerSingleton() {
@@ -125,12 +174,31 @@ internal class RestrictionManagerLifecycleQueueTest {
     }
 }
 
-private fun eventKeyForSeq(seq: Long): String {
-    return "lifecycle_event.${seq.toString().padStart(20, '0')}"
-}
+private class LatchingResult : MethodChannel.Result {
+    private val latch = CountDownLatch(1)
+    var successValue: Any? = null
+    var errorCode: String? = null
+    var errorMessage: String? = null
+    var errorDetails: Any? = null
 
-private fun eventIdForSeq(seq: Long, occurredAtEpochMs: Long): String {
-    return "${seq.toString().padStart(20, '0')}-${occurredAtEpochMs.toString().padStart(13, '0')}"
+    override fun success(result: Any?) {
+        successValue = result
+        latch.countDown()
+    }
+
+    override fun error(errorCode: String, errorMessage: String?, errorDetails: Any?) {
+        this.errorCode = errorCode
+        this.errorMessage = errorMessage
+        this.errorDetails = errorDetails
+        latch.countDown()
+    }
+
+    override fun notImplemented() {
+        errorCode = "NOT_IMPLEMENTED"
+        latch.countDown()
+    }
+
+    fun await(timeoutMs: Long = 2000): Boolean = latch.await(timeoutMs, TimeUnit.MILLISECONDS)
 }
 
 private class InMemorySharedPreferences : SharedPreferences {

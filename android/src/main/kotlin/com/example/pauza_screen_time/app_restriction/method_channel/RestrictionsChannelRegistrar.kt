@@ -19,6 +19,7 @@ internal class RestrictionsChannelRegistrar {
     fun detach() {
         channel?.setMethodCallHandler(null)
         channel = null
+        methodHandler?.dispose()
         methodHandler = null
     }
 }

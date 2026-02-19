@@ -7,6 +7,7 @@ final class RestrictionsMethodHandler {
     private static let featureRestrictions = "restrictions"
     private static let platformIOS = "ios"
     private static let maxReliablePauseDurationMs: Int64 = 24 * 60 * 60 * 1000
+    private let lifecycleQueue = DispatchQueue(label: "pauza.restrictions.lifecycle.queue")
 
     func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
@@ -339,8 +340,12 @@ final class RestrictionsMethodHandler {
             ))
             return
         }
-        let events = RestrictionStateStore.loadPendingLifecycleEvents(limit: limit)
-        result(events.map { $0.toChannelMap() })
+        lifecycleQueue.async {
+            let events = RestrictionStateStore.loadPendingLifecycleEvents(limit: limit)
+            DispatchQueue.main.async {
+                result(events.map { $0.toChannelMap() })
+            }
+        }
     }
 
     private func handleAckLifecycleEvents(call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -367,16 +372,21 @@ final class RestrictionsMethodHandler {
             return
         }
 
-        switch RestrictionStateStore.ackLifecycleEvents(throughEventId: throughEventId) {
-        case .success:
-            result(nil)
-        case .appGroupUnavailable(let resolvedGroupId):
-            result(PluginErrors.internalFailure(
-                feature: Self.featureRestrictions,
-                action: MethodNames.ackLifecycleEvents,
-                message: PluginErrorMessage.appGroupUnavailable,
-                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
-            ))
+        lifecycleQueue.async {
+            let ackResult = RestrictionStateStore.ackLifecycleEvents(throughEventId: throughEventId)
+            DispatchQueue.main.async {
+                switch ackResult {
+                case .success:
+                    result(nil)
+                case .appGroupUnavailable(let resolvedGroupId):
+                    result(PluginErrors.internalFailure(
+                        feature: Self.featureRestrictions,
+                        action: MethodNames.ackLifecycleEvents,
+                        message: PluginErrorMessage.appGroupUnavailable,
+                        diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                    ))
+                }
+            }
         }
     }
 

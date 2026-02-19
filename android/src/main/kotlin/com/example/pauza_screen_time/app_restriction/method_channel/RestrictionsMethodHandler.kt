@@ -1,6 +1,8 @@
 package com.example.pauza_screen_time.app_restriction.method_channel
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
 import com.example.pauza_screen_time.app_restriction.RestrictionSessionController
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeDto
@@ -18,12 +20,16 @@ import com.example.pauza_screen_time.permissions.PermissionHandler
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 class RestrictionsMethodHandler(
     private val contextProvider: () -> Context?,
     private val accessibilityStatusProvider: (Context) -> String = {
         PermissionHandler(it).checkPermission(PermissionHandler.ACCESSIBILITY_KEY)
     },
+    private val lifecycleExecutor: ExecutorService = Executors.newSingleThreadExecutor(),
+    private val resultPoster: ((() -> Unit) -> Unit)? = null,
 ) : MethodCallHandler {
     companion object {
         private const val ANDROID_ACCESSIBILITY_KEY = "android.accessibility"
@@ -58,6 +64,19 @@ class RestrictionsMethodHandler(
                 error = e,
             )
         }
+    }
+
+    fun dispose() {
+        lifecycleExecutor.shutdown()
+    }
+
+    private fun postResult(action: () -> Unit) {
+        val poster = resultPoster
+        if (poster != null) {
+            poster(action)
+            return
+        }
+        Handler(Looper.getMainLooper()).post(action)
     }
 
     private fun handleConfigureShield(call: MethodCall, result: Result) {
@@ -654,17 +673,23 @@ class RestrictionsMethodHandler(
             return
         }
 
-        try {
-            val events = RestrictionManager.getInstance(context).getPendingLifecycleEvents(limit)
-            result.success(events.map { it.toChannelMap() })
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_PENDING_LIFECYCLE_EVENTS,
-                message = "Failed to load pending lifecycle events: ${e.message}",
-                error = e,
-            )
+        lifecycleExecutor.execute {
+            try {
+                val events = RestrictionManager.getInstance(context).getPendingLifecycleEvents(limit)
+                postResult {
+                    result.success(events.map { it.toChannelMap() })
+                }
+            } catch (e: Exception) {
+                postResult {
+                    PluginErrorHelper.internalFailure(
+                        result = result,
+                        feature = FEATURE,
+                        action = MethodNames.GET_PENDING_LIFECYCLE_EVENTS,
+                        message = "Failed to load pending lifecycle events: ${e.message}",
+                        error = e,
+                    )
+                }
+            }
         }
     }
 
@@ -692,26 +717,34 @@ class RestrictionsMethodHandler(
             return
         }
 
-        try {
-            val success = RestrictionManager.getInstance(context).ackLifecycleEventsThrough(throughEventId)
-            if (!success) {
-                PluginErrorHelper.internalFailure(
-                    result = result,
-                    feature = FEATURE,
-                    action = MethodNames.ACK_LIFECYCLE_EVENTS,
-                    message = "Failed to acknowledge lifecycle events",
-                )
-                return
+        lifecycleExecutor.execute {
+            try {
+                val success = RestrictionManager.getInstance(context).ackLifecycleEventsThrough(throughEventId)
+                if (!success) {
+                    postResult {
+                        PluginErrorHelper.internalFailure(
+                            result = result,
+                            feature = FEATURE,
+                            action = MethodNames.ACK_LIFECYCLE_EVENTS,
+                            message = "Failed to acknowledge lifecycle events",
+                        )
+                    }
+                    return@execute
+                }
+                postResult {
+                    result.success(null)
+                }
+            } catch (e: Exception) {
+                postResult {
+                    PluginErrorHelper.internalFailure(
+                        result = result,
+                        feature = FEATURE,
+                        action = MethodNames.ACK_LIFECYCLE_EVENTS,
+                        message = "Failed to acknowledge lifecycle events: ${e.message}",
+                        error = e,
+                    )
+                }
             }
-            result.success(null)
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.ACK_LIFECYCLE_EVENTS,
-                message = "Failed to acknowledge lifecycle events: ${e.message}",
-                error = e,
-            )
         }
     }
 

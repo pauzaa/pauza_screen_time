@@ -24,14 +24,9 @@ class RestrictionManager private constructor(context: Context) {
         private const val KEY_ACTIVE_SESSION_BLOCKED_APPS = "blockedAppIds"
         private const val KEY_ACTIVE_SESSION_SOURCE = "source"
         private const val KEY_ACTIVE_SESSION_ID = "sessionId"
-        private const val KEY_LIFECYCLE_QUEUE_VERSION = "lifecycle_queue_version"
-        private const val KEY_LIFECYCLE_HEAD_SEQ = "lifecycle_head_seq"
-        private const val KEY_LIFECYCLE_TAIL_SEQ = "lifecycle_tail_seq"
-        private const val KEY_LIFECYCLE_GC_FLOOR_SEQ = "lifecycle_gc_floor_seq"
-        private const val KEY_LIFECYCLE_EVENT_PREFIX = "lifecycle_event."
+        private const val KEY_LIFECYCLE_EVENTS = "lifecycle_events"
+        private const val KEY_LIFECYCLE_EVENT_SEQ = "lifecycle_event_seq"
         private const val KEY_SESSION_ID_SEQ = "session_id_seq"
-        private const val LIFECYCLE_QUEUE_VERSION = 2L
-        private const val LIFECYCLE_GC_BATCH_SIZE = 128L
         private const val MAX_LIFECYCLE_EVENTS = 10_000
 
         @Volatile
@@ -261,11 +256,12 @@ class RestrictionManager private constructor(context: Context) {
         }
 
         return try {
-            var (headSeq, tailSeq) = readHeadTail()
+            val persisted = loadLifecycleEvents().toMutableList()
+            var nextSeq = preferences.getLong(KEY_LIFECYCLE_EVENT_SEQ, 0L)
             events.forEach { draft ->
                 val normalized = normalizeLifecycleDraft(draft) ?: return@forEach
-                val nextSeq = if (isQueueEmpty(headSeq, tailSeq)) headSeq else tailSeq + 1L
-                val nextEvent = RestrictionLifecycleEvent(
+                nextSeq += 1
+                persisted += RestrictionLifecycleEvent(
                     id = nextLifecycleEventId(nextSeq, normalized.occurredAtEpochMs),
                     sessionId = normalized.sessionId,
                     modeId = normalized.modeId,
@@ -274,22 +270,12 @@ class RestrictionManager private constructor(context: Context) {
                     reason = normalized.reason,
                     occurredAtEpochMs = normalized.occurredAtEpochMs,
                 )
-                preferences.edit()
-                    .putString(eventKey(nextSeq), nextEvent.toStorageJson().toString())
-                    .apply()
-
-                if (isQueueEmpty(headSeq, tailSeq)) {
-                    headSeq = nextSeq
-                }
-                tailSeq = nextSeq
-
-                while (!isQueueEmpty(headSeq, tailSeq) && (tailSeq - headSeq + 1L) > MAX_LIFECYCLE_EVENTS) {
-                    headSeq += 1L
-                }
             }
-
-            persistLifecycleMetadata(headSeq, tailSeq)
-            compactUpTo(headSeq - 1L)
+            if (persisted.size > MAX_LIFECYCLE_EVENTS) {
+                val overflow = persisted.size - MAX_LIFECYCLE_EVENTS
+                repeat(overflow) { persisted.removeAt(0) }
+            }
+            persistLifecycleEvents(persisted, nextSeq)
             true
         } catch (e: Exception) {
             Log.w(TAG, "Failed to append lifecycle events", e)
@@ -300,22 +286,7 @@ class RestrictionManager private constructor(context: Context) {
     @Synchronized
     internal fun getPendingLifecycleEvents(limit: Int): List<RestrictionLifecycleEvent> {
         val normalizedLimit = limit.coerceIn(1, MAX_LIFECYCLE_EVENTS)
-        val (headSeq, tailSeq) = readHeadTail()
-        if (isQueueEmpty(headSeq, tailSeq)) {
-            return emptyList()
-        }
-
-        val endSeq = minOf(tailSeq, headSeq + normalizedLimit - 1L)
-        val pending = mutableListOf<RestrictionLifecycleEvent>()
-        var seq = headSeq
-        while (seq <= endSeq) {
-            val event = loadLifecycleEvent(seq)
-            if (event != null) {
-                pending += event
-            }
-            seq += 1L
-        }
-        return pending
+        return loadLifecycleEvents().take(normalizedLimit)
     }
 
     @Synchronized
@@ -324,20 +295,13 @@ class RestrictionManager private constructor(context: Context) {
         if (normalizedId.isEmpty()) {
             return false
         }
-        val throughSeq = parseSeqFromEventId(normalizedId) ?: return false
 
         return try {
-            val (headSeq, tailSeq) = readHeadTail()
-            if (isQueueEmpty(headSeq, tailSeq)) {
-                return true
+            val events = loadLifecycleEvents()
+            val next = events.filter { it.id > normalizedId }
+            if (events.size != next.size) {
+                persistLifecycleEvents(next, preferences.getLong(KEY_LIFECYCLE_EVENT_SEQ, 0L))
             }
-
-            val nextHead = maxOf(headSeq, minOf(throughSeq + 1L, tailSeq + 1L))
-            if (nextHead != headSeq) {
-                persistLifecycleMetadata(nextHead, tailSeq)
-                compactUpTo(nextHead - 1L)
-            }
-
             true
         } catch (e: Exception) {
             Log.w(TAG, "Failed to ack lifecycle events through id=$normalizedId", e)
@@ -408,81 +372,32 @@ class RestrictionManager private constructor(context: Context) {
         return "s-${formatCounter(nextSeq, 12)}-${formatEpochMs(nowMs)}"
     }
 
-    private fun loadLifecycleEvent(seq: Long): RestrictionLifecycleEvent? {
-        val serialized = preferences.getString(eventKey(seq), null)?.trim().orEmpty()
+    private fun loadLifecycleEvents(): List<RestrictionLifecycleEvent> {
+        val serialized = preferences.getString(KEY_LIFECYCLE_EVENTS, null)?.trim().orEmpty()
         if (serialized.isEmpty()) {
-            return null
+            return emptyList()
         }
         return try {
-            RestrictionLifecycleEvent.fromStorageJson(JSONObject(serialized))
+            val payload = JSONArray(serialized)
+            val events = mutableListOf<RestrictionLifecycleEvent>()
+            for (index in 0 until payload.length()) {
+                val raw = payload.optJSONObject(index) ?: continue
+                val parsed = RestrictionLifecycleEvent.fromStorageJson(raw) ?: continue
+                events += parsed
+            }
+            events.sortedBy { it.id }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to parse lifecycle event at seq=$seq", e)
-            null
+            Log.w(TAG, "Failed to parse lifecycle queue payload", e)
+            emptyList()
         }
     }
 
-    private fun persistLifecycleMetadata(headSeq: Long, tailSeq: Long) {
-        val normalizedHead = maxOf(1L, headSeq)
-        val normalizedTail = maxOf(0L, tailSeq)
+    private fun persistLifecycleEvents(events: List<RestrictionLifecycleEvent>, seq: Long) {
+        val payload = JSONArray()
+        events.forEach { payload.put(it.toStorageJson()) }
         preferences.edit()
-            .putLong(KEY_LIFECYCLE_QUEUE_VERSION, LIFECYCLE_QUEUE_VERSION)
-            .putLong(KEY_LIFECYCLE_HEAD_SEQ, normalizedHead)
-            .putLong(KEY_LIFECYCLE_TAIL_SEQ, normalizedTail)
-            .apply()
-    }
-
-    private fun readHeadTail(): Pair<Long, Long> {
-        var head = preferences.getLong(KEY_LIFECYCLE_HEAD_SEQ, 1L)
-        var tail = preferences.getLong(KEY_LIFECYCLE_TAIL_SEQ, 0L)
-        if (head <= 0L) {
-            head = 1L
-        }
-        if (tail < 0L) {
-            tail = 0L
-        }
-        if (head > tail + 1L) {
-            head = tail + 1L
-        }
-        return head to tail
-    }
-
-    private fun isQueueEmpty(head: Long, tail: Long): Boolean {
-        return head > tail
-    }
-
-    private fun parseSeqFromEventId(id: String): Long? {
-        val seqPart = id.substringBefore('-', "").trim()
-        if (seqPart.isEmpty()) {
-            return null
-        }
-        return seqPart.toLongOrNull()
-    }
-
-    private fun eventKey(seq: Long): String {
-        return "$KEY_LIFECYCLE_EVENT_PREFIX${formatCounter(seq, 20)}"
-    }
-
-    private fun compactUpTo(seqInclusive: Long) {
-        if (seqInclusive < 0L) {
-            return
-        }
-
-        val gcFloor = preferences.getLong(KEY_LIFECYCLE_GC_FLOOR_SEQ, 0L).coerceAtLeast(0L)
-        val startSeq = gcFloor + 1L
-        if (startSeq > seqInclusive) {
-            return
-        }
-
-        val endSeq = minOf(seqInclusive, startSeq + LIFECYCLE_GC_BATCH_SIZE - 1L)
-        val editor = preferences.edit()
-        var seq = startSeq
-        while (seq <= endSeq) {
-            editor.remove(eventKey(seq))
-            seq += 1L
-        }
-        editor
-            .putLong(KEY_LIFECYCLE_QUEUE_VERSION, LIFECYCLE_QUEUE_VERSION)
-            .putLong(KEY_LIFECYCLE_GC_FLOOR_SEQ, endSeq)
+            .putString(KEY_LIFECYCLE_EVENTS, payload.toString())
+            .putLong(KEY_LIFECYCLE_EVENT_SEQ, seq.coerceAtLeast(0L))
             .apply()
     }
 
