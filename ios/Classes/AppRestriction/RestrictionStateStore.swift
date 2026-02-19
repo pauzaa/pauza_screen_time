@@ -8,6 +8,7 @@ enum RestrictionStateStore {
     static let modesEnabledKey = "modesEnabled"
     static let modesKey = "modes"
     static let lifecycleEventsKey = "lifecycleEvents"
+    static let activeSessionLifecycleEventsKey = "activeSessionLifecycleEvents"
     static let lifecycleEventSeqKey = "lifecycleEventSeq"
     static let sessionIdSeqKey = "sessionIdSeq"
 
@@ -116,6 +117,8 @@ enum RestrictionStateStore {
         guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
             return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
         }
+        let previousSessionId = ActiveSession.fromStorageMap(defaults.dictionary(forKey: activeSessionKey) ?? [:])?.sessionId
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         if let session {
             let normalizedSessionId = session.sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
             let persisted = ActiveSession(
@@ -124,9 +127,13 @@ enum RestrictionStateStore {
                 blockedAppIds: session.blockedAppIds,
                 source: session.source
             )
+            if previousSessionId != persisted.sessionId {
+                clearActiveSessionLifecycleEvents(defaults: defaults)
+            }
             defaults.set(persisted.toStorageMap(), forKey: activeSessionKey)
         } else {
             defaults.removeObject(forKey: activeSessionKey)
+            clearActiveSessionLifecycleEvents(defaults: defaults)
         }
         return .success
     }
@@ -176,6 +183,16 @@ enum RestrictionStateStore {
         return loadLifecycleEvents(defaults: defaults).prefix(normalizedLimit).map { $0 }
     }
 
+    static func loadActiveSessionLifecycleEvents(limit: Int) -> [RestrictionLifecycleEvent] {
+        guard let defaults = AppGroupStore.sharedDefaults() else {
+            return []
+        }
+        let normalizedLimit = max(1, min(limit, maxLifecycleEvents))
+        lifecycleLock.lock()
+        defer { lifecycleLock.unlock() }
+        return loadActiveSessionLifecycleEvents(defaults: defaults).prefix(normalizedLimit).map { $0 }
+    }
+
     @discardableResult
     static func ackLifecycleEvents(throughEventId: String) -> StoreResult {
         let normalizedId = throughEventId.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -215,28 +232,37 @@ enum RestrictionStateStore {
         defer { lifecycleLock.unlock() }
 
         var events = loadLifecycleEvents(defaults: defaults)
+        var activeSessionEvents = loadActiveSessionLifecycleEvents(defaults: defaults)
+        let activeSessionId = ActiveSession.fromStorageMap(defaults.dictionary(forKey: activeSessionKey) ?? [:])?.sessionId
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         var nextSeq = sequenceValue(defaults, key: lifecycleEventSeqKey)
         for draft in drafts {
             guard let normalized = normalizeLifecycleDraft(draft) else {
                 continue
             }
             nextSeq += 1
-            events.append(
-                RestrictionLifecycleEvent(
-                    id: nextLifecycleEventId(seq: nextSeq, occurredAtEpochMs: normalized.occurredAtEpochMs),
-                    sessionId: normalized.sessionId,
-                    modeId: normalized.modeId,
-                    action: normalized.action,
-                    source: normalized.source,
-                    reason: normalized.reason,
-                    occurredAtEpochMs: normalized.occurredAtEpochMs
-                )
+            let generated = RestrictionLifecycleEvent(
+                id: nextLifecycleEventId(seq: nextSeq, occurredAtEpochMs: normalized.occurredAtEpochMs),
+                sessionId: normalized.sessionId,
+                modeId: normalized.modeId,
+                action: normalized.action,
+                source: normalized.source,
+                reason: normalized.reason,
+                occurredAtEpochMs: normalized.occurredAtEpochMs
             )
+            events.append(generated)
+            if !activeSessionId.isEmpty, generated.sessionId == activeSessionId {
+                activeSessionEvents.append(generated)
+            }
         }
         if events.count > maxLifecycleEvents {
             events = Array(events.suffix(maxLifecycleEvents))
         }
+        if activeSessionEvents.count > maxLifecycleEvents {
+            activeSessionEvents = Array(activeSessionEvents.suffix(maxLifecycleEvents))
+        }
         persistLifecycleEvents(events, seq: nextSeq, defaults: defaults)
+        persistActiveSessionLifecycleEvents(activeSessionEvents, defaults: defaults)
         return .success
     }
 
@@ -359,6 +385,15 @@ enum RestrictionStateStore {
             .sorted { $0.id < $1.id }
     }
 
+    private static func loadActiveSessionLifecycleEvents(defaults: UserDefaults) -> [RestrictionLifecycleEvent] {
+        guard let values = defaults.array(forKey: activeSessionLifecycleEventsKey) as? [[String: Any]] else {
+            return []
+        }
+        return values
+            .compactMap(RestrictionLifecycleEvent.init)
+            .sorted { $0.id < $1.id }
+    }
+
     private static func persistLifecycleEvents(
         _ events: [RestrictionLifecycleEvent],
         seq: Int64,
@@ -366,6 +401,24 @@ enum RestrictionStateStore {
     ) {
         defaults.set(events.map { $0.toStorageMap() }, forKey: lifecycleEventsKey)
         defaults.set(max(seq, 0), forKey: lifecycleEventSeqKey)
+    }
+
+    private static func persistActiveSessionLifecycleEvents(
+        _ events: [RestrictionLifecycleEvent],
+        defaults: UserDefaults
+    ) {
+        defaults.set(events.map { $0.toStorageMap() }, forKey: activeSessionLifecycleEventsKey)
+    }
+
+    static func clearActiveSessionLifecycleEvents(defaults: UserDefaults? = nil) {
+        if let defaults {
+            defaults.removeObject(forKey: activeSessionLifecycleEventsKey)
+            return
+        }
+        guard let sharedDefaults = AppGroupStore.sharedDefaults() else {
+            return
+        }
+        sharedDefaults.removeObject(forKey: activeSessionLifecycleEventsKey)
     }
 
     private static func normalizeLifecycleDraft(

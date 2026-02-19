@@ -411,8 +411,7 @@ final class RestrictionsMethodHandler {
         let currentSessionEvents: [RestrictionLifecycleEvent]
         if let activeSessionId, !activeSessionId.isEmpty {
             currentSessionEvents = RestrictionStateStore
-                .loadPendingLifecycleEvents(limit: Int.max)
-                .filter { $0.sessionId == activeSessionId }
+                .loadActiveSessionLifecycleEvents(limit: Int.max)
         } else {
             currentSessionEvents = []
         }

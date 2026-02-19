@@ -620,8 +620,7 @@ class RestrictionsMethodHandler(
                 emptyList()
             } else {
                 restrictionManager
-                    .getPendingLifecycleEvents(Int.MAX_VALUE)
-                    .filter { it.sessionId == activeSession.sessionId }
+                    .loadActiveSessionLifecycleEvents()
                     .map { it.toChannelMap() }
             }
             val payload = RestrictionSessionDto(

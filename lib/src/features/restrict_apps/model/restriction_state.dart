@@ -28,7 +28,7 @@ class RestrictionState {
   /// Source that selected the active mode.
   final RestrictionModeSource activeModeSource;
 
-  /// Pending lifecycle events for the current active session.
+  /// Lifecycle events persisted for the current active session snapshot.
   final List<RestrictionLifecycleEvent> currentSessionEvents;
 
   /// Whether restrictions are currently considered active.

@@ -6,6 +6,7 @@ import com.example.pauza_screen_time.app_restriction.RestrictionManager
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleAction
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleEventDraft
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleSource
+import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
 import com.example.pauza_screen_time.core.MethodNames
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -121,6 +122,64 @@ internal class RestrictionsMethodHandlerLifecycleAsyncTest {
 
         handler.dispose()
         executor.shutdown()
+    }
+
+    @Test
+    fun getRestrictionSession_readsCurrentSessionEventsFromDedicatedActiveLog() {
+        val manager = RestrictionManager.getInstance(context)
+        manager.setActiveSession(
+            modeId = "focus",
+            blockedAppIds = listOf("com.example.app"),
+            source = RestrictionModeSource.MANUAL,
+            sessionId = "session-a",
+        )
+        assertTrue(
+            manager.appendLifecycleEvents(
+                listOf(
+                    RestrictionLifecycleEventDraft(
+                        sessionId = "session-a",
+                        modeId = "focus",
+                        action = RestrictionLifecycleAction.START,
+                        source = RestrictionLifecycleSource.MANUAL,
+                        reason = "session_a_start",
+                        occurredAtEpochMs = 1L,
+                    ),
+                    RestrictionLifecycleEventDraft(
+                        sessionId = "session-b",
+                        modeId = "focus",
+                        action = RestrictionLifecycleAction.START,
+                        source = RestrictionLifecycleSource.MANUAL,
+                        reason = "session_b_start",
+                        occurredAtEpochMs = 2L,
+                    ),
+                ),
+            ),
+        )
+        assertEquals(2, manager.getPendingLifecycleEvents(10).size)
+        assertEquals(1, manager.loadActiveSessionLifecycleEvents().size)
+
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+        handler.onMethodCall(
+            MethodCall(MethodNames.GET_RESTRICTION_SESSION, null),
+            result,
+        )
+
+        assertTrue(result.await())
+        val payload = result.successValue as? Map<*, *>
+        assertNotNull(payload)
+        val currentSessionEvents = payload["currentSessionEvents"] as? List<*>
+        assertNotNull(currentSessionEvents)
+        assertEquals(1, currentSessionEvents.size)
+        val first = currentSessionEvents.firstOrNull() as? Map<*, *>
+        assertNotNull(first)
+        assertEquals("session-a", first["sessionId"])
+        assertNull(result.errorCode)
+
+        handler.dispose()
     }
 
     @Test

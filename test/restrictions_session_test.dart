@@ -70,6 +70,61 @@ void main() {
       expect(session.currentSessionEvents.first.sessionId, 'session-1');
     });
 
+    test(
+      'getRestrictionSession preserves full current session event log',
+      () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, (call) async {
+              if (call.method ==
+                  RestrictionsMethodNames.getRestrictionSession) {
+                return {
+                  'activeMode': {
+                    'modeId': 'focus',
+                    'blockedAppIds': ['x'],
+                  },
+                  'activeModeSource': 'manual',
+                  'currentSessionEvents': [
+                    {
+                      'id': '0000000000001-0000000001',
+                      'sessionId': 'session-1',
+                      'modeId': 'focus',
+                      'action': 'START',
+                      'source': 'manual',
+                      'reason': 'start',
+                      'occurredAtEpochMs': 1,
+                    },
+                    {
+                      'id': '0000000000002-0000000002',
+                      'sessionId': 'session-1',
+                      'modeId': 'focus',
+                      'action': 'PAUSE',
+                      'source': 'manual',
+                      'reason': 'pause',
+                      'occurredAtEpochMs': 2,
+                    },
+                  ],
+                };
+              }
+              return null;
+            });
+
+        final session = await methodChannel.getRestrictionSession();
+        expect(session.currentSessionEvents, hasLength(2));
+        expect(
+          session.currentSessionEvents.first.action,
+          RestrictionLifecycleAction.start,
+        );
+        expect(
+          session.currentSessionEvents.last.action,
+          RestrictionLifecycleAction.pause,
+        );
+        expect(
+          session.currentSessionEvents.last.occurredAt,
+          DateTime.fromMillisecondsSinceEpoch(2, isUtc: true),
+        );
+      },
+    );
+
     test('getRestrictionSession defaults missing keys', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(channel, (call) async {

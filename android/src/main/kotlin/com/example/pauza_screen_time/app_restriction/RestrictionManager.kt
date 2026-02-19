@@ -25,6 +25,7 @@ class RestrictionManager private constructor(context: Context) {
         private const val KEY_ACTIVE_SESSION_SOURCE = "source"
         private const val KEY_ACTIVE_SESSION_ID = "sessionId"
         private const val KEY_LIFECYCLE_EVENTS = "lifecycle_events"
+        private const val KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS = "active_session_lifecycle_events"
         private const val KEY_LIFECYCLE_EVENT_SEQ = "lifecycle_event_seq"
         private const val KEY_SESSION_ID_SEQ = "session_id_seq"
         private const val MAX_LIFECYCLE_EVENTS = 10_000
@@ -187,6 +188,7 @@ class RestrictionManager private constructor(context: Context) {
         }
 
         val persisted = getActiveSession()
+        val previousSessionId = persisted?.sessionId
         val resolvedSessionId = sessionId?.trim().takeUnless { it.isNullOrEmpty() }
             ?: if (
                 persisted != null &&
@@ -203,6 +205,9 @@ class RestrictionManager private constructor(context: Context) {
             blockedAppIds = normalizedBlockedIds,
             source = source,
         )
+        if (previousSessionId != nextSession.sessionId) {
+            clearActiveSessionLifecycleEvents()
+        }
         persistActiveSession(nextSession)
         Log.d(
             TAG,
@@ -214,6 +219,7 @@ class RestrictionManager private constructor(context: Context) {
     fun clearActiveSession() {
         preferences.edit()
             .remove(KEY_ACTIVE_SESSION)
+            .remove(KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS)
             .apply()
         Log.d(TAG, "Active session cleared")
     }
@@ -257,11 +263,13 @@ class RestrictionManager private constructor(context: Context) {
 
         return try {
             val persisted = loadLifecycleEvents().toMutableList()
+            val activeSessionPersisted = loadActiveSessionLifecycleEvents().toMutableList()
+            val activeSessionId = getActiveSession()?.sessionId?.trim().orEmpty()
             var nextSeq = preferences.getLong(KEY_LIFECYCLE_EVENT_SEQ, 0L)
             events.forEach { draft ->
                 val normalized = normalizeLifecycleDraft(draft) ?: return@forEach
                 nextSeq += 1
-                persisted += RestrictionLifecycleEvent(
+                val generated = RestrictionLifecycleEvent(
                     id = nextLifecycleEventId(nextSeq, normalized.occurredAtEpochMs),
                     sessionId = normalized.sessionId,
                     modeId = normalized.modeId,
@@ -270,12 +278,21 @@ class RestrictionManager private constructor(context: Context) {
                     reason = normalized.reason,
                     occurredAtEpochMs = normalized.occurredAtEpochMs,
                 )
+                persisted += generated
+                if (activeSessionId.isNotEmpty() && generated.sessionId == activeSessionId) {
+                    activeSessionPersisted += generated
+                }
             }
             if (persisted.size > MAX_LIFECYCLE_EVENTS) {
                 val overflow = persisted.size - MAX_LIFECYCLE_EVENTS
                 repeat(overflow) { persisted.removeAt(0) }
             }
+            if (activeSessionPersisted.size > MAX_LIFECYCLE_EVENTS) {
+                val overflow = activeSessionPersisted.size - MAX_LIFECYCLE_EVENTS
+                repeat(overflow) { activeSessionPersisted.removeAt(0) }
+            }
             persistLifecycleEvents(persisted, nextSeq)
+            persistActiveSessionLifecycleEvents(activeSessionPersisted)
             true
         } catch (e: Exception) {
             Log.w(TAG, "Failed to append lifecycle events", e)
@@ -287,6 +304,27 @@ class RestrictionManager private constructor(context: Context) {
     internal fun getPendingLifecycleEvents(limit: Int): List<RestrictionLifecycleEvent> {
         val normalizedLimit = limit.coerceIn(1, MAX_LIFECYCLE_EVENTS)
         return loadLifecycleEvents().take(normalizedLimit)
+    }
+
+    @Synchronized
+    internal fun loadActiveSessionLifecycleEvents(): List<RestrictionLifecycleEvent> {
+        val serialized = preferences.getString(KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS, null)?.trim().orEmpty()
+        if (serialized.isEmpty()) {
+            return emptyList()
+        }
+        return try {
+            val payload = JSONArray(serialized)
+            val events = mutableListOf<RestrictionLifecycleEvent>()
+            for (index in 0 until payload.length()) {
+                val raw = payload.optJSONObject(index) ?: continue
+                val parsed = RestrictionLifecycleEvent.fromStorageJson(raw) ?: continue
+                events += parsed
+            }
+            events.sortedBy { it.id }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse active-session lifecycle payload", e)
+            emptyList()
+        }
     }
 
     @Synchronized
@@ -398,6 +436,20 @@ class RestrictionManager private constructor(context: Context) {
         preferences.edit()
             .putString(KEY_LIFECYCLE_EVENTS, payload.toString())
             .putLong(KEY_LIFECYCLE_EVENT_SEQ, seq.coerceAtLeast(0L))
+            .apply()
+    }
+
+    private fun persistActiveSessionLifecycleEvents(events: List<RestrictionLifecycleEvent>) {
+        val payload = JSONArray()
+        events.forEach { payload.put(it.toStorageJson()) }
+        preferences.edit()
+            .putString(KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS, payload.toString())
+            .apply()
+    }
+
+    private fun clearActiveSessionLifecycleEvents() {
+        preferences.edit()
+            .remove(KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS)
             .apply()
     }
 
