@@ -11,6 +11,22 @@ import com.example.pauza_screen_time.app_restriction.schedule.RestrictionSchedul
 internal class RestrictionSessionController(
     context: Context,
 ) {
+    companion object {
+        fun shouldEnforceNow(state: SessionState, isPausedNow: Boolean): Boolean {
+            if (isPausedNow) {
+                return false
+            }
+            if (state.activeModeSource == RestrictionModeSource.NONE) {
+                return false
+            }
+            return state.blockedAppIds.isNotEmpty()
+        }
+
+        fun shouldMonitorForegroundEvents(state: SessionState, isPausedNow: Boolean): Boolean {
+            return shouldEnforceNow(state, isPausedNow)
+        }
+    }
+
     private val appContext = context.applicationContext
     private val restrictionManager = RestrictionManager.getInstance(appContext)
     private val modesStore = RestrictionScheduledModesStore(appContext)
@@ -63,10 +79,14 @@ internal class RestrictionSessionController(
         val previousSnapshot = previousLifecycleSnapshot ?: captureLifecycleSnapshot()
         val state = resolveSessionState()
         restrictionManager.setRestrictedApps(state.blockedAppIds)
+        val isPausedNow = restrictionManager.isPausedNow()
+        val shouldMonitor = shouldMonitorForegroundEvents(state, isPausedNow)
+        val monitoringService = AppMonitoringService.getInstance()
+        monitoringService?.setMonitoringEnabled(shouldMonitor)
 
-        val shouldEnforce = state.activeModeSource != RestrictionModeSource.NONE
+        val shouldEnforce = shouldEnforceNow(state, isPausedNow)
         if (shouldEnforce) {
-            AppMonitoringService.getInstance()?.enforceCurrentForegroundNow(trigger = trigger)
+            monitoringService?.enforceCurrentForegroundNow(trigger = trigger)
         } else {
             ShieldOverlayManager.getInstanceOrNull()?.hideShield()
         }

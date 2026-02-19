@@ -9,13 +9,17 @@ import android.provider.Settings
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityWindowInfo
-import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
 
 class AppMonitoringService : AccessibilityService() {
 
     companion object {
         private const val TAG = "AppMonitoringService"
         private const val EVENT_DEBOUNCE_MS = 500L
+        private const val MONITORING_EVENT_TYPES =
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOWS_CHANGED
+        private const val MONITORING_FLAGS =
+            AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
+                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
 
         @Volatile
         private var instance: AppMonitoringService? = null
@@ -44,20 +48,18 @@ class AppMonitoringService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-
-        val info = AccessibilityServiceInfo().apply {
-            eventTypes =
-                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or
-                AccessibilityEvent.TYPE_WINDOWS_CHANGED
-            feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
-            notificationTimeout = 100
-            flags =
-                AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS or
-                AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+        val sessionController = RestrictionSessionController(applicationContext)
+        val state = sessionController.resolveSessionState()
+        val isPausedNow = RestrictionManager.getInstance(applicationContext).isPausedNow()
+        val shouldMonitor = RestrictionSessionController.shouldMonitorForegroundEvents(
+            state = state,
+            isPausedNow = isPausedNow,
+        )
+        setMonitoringEnabled(shouldMonitor)
+        if (shouldMonitor) {
+            enforceCurrentForegroundNow(trigger = "service_connected")
         }
-        serviceInfo = info
-
-        Log.d(TAG, "AppMonitoringService connected and configured")
+        Log.d(TAG, "AppMonitoringService connected and configured; monitoring=$shouldMonitor")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -94,7 +96,12 @@ class AppMonitoringService : AccessibilityService() {
     }
 
     fun setMonitoringEnabled(enabled: Boolean) {
+        if (isMonitoring != enabled) {
+            lastForegroundPackage = null
+            lastEventTimestamp = 0L
+        }
         isMonitoring = enabled
+        configureServiceMonitoring(enabled)
         Log.d(TAG, "Monitoring ${if (enabled) "enabled" else "disabled"}")
     }
 
@@ -194,7 +201,10 @@ class AppMonitoringService : AccessibilityService() {
 
         val sessionState = RestrictionSessionController(applicationContext).resolveSessionState()
         restrictionManager.setRestrictedApps(sessionState.blockedAppIds)
-        val shouldEnforce = sessionState.activeModeSource != RestrictionModeSource.NONE
+        val shouldEnforce = RestrictionSessionController.shouldEnforceNow(
+            state = sessionState,
+            isPausedNow = false,
+        )
         if (!shouldEnforce) {
             overlayManager?.hideShield()
             return
@@ -204,6 +214,16 @@ class AppMonitoringService : AccessibilityService() {
             Log.d(TAG, "Restricted app detected: $packageName")
             handleRestrictedAppDetected(packageName)
         }
+    }
+
+    private fun configureServiceMonitoring(enabled: Boolean) {
+        val nextEventTypes = if (enabled) MONITORING_EVENT_TYPES else 0
+        val info = serviceInfo ?: AccessibilityServiceInfo()
+        info.eventTypes = nextEventTypes
+        info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
+        info.notificationTimeout = 100
+        info.flags = MONITORING_FLAGS
+        serviceInfo = info
     }
 
 }
