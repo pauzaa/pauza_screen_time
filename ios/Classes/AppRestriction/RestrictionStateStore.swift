@@ -12,7 +12,6 @@ enum RestrictionStateStore {
     static let lifecycleEventSeqKey = "lifecycleEventSeq"
     static let sessionIdSeqKey = "sessionIdSeq"
 
-    private static let maxLifecycleEvents = 10_000
     private static let lifecycleLock = NSLock()
 
     enum StoreResult {
@@ -177,7 +176,7 @@ enum RestrictionStateStore {
         guard let defaults = AppGroupStore.sharedDefaults() else {
             return []
         }
-        let normalizedLimit = max(1, min(limit, maxLifecycleEvents))
+        let normalizedLimit = max(1, min(limit, PlatformConstants.maxLifecycleEvents))
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
         return loadLifecycleEvents(defaults: defaults).prefix(normalizedLimit).map { $0 }
@@ -187,7 +186,7 @@ enum RestrictionStateStore {
         guard let defaults = AppGroupStore.sharedDefaults() else {
             return []
         }
-        let normalizedLimit = max(1, min(limit, maxLifecycleEvents))
+        let normalizedLimit = max(1, min(limit, PlatformConstants.maxLifecycleEvents))
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
         return loadActiveSessionLifecycleEvents(defaults: defaults).prefix(normalizedLimit).map { $0 }
@@ -257,11 +256,11 @@ enum RestrictionStateStore {
                 activeSessionEvents.append(generated)
             }
         }
-        if events.count > maxLifecycleEvents {
-            events = Array(events.suffix(maxLifecycleEvents))
+        if events.count > PlatformConstants.maxLifecycleEvents {
+            events = Array(events.suffix(PlatformConstants.maxLifecycleEvents))
         }
-        if activeSessionEvents.count > maxLifecycleEvents {
-            activeSessionEvents = Array(activeSessionEvents.suffix(maxLifecycleEvents))
+        if activeSessionEvents.count > PlatformConstants.maxLifecycleEvents {
+            activeSessionEvents = Array(activeSessionEvents.suffix(PlatformConstants.maxLifecycleEvents))
         }
         persistLifecycleEvents(events, seq: nextSeq, defaults: defaults)
         persistActiveSessionLifecycleEvents(activeSessionEvents, defaults: defaults)

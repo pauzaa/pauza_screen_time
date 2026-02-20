@@ -6,7 +6,6 @@ final class RestrictionsMethodHandler {
     private static let iosFamilyControlsKey = "ios.familyControls"
     private static let featureRestrictions = "restrictions"
     private static let platformIOS = "ios"
-    private static let maxReliablePauseDurationMs: Int64 = 24 * 60 * 60 * 1000
     private let lifecycleQueue = DispatchQueue(label: "pauza.restrictions.lifecycle.queue")
 
     func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -99,7 +98,7 @@ final class RestrictionsMethodHandler {
             ))
             return
         }
-        if durationMs >= Self.maxReliablePauseDurationMs {
+        if durationMs >= PlatformConstants.maxReliablePauseDurationMs {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
                 action: MethodNames.pauseEnforcement,
@@ -208,7 +207,7 @@ final class RestrictionsMethodHandler {
             return
         }
         let args = call.arguments as? [String: Any]
-        let limit = (args?["limit"] as? NSNumber)?.intValue ?? 200
+        let limit = (args?["limit"] as? NSNumber)?.intValue ?? PlatformConstants.defaultLifecycleEventsLimit
         if limit <= 0 {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,

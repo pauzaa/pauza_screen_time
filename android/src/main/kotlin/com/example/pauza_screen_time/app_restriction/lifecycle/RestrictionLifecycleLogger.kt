@@ -3,6 +3,7 @@ package com.example.pauza_screen_time.app_restriction.lifecycle
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.example.pauza_screen_time.core.PlatformConstants
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -14,7 +15,6 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
         private const val KEY_LIFECYCLE_EVENTS = "lifecycle_events"
         private const val KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS = "active_session_lifecycle_events"
         private const val KEY_LIFECYCLE_EVENT_SEQ = "lifecycle_event_seq"
-        private const val MAX_LIFECYCLE_EVENTS = 10_000
 
         @Volatile
         private var instance: RestrictionLifecycleLogger? = null
@@ -85,14 +85,14 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
             }
 
             // O(N^2) issue fixed by dropping efficiently rather than repeating removeAt(0)
-            val trimmedPersisted = if (persisted.size > MAX_LIFECYCLE_EVENTS) {
-                persisted.drop(persisted.size - MAX_LIFECYCLE_EVENTS)
+            val trimmedPersisted = if (persisted.size > PlatformConstants.MAX_LIFECYCLE_EVENTS) {
+                persisted.drop(persisted.size - PlatformConstants.MAX_LIFECYCLE_EVENTS)
             } else {
                 persisted
             }
 
-            val trimmedActiveSessionPersisted = if (activeSessionPersisted.size > MAX_LIFECYCLE_EVENTS) {
-                activeSessionPersisted.drop(activeSessionPersisted.size - MAX_LIFECYCLE_EVENTS)
+            val trimmedActiveSessionPersisted = if (activeSessionPersisted.size > PlatformConstants.MAX_LIFECYCLE_EVENTS) {
+                activeSessionPersisted.drop(activeSessionPersisted.size - PlatformConstants.MAX_LIFECYCLE_EVENTS)
             } else {
                 activeSessionPersisted
             }
@@ -108,7 +108,7 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
 
     @Synchronized
     internal fun getPendingLifecycleEvents(limit: Int): List<RestrictionLifecycleEvent> {
-        val normalizedLimit = limit.coerceIn(1, MAX_LIFECYCLE_EVENTS)
+        val normalizedLimit = limit.coerceIn(1, PlatformConstants.MAX_LIFECYCLE_EVENTS)
         return loadLifecycleEvents().take(normalizedLimit)
     }
 

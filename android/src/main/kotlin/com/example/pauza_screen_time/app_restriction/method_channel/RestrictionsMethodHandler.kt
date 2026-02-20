@@ -3,6 +3,7 @@ package com.example.pauza_screen_time.app_restriction.method_channel
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import com.example.pauza_screen_time.core.PlatformConstants
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleEntry
 import com.example.pauza_screen_time.app_restriction.usecase.ConfigureShieldUseCase
 import com.example.pauza_screen_time.app_restriction.usecase.LifecycleEventsUseCase
@@ -28,7 +29,6 @@ class RestrictionsMethodHandler(
     companion object {
         private const val ANDROID_ACCESSIBILITY_KEY = "android.accessibility"
         private const val FEATURE = "restrictions"
-        private const val MAX_RELIABLE_PAUSE_DURATION_MS = 24 * 60 * 60 * 1000L
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -189,7 +189,7 @@ class RestrictionsMethodHandler(
             PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.PAUSE_ENFORCEMENT, "Missing or invalid 'durationMs' argument")
             return
         }
-        if (durationMs >= MAX_RELIABLE_PAUSE_DURATION_MS) {
+        if (durationMs >= PlatformConstants.MAX_RELIABLE_PAUSE_DURATION_MS) {
             PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.PAUSE_ENFORCEMENT, "Pause duration must be less than 24 hours on Android")
             return
         }
@@ -267,7 +267,7 @@ class RestrictionsMethodHandler(
 
     private fun handleGetPendingLifecycleEvents(call: MethodCall, result: Result) {
         val context = contextProvider() ?: return noContext(result, MethodNames.GET_PENDING_LIFECYCLE_EVENTS)
-        val limit = ((call.arguments as? Map<*, *>)?.get("limit") as? Number)?.toInt() ?: 200
+        val limit = ((call.arguments as? Map<*, *>)?.get("limit") as? Number)?.toInt() ?: PlatformConstants.DEFAULT_LIFECYCLE_EVENTS_LIMIT
         if (limit <= 0) {
             PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.GET_PENDING_LIFECYCLE_EVENTS, "Missing or invalid 'limit' argument")
             return
