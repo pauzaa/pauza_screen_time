@@ -11,8 +11,7 @@ import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_config
 class AppRestrictionManager {
   final AppRestrictionPlatform _platform;
 
-  AppRestrictionManager({AppRestrictionPlatform? platform})
-    : _platform = platform ?? RestrictionsMethodChannel();
+  AppRestrictionManager({AppRestrictionPlatform? platform}) : _platform = platform ?? RestrictionsMethodChannel();
 
   /// Configures the appearance of the blocking shield.
   Future<void> configureShield(ShieldConfiguration configuration) {
@@ -65,19 +64,13 @@ class AppRestrictionManager {
   }
 
   /// Returns pending lifecycle events ordered oldest-first.
-  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
-    int limit = 200,
-  }) {
-    return _platform
-        .getPendingLifecycleEvents(limit: limit)
-        .throwTypedPauzaError();
+  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({int limit = 200}) {
+    return _platform.getPendingLifecycleEvents(limit: limit).throwTypedPauzaError();
   }
 
   /// Acknowledges lifecycle events through [throughEventId] inclusively.
   Future<void> ackLifecycleEvents({required String throughEventId}) {
-    return _platform
-        .ackLifecycleEvents(throughEventId: throughEventId)
-        .throwTypedPauzaError();
+    return _platform.ackLifecycleEvents(throughEventId: throughEventId).throwTypedPauzaError();
   }
 
   /// Returns the current restriction session snapshot.

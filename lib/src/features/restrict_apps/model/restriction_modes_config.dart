@@ -24,22 +24,14 @@ class RestrictionModesConfig {
   }
 
   Map<String, dynamic> toMap() {
-    return <String, dynamic>{
-      'enabled': enabled,
-      'modes': modes.map((mode) => mode.toMap()).toList(),
-    };
+    return <String, dynamic>{'enabled': enabled, 'modes': modes.map((mode) => mode.toMap()).toList()};
   }
 
   bool get isValid {
     if (modes.any((mode) => !mode.isValid)) {
       return false;
     }
-    return _validateNoOverlap(
-      modes
-          .where((mode) => mode.schedule != null)
-          .map((mode) => mode.schedule!)
-          .toList(),
-    );
+    return _validateNoOverlap(modes.where((mode) => mode.schedule != null).map((mode) => mode.schedule!).toList());
   }
 
   static bool _validateNoOverlap(List<RestrictionSchedule> schedules) {
@@ -48,13 +40,9 @@ class RestrictionModesConfig {
       for (final day in schedule.daysOfWeekIso) {
         final dayWindows = byDay.putIfAbsent(day, () => <_Window>[]);
         if (schedule.endMinutes > schedule.startMinutes) {
-          dayWindows.add(
-            _Window(start: schedule.startMinutes, end: schedule.endMinutes),
-          );
+          dayWindows.add(_Window(start: schedule.startMinutes, end: schedule.endMinutes));
         } else {
-          dayWindows.add(
-            _Window(start: schedule.startMinutes, end: _minutesPerDay),
-          );
+          dayWindows.add(_Window(start: schedule.startMinutes, end: _minutesPerDay));
           final nextDay = day == 7 ? 1 : day + 1;
           final nextDayWindows = byDay.putIfAbsent(nextDay, () => <_Window>[]);
           nextDayWindows.add(_Window(start: 0, end: schedule.endMinutes));

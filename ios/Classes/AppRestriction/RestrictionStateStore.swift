@@ -240,16 +240,18 @@ enum RestrictionStateStore {
             guard let normalized = normalizeLifecycleDraft(draft) else {
                 continue
             }
-            nextSeq += 1
-            let generated = RestrictionLifecycleEvent(
-                id: nextLifecycleEventId(seq: nextSeq, occurredAtEpochMs: normalized.occurredAtEpochMs),
-                sessionId: normalized.sessionId,
-                modeId: normalized.modeId,
-                action: normalized.action,
-                source: normalized.source,
-                reason: normalized.reason,
-                occurredAtEpochMs: normalized.occurredAtEpochMs
-            )
+            let generatedMap: [String: Any] = [
+                "id": nextLifecycleEventId(seq: nextSeq, occurredAtEpochMs: normalized.occurredAtEpochMs),
+                "sessionId": normalized.sessionId,
+                "modeId": normalized.modeId,
+                "action": normalized.action.rawValue,
+                "source": normalized.source.rawValue,
+                "reason": normalized.reason,
+                "occurredAtEpochMs": normalized.occurredAtEpochMs
+            ]
+            guard let generated = RestrictionLifecycleEvent(generatedMap) else {
+                continue
+            }
             events.append(generated)
             if !activeSessionId.isEmpty, generated.sessionId == activeSessionId {
                 activeSessionEvents.append(generated)

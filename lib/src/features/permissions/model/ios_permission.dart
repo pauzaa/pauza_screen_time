@@ -23,11 +23,7 @@ enum IOSPermission {
     description: 'Required to access app usage statistics and screen time data',
   );
 
-  const IOSPermission({
-    required this.key,
-    required this.displayName,
-    required this.description,
-  });
+  const IOSPermission({required this.key, required this.displayName, required this.description});
 
   /// The string key for platform channel communication.
   final String key;

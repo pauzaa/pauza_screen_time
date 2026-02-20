@@ -47,9 +47,7 @@ class RestrictionState {
       _ => null,
     };
     final activeMode = switch (map['activeMode']) {
-      final Map<dynamic, dynamic> value => RestrictionMode.fromMap(
-        Map<String, dynamic>.from(value),
-      ),
+      final Map<dynamic, dynamic> value => RestrictionMode.fromMap(Map<String, dynamic>.from(value)),
       _ => null,
     };
     final currentSessionEvents = switch (map['currentSessionEvents']) {
@@ -57,15 +55,9 @@ class RestrictionState {
         values
             .map((value) {
               if (value is! Map) {
-                throw ArgumentError.value(
-                  value,
-                  'currentSessionEvents',
-                  'Event entries must be maps',
-                );
+                throw ArgumentError.value(value, 'currentSessionEvents', 'Event entries must be maps');
               }
-              return RestrictionLifecycleEvent.fromMap(
-                Map<String, dynamic>.from(value),
-              );
+              return RestrictionLifecycleEvent.fromMap(Map<String, dynamic>.from(value));
             })
             .toList(growable: false),
       _ => const <RestrictionLifecycleEvent>[],
@@ -73,21 +65,14 @@ class RestrictionState {
     final startEventsCount = currentSessionEvents
         .where((event) => event.action == RestrictionLifecycleAction.start)
         .length;
-    assert(
-      startEventsCount <= 1,
-      'currentSessionEvents must contain at most one START event',
-    );
+    assert(startEventsCount <= 1, 'currentSessionEvents must contain at most one START event');
 
     final sourceRaw = map['activeModeSource'] as String? ?? 'none';
     final activeModeSource = switch (sourceRaw) {
       'none' => RestrictionModeSource.none,
       'manual' => RestrictionModeSource.manual,
       'schedule' => RestrictionModeSource.schedule,
-      _ => throw ArgumentError.value(
-        sourceRaw,
-        'activeModeSource',
-        'Unsupported mode source',
-      ),
+      _ => throw ArgumentError.value(sourceRaw, 'activeModeSource', 'Unsupported mode source'),
     };
 
     return RestrictionState(
@@ -103,8 +88,7 @@ class RestrictionState {
   }
 
   /// Whether the currently active mode source is manual.
-  bool get isManuallyEnabled =>
-      activeModeSource == RestrictionModeSource.manual;
+  bool get isManuallyEnabled => activeModeSource == RestrictionModeSource.manual;
 
   /// Most recent session start timestamp when present in current session events.
   DateTime? get startedAt {

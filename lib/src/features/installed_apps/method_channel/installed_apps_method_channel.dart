@@ -26,28 +26,19 @@ class InstalledAppsMethodChannel extends InstalledAppsPlatform {
     Duration timeout = const Duration(seconds: 30),
   }) async {
     if (Platform.isIOS) {
-      throw UnsupportedError(
-        'getInstalledApps() is only supported on Android.',
-      );
+      throw UnsupportedError('getInstalledApps() is only supported on Android.');
     }
 
     final result = await BackgroundChannelRunner.invokeMethod<List<dynamic>>(
       channel.name,
       InstalledAppsMethodNames.getInstalledApps,
-      arguments: {
-        'includeSystemApps': includeSystemApps,
-        'includeIcons': includeIcons,
-      },
+      arguments: {'includeSystemApps': includeSystemApps, 'includeIcons': includeIcons},
       cancelToken: cancelToken,
       timeout: timeout,
     );
     if (result == null) return const [];
     try {
-      return result
-          .map(
-            (entry) => AppInfo.fromMap(Map<String, dynamic>.from(entry as Map)),
-          )
-          .toList();
+      return result.map((entry) => AppInfo.fromMap(Map<String, dynamic>.from(entry as Map))).toList();
     } catch (error, stackTrace) {
       throw _decodeFailure(
         action: InstalledAppsMethodNames.getInstalledApps,
@@ -70,14 +61,13 @@ class InstalledAppsMethodChannel extends InstalledAppsPlatform {
       throw UnsupportedError('getAppInfo() is only supported on Android.');
     }
 
-    final result =
-        await BackgroundChannelRunner.invokeMethod<Map<dynamic, dynamic>?>(
-          channel.name,
-          InstalledAppsMethodNames.getAppInfo,
-          arguments: {'packageId': packageId, 'includeIcons': includeIcons},
-          cancelToken: cancelToken,
-          timeout: timeout,
-        );
+    final result = await BackgroundChannelRunner.invokeMethod<Map<dynamic, dynamic>?>(
+      channel.name,
+      InstalledAppsMethodNames.getAppInfo,
+      arguments: {'packageId': packageId, 'includeIcons': includeIcons},
+      cancelToken: cancelToken,
+      timeout: timeout,
+    );
     if (result == null) return null;
     try {
       return AppInfo.fromMap(Map<String, dynamic>.from(result));
@@ -93,27 +83,17 @@ class InstalledAppsMethodChannel extends InstalledAppsPlatform {
   }
 
   @override
-  Future<List<IOSAppInfo>> showFamilyActivityPicker({
-    List<String>? preSelectedTokens,
-  }) async {
+  Future<List<IOSAppInfo>> showFamilyActivityPicker({List<String>? preSelectedTokens}) async {
     if (Platform.isAndroid) {
-      throw UnsupportedError(
-        'showFamilyActivityPicker() is only supported on iOS.',
-      );
+      throw UnsupportedError('showFamilyActivityPicker() is only supported on iOS.');
     }
 
-    final result = await channel.invokeMethod<List<dynamic>>(
-      InstalledAppsMethodNames.showFamilyActivityPicker,
-      {'preSelectedTokens': preSelectedTokens ?? []},
-    );
+    final result = await channel.invokeMethod<List<dynamic>>(InstalledAppsMethodNames.showFamilyActivityPicker, {
+      'preSelectedTokens': preSelectedTokens ?? [],
+    });
     if (result == null) return const [];
     try {
-      return result
-          .map(
-            (entry) =>
-                IOSAppInfo.fromMap(Map<String, dynamic>.from(entry as Map)),
-          )
-          .toList();
+      return result.map((entry) => IOSAppInfo.fromMap(Map<String, dynamic>.from(entry as Map))).toList();
     } catch (error, stackTrace) {
       throw _decodeFailure(
         action: InstalledAppsMethodNames.showFamilyActivityPicker,
@@ -142,10 +122,7 @@ class InstalledAppsMethodChannel extends InstalledAppsPlatform {
         if (payload != null) 'payloadType': payload.runtimeType.toString(),
         if (error != null) 'errorType': error.runtimeType.toString(),
         if (error != null || stackTrace != null)
-          'diagnostic': [
-            if (error != null) error.toString(),
-            if (stackTrace != null) stackTrace.toString(),
-          ].join('\n'),
+          'diagnostic': [if (error != null) error.toString(), if (stackTrace != null) stackTrace.toString()].join('\n'),
       },
     );
   }

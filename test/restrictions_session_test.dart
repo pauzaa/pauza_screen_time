@@ -22,38 +22,36 @@ void main() {
     final methodChannel = RestrictionsMethodChannel(channel: channel);
 
     tearDown(() async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
     });
 
     test('getRestrictionSession parses valid payload', () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            if (call.method == RestrictionsMethodNames.getRestrictionSession) {
-              return {
-                'isScheduleEnabled': true,
-                'isInScheduleNow': true,
-                'pausedUntilEpochMs': 1,
-                'activeMode': {
-                  'modeId': 'focus',
-                  'blockedAppIds': ['x'],
-                },
-                'activeModeSource': 'schedule',
-                'currentSessionEvents': [
-                  {
-                    'id': '0000000000001-0000000001',
-                    'sessionId': 'session-1',
-                    'modeId': 'focus',
-                    'action': 'START',
-                    'source': 'schedule',
-                    'reason': 'schedule_start',
-                    'occurredAtEpochMs': 1,
-                  },
-                ],
-              };
-            }
-            return null;
-          });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.getRestrictionSession) {
+          return {
+            'isScheduleEnabled': true,
+            'isInScheduleNow': true,
+            'pausedUntilEpochMs': 1,
+            'activeMode': {
+              'modeId': 'focus',
+              'blockedAppIds': ['x'],
+            },
+            'activeModeSource': 'schedule',
+            'currentSessionEvents': [
+              {
+                'id': '0000000000001-0000000001',
+                'sessionId': 'session-1',
+                'modeId': 'focus',
+                'action': 'START',
+                'source': 'schedule',
+                'reason': 'schedule_start',
+                'occurredAtEpochMs': 1,
+              },
+            ],
+          };
+        }
+        return null;
+      });
 
       final session = await methodChannel.getRestrictionSession();
       expect(session.isActiveNow, isTrue);
@@ -70,71 +68,56 @@ void main() {
       expect(session.currentSessionEvents.first.sessionId, 'session-1');
     });
 
-    test(
-      'getRestrictionSession preserves full current session event log',
-      () async {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(channel, (call) async {
-              if (call.method ==
-                  RestrictionsMethodNames.getRestrictionSession) {
-                return {
-                  'activeMode': {
-                    'modeId': 'focus',
-                    'blockedAppIds': ['x'],
-                  },
-                  'activeModeSource': 'manual',
-                  'currentSessionEvents': [
-                    {
-                      'id': '0000000000001-0000000001',
-                      'sessionId': 'session-1',
-                      'modeId': 'focus',
-                      'action': 'START',
-                      'source': 'manual',
-                      'reason': 'start',
-                      'occurredAtEpochMs': 1,
-                    },
-                    {
-                      'id': '0000000000002-0000000002',
-                      'sessionId': 'session-1',
-                      'modeId': 'focus',
-                      'action': 'PAUSE',
-                      'source': 'manual',
-                      'reason': 'pause',
-                      'occurredAtEpochMs': 2,
-                    },
-                  ],
-                };
-              }
-              return null;
-            });
+    test('getRestrictionSession preserves full current session event log', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.getRestrictionSession) {
+          return {
+            'activeMode': {
+              'modeId': 'focus',
+              'blockedAppIds': ['x'],
+            },
+            'activeModeSource': 'manual',
+            'currentSessionEvents': [
+              {
+                'id': '0000000000001-0000000001',
+                'sessionId': 'session-1',
+                'modeId': 'focus',
+                'action': 'START',
+                'source': 'manual',
+                'reason': 'start',
+                'occurredAtEpochMs': 1,
+              },
+              {
+                'id': '0000000000002-0000000002',
+                'sessionId': 'session-1',
+                'modeId': 'focus',
+                'action': 'PAUSE',
+                'source': 'manual',
+                'reason': 'pause',
+                'occurredAtEpochMs': 2,
+              },
+            ],
+          };
+        }
+        return null;
+      });
 
-        final session = await methodChannel.getRestrictionSession();
-        expect(session.currentSessionEvents, hasLength(2));
-        expect(
-          session.currentSessionEvents.first.action,
-          RestrictionLifecycleAction.start,
-        );
-        expect(
-          session.currentSessionEvents.last.action,
-          RestrictionLifecycleAction.pause,
-        );
-        expect(
-          session.currentSessionEvents.last.occurredAt,
-          DateTime.fromMillisecondsSinceEpoch(2, isUtc: true),
-        );
-      },
-    );
+      final session = await methodChannel.getRestrictionSession();
+      expect(session.currentSessionEvents, hasLength(2));
+      expect(session.currentSessionEvents.first.action, RestrictionLifecycleAction.start);
+      expect(session.currentSessionEvents.last.action, RestrictionLifecycleAction.pause);
+      expect(session.currentSessionEvents.last.occurredAt, DateTime.fromMillisecondsSinceEpoch(2, isUtc: true));
+    });
 
     test('getRestrictionSession defaults missing keys', () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            if (call.method == RestrictionsMethodNames.getRestrictionSession) {
-              return <String, dynamic>{
-                'currentSessionEvents': <String, dynamic>{'bad': true},
-              };
-            }
-            return null;
-          });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.getRestrictionSession) {
+          return <String, dynamic>{
+            'currentSessionEvents': <String, dynamic>{'bad': true},
+          };
+        }
+        return null;
+      });
 
       final session = await methodChannel.getRestrictionSession();
       expect(session, isA<RestrictionState>());
@@ -149,54 +132,36 @@ void main() {
       expect(session.currentSessionEvents, isEmpty);
     });
 
-    test(
-      'getRestrictionSession throws on malformed activeModeSource',
-      () async {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(channel, (call) async {
-              if (call.method ==
-                  RestrictionsMethodNames.getRestrictionSession) {
-                return {'activeModeSource': 'invalid'};
-              }
-              return null;
-            });
+    test('getRestrictionSession throws on malformed activeModeSource', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.getRestrictionSession) {
+          return {'activeModeSource': 'invalid'};
+        }
+        return null;
+      });
 
-        await expectLater(
-          methodChannel.getRestrictionSession(),
-          throwsA(
-            isA<PlatformException>().having(
-              (error) => error.code,
-              'code',
-              'INTERNAL_FAILURE',
-            ),
-          ),
-        );
-      },
-    );
+      await expectLater(
+        methodChannel.getRestrictionSession(),
+        throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'INTERNAL_FAILURE')),
+      );
+    });
 
     test('getModesConfig throws on malformed payload', () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            if (call.method == RestrictionsMethodNames.getModesConfig) {
-              return {
-                'enabled': true,
-                'modes': [
-                  {'modeId': 123},
-                ],
-              };
-            }
-            return null;
-          });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.getModesConfig) {
+          return {
+            'enabled': true,
+            'modes': [
+              {'modeId': 123},
+            ],
+          };
+        }
+        return null;
+      });
 
       await expectLater(
         methodChannel.getModesConfig(),
-        throwsA(
-          isA<PlatformException>().having(
-            (error) => error.code,
-            'code',
-            'INTERNAL_FAILURE',
-          ),
-        ),
+        throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'INTERNAL_FAILURE')),
       );
     });
 
@@ -205,23 +170,19 @@ void main() {
       var endCalled = false;
       Object? capturedModeId;
       Object? capturedBlockedAppIds;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            if (call.method == RestrictionsMethodNames.startSession) {
-              startCalled = true;
-              capturedModeId = (call.arguments as Map)['modeId'];
-              capturedBlockedAppIds = (call.arguments as Map)['blockedAppIds'];
-            } else if (call.method == RestrictionsMethodNames.endSession) {
-              endCalled = true;
-            }
-            return null;
-          });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.startSession) {
+          startCalled = true;
+          capturedModeId = (call.arguments as Map)['modeId'];
+          capturedBlockedAppIds = (call.arguments as Map)['blockedAppIds'];
+        } else if (call.method == RestrictionsMethodNames.endSession) {
+          endCalled = true;
+        }
+        return null;
+      });
 
       await methodChannel.startSession(
-        const RestrictionMode(
-          modeId: 'focus',
-          blockedAppIds: [AppIdentifier('com.example.focus')],
-        ),
+        const RestrictionMode(modeId: 'focus', blockedAppIds: [AppIdentifier('com.example.focus')]),
       );
       await methodChannel.endSession();
       expect(startCalled, isTrue);
@@ -233,34 +194,30 @@ void main() {
     test('lifecycle event APIs invoke platform methods', () async {
       Object? capturedLimit;
       Object? capturedAckId;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            if (call.method ==
-                RestrictionsMethodNames.getPendingLifecycleEvents) {
-              capturedLimit = (call.arguments as Map)['limit'];
-              return [
-                {
-                  'id': '0000000000001-0000000001',
-                  'sessionId': 'session-1',
-                  'modeId': 'focus',
-                  'action': 'START',
-                  'source': 'manual',
-                  'reason': 'test',
-                  'occurredAtEpochMs': 1,
-                },
-              ];
-            }
-            if (call.method == RestrictionsMethodNames.ackLifecycleEvents) {
-              capturedAckId = (call.arguments as Map)['throughEventId'];
-              return null;
-            }
-            return null;
-          });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.getPendingLifecycleEvents) {
+          capturedLimit = (call.arguments as Map)['limit'];
+          return [
+            {
+              'id': '0000000000001-0000000001',
+              'sessionId': 'session-1',
+              'modeId': 'focus',
+              'action': 'START',
+              'source': 'manual',
+              'reason': 'test',
+              'occurredAtEpochMs': 1,
+            },
+          ];
+        }
+        if (call.method == RestrictionsMethodNames.ackLifecycleEvents) {
+          capturedAckId = (call.arguments as Map)['throughEventId'];
+          return null;
+        }
+        return null;
+      });
 
       final events = await methodChannel.getPendingLifecycleEvents(limit: 50);
-      await methodChannel.ackLifecycleEvents(
-        throughEventId: '0000000000001-0000000001',
-      );
+      await methodChannel.ackLifecycleEvents(throughEventId: '0000000000001-0000000001');
 
       expect(capturedLimit, 50);
       expect(events, hasLength(1));
@@ -269,26 +226,18 @@ void main() {
     });
 
     test('getPendingLifecycleEvents throws on malformed payload', () async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, (call) async {
-            if (call.method ==
-                RestrictionsMethodNames.getPendingLifecycleEvents) {
-              return [
-                {'id': 'event-1', 'sessionId': ''},
-              ];
-            }
-            return null;
-          });
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.getPendingLifecycleEvents) {
+          return [
+            {'id': 'event-1', 'sessionId': ''},
+          ];
+        }
+        return null;
+      });
 
       await expectLater(
         methodChannel.getPendingLifecycleEvents(),
-        throwsA(
-          isA<PlatformException>().having(
-            (error) => error.code,
-            'code',
-            'INTERNAL_FAILURE',
-          ),
-        ),
+        throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'INTERNAL_FAILURE')),
       );
     });
   });
@@ -299,10 +248,7 @@ void main() {
       final manager = AppRestrictionManager(platform: fakePlatform);
 
       await manager.upsertMode(
-        const RestrictionMode(
-          modeId: 'focus',
-          blockedAppIds: [AppIdentifier('com.example.app')],
-        ),
+        const RestrictionMode(modeId: 'focus', blockedAppIds: [AppIdentifier('com.example.app')]),
       );
       await manager.removeMode('focus');
       await manager.setModesEnabled(true);
@@ -310,10 +256,7 @@ void main() {
       await manager.pauseEnforcement(const Duration(seconds: 30));
       await manager.resumeEnforcement();
       await manager.startSession(
-        const RestrictionMode(
-          modeId: 'focus',
-          blockedAppIds: [AppIdentifier('com.example.app')],
-        ),
+        const RestrictionMode(modeId: 'focus', blockedAppIds: [AppIdentifier('com.example.app')]),
       );
       await manager.endSession();
       final lifecycleEvents = await manager.getPendingLifecycleEvents();
@@ -337,80 +280,54 @@ void main() {
       expect(session.activeModeSource, RestrictionModeSource.manual);
     });
 
-    test(
-      'startSession delegates mode payload without upsert dependency',
-      () async {
-        final fakePlatform = _FakeAppRestrictionPlatform();
-        final manager = AppRestrictionManager(platform: fakePlatform);
-        const mode = RestrictionMode(
-          modeId: 'manual-focus',
-          blockedAppIds: [AppIdentifier('com.example.social')],
-        );
+    test('startSession delegates mode payload without upsert dependency', () async {
+      final fakePlatform = _FakeAppRestrictionPlatform();
+      final manager = AppRestrictionManager(platform: fakePlatform);
+      const mode = RestrictionMode(modeId: 'manual-focus', blockedAppIds: [AppIdentifier('com.example.social')]);
 
-        await manager.startSession(mode);
+      await manager.startSession(mode);
 
-        expect(fakePlatform.upsertModeCalled, isFalse);
-        expect(fakePlatform.startSessionCalled, isTrue);
-        expect(fakePlatform.calls, equals(['startSession:manual-focus']));
-      },
-    );
+      expect(fakePlatform.upsertModeCalled, isFalse);
+      expect(fakePlatform.startSessionCalled, isTrue);
+      expect(fakePlatform.calls, equals(['startSession:manual-focus']));
+    });
   });
 
   group('AppRestrictionManager decode failures', () {
     const channel = MethodChannel(restrictionsChannelName);
 
     tearDown(() async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(channel, null);
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
     });
 
-    test(
-      'getRestrictionSession surfaces malformed payload as typed PauzaError',
-      () async {
-        final manager = AppRestrictionManager(
-          platform: RestrictionsMethodChannel(channel: channel),
-        );
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(channel, (call) async {
-              if (call.method ==
-                  RestrictionsMethodNames.getRestrictionSession) {
-                return {'activeModeSource': 'bad'};
-              }
-              return null;
-            });
+    test('getRestrictionSession surfaces malformed payload as typed PauzaError', () async {
+      final manager = AppRestrictionManager(platform: RestrictionsMethodChannel(channel: channel));
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.getRestrictionSession) {
+          return {'activeModeSource': 'bad'};
+        }
+        return null;
+      });
 
-        await expectLater(
-          manager.getRestrictionSession(),
-          throwsA(isA<PauzaInternalFailureError>()),
-        );
-      },
-    );
+      await expectLater(manager.getRestrictionSession(), throwsA(isA<PauzaInternalFailureError>()));
+    });
 
-    test(
-      'getModesConfig surfaces malformed payload as typed PauzaError',
-      () async {
-        final manager = AppRestrictionManager(
-          platform: RestrictionsMethodChannel(channel: channel),
-        );
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(channel, (call) async {
-              if (call.method == RestrictionsMethodNames.getModesConfig) {
-                return {
-                  'enabled': true,
-                  'modes': [
-                    {'modeId': 1},
-                  ],
-                };
-              }
-              return null;
-            });
+    test('getModesConfig surfaces malformed payload as typed PauzaError', () async {
+      final manager = AppRestrictionManager(platform: RestrictionsMethodChannel(channel: channel));
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.getModesConfig) {
+          return {
+            'enabled': true,
+            'modes': [
+              {'modeId': 1},
+            ],
+          };
+        }
+        return null;
+      });
 
-        await expectLater(
-          manager.getModesConfig(),
-          throwsA(isA<PauzaInternalFailureError>()),
-        );
-      },
-    );
+      await expectLater(manager.getModesConfig(), throwsA(isA<PauzaInternalFailureError>()));
+    });
   });
 }
 
@@ -438,9 +355,7 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   }
 
   @override
-  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
-    int limit = 200,
-  }) async {
+  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({int limit = 200}) async {
     getPendingLifecycleEventsCalled = true;
     return <RestrictionLifecycleEvent>[
       RestrictionLifecycleEvent(
@@ -462,10 +377,7 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
       isScheduleEnabled: false,
       isInScheduleNow: false,
       pausedUntil: null,
-      activeMode: RestrictionMode(
-        modeId: 'focus',
-        blockedAppIds: [AppIdentifier('com.example.app')],
-      ),
+      activeMode: RestrictionMode(modeId: 'focus', blockedAppIds: [AppIdentifier('com.example.app')]),
       activeModeSource: RestrictionModeSource.manual,
       currentSessionEvents: <RestrictionLifecycleEvent>[],
     );

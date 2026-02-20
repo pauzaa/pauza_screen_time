@@ -35,11 +35,7 @@ class RestrictionLifecycleEvent {
       throw ArgumentError.value(id, 'id', 'Event id cannot be empty');
     }
     if (sessionId.isEmpty) {
-      throw ArgumentError.value(
-        sessionId,
-        'sessionId',
-        'Session id cannot be empty',
-      );
+      throw ArgumentError.value(sessionId, 'sessionId', 'Session id cannot be empty');
     }
     if (modeId.isEmpty) {
       throw ArgumentError.value(modeId, 'modeId', 'Mode id cannot be empty');
@@ -50,11 +46,7 @@ class RestrictionLifecycleEvent {
       throw ArgumentError.value(reason, 'reason', 'Reason cannot be empty');
     }
     if (occurredAtEpochMs == null || occurredAtEpochMs <= 0) {
-      throw ArgumentError.value(
-        occurredAtEpochMs,
-        'occurredAtEpochMs',
-        'Timestamp must be positive',
-      );
+      throw ArgumentError.value(occurredAtEpochMs, 'occurredAtEpochMs', 'Timestamp must be positive');
     }
 
     return RestrictionLifecycleEvent(
@@ -64,10 +56,7 @@ class RestrictionLifecycleEvent {
       action: action,
       source: source,
       reason: reason,
-      occurredAt: DateTime.fromMillisecondsSinceEpoch(
-        occurredAtEpochMs,
-        isUtc: true,
-      ),
+      occurredAt: DateTime.fromMillisecondsSinceEpoch(occurredAtEpochMs, isUtc: true),
     );
   }
 

@@ -3,11 +3,7 @@ import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_s
 
 /// One restriction mode with optional schedule and blocked app identifiers.
 class RestrictionMode {
-  const RestrictionMode({
-    required this.modeId,
-    required this.blockedAppIds,
-    this.schedule,
-  });
+  const RestrictionMode({required this.modeId, required this.blockedAppIds, this.schedule});
 
   final String modeId;
   final RestrictionSchedule? schedule;
@@ -16,31 +12,22 @@ class RestrictionMode {
   factory RestrictionMode.fromMap(Map<String, dynamic> map) {
     final modeId = map['modeId'] as String? ?? '';
     final schedule = switch (map['schedule']) {
-      final Map<dynamic, dynamic> value => RestrictionSchedule.fromMap(
-        Map<String, dynamic>.from(value),
-      ),
+      final Map<dynamic, dynamic> value => RestrictionSchedule.fromMap(Map<String, dynamic>.from(value)),
       _ => null,
     };
     final blockedAppIds = switch (map['blockedAppIds']) {
-      final List<dynamic> value =>
-        value.whereType<String>().map(AppIdentifier.new).toList(),
+      final List<dynamic> value => value.whereType<String>().map(AppIdentifier.new).toList(),
       _ => const <AppIdentifier>[],
     };
 
-    return RestrictionMode(
-      modeId: modeId,
-      schedule: schedule,
-      blockedAppIds: blockedAppIds,
-    );
+    return RestrictionMode(modeId: modeId, schedule: schedule, blockedAppIds: blockedAppIds);
   }
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'modeId': modeId,
       'schedule': schedule?.toMap(),
-      'blockedAppIds': blockedAppIds
-          .map((identifier) => identifier.value)
-          .toList(),
+      'blockedAppIds': blockedAppIds.map((identifier) => identifier.value).toList(),
     };
   }
 
@@ -52,8 +39,6 @@ class RestrictionMode {
     if (schedule != null && !schedule!.isValidBasic) {
       return false;
     }
-    return blockedAppIds
-        .map((identifier) => identifier.value.trim())
-        .every((value) => value.isNotEmpty);
+    return blockedAppIds.map((identifier) => identifier.value.trim()).every((value) => value.isNotEmpty);
   }
 }

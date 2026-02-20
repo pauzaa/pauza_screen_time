@@ -12,20 +12,12 @@ void main() {
         modes: [
           RestrictionMode(
             modeId: 'mode_a',
-            schedule: RestrictionSchedule(
-              daysOfWeekIso: {1},
-              startMinutes: 60,
-              endMinutes: 120,
-            ),
+            schedule: RestrictionSchedule(daysOfWeekIso: {1}, startMinutes: 60, endMinutes: 120),
             blockedAppIds: [AppIdentifier('com.example.a')],
           ),
           RestrictionMode(
             modeId: 'mode_b',
-            schedule: RestrictionSchedule(
-              daysOfWeekIso: {1},
-              startMinutes: 120,
-              endMinutes: 180,
-            ),
+            schedule: RestrictionSchedule(daysOfWeekIso: {1}, startMinutes: 120, endMinutes: 180),
             blockedAppIds: [AppIdentifier('com.example.b')],
           ),
         ],
@@ -40,20 +32,12 @@ void main() {
         modes: [
           RestrictionMode(
             modeId: 'mode_a',
-            schedule: RestrictionSchedule(
-              daysOfWeekIso: {1},
-              startMinutes: 60,
-              endMinutes: 180,
-            ),
+            schedule: RestrictionSchedule(daysOfWeekIso: {1}, startMinutes: 60, endMinutes: 180),
             blockedAppIds: [AppIdentifier('com.example.a')],
           ),
           RestrictionMode(
             modeId: 'mode_b',
-            schedule: RestrictionSchedule(
-              daysOfWeekIso: {1},
-              startMinutes: 120,
-              endMinutes: 240,
-            ),
+            schedule: RestrictionSchedule(daysOfWeekIso: {1}, startMinutes: 120, endMinutes: 240),
             blockedAppIds: [AppIdentifier('com.example.b')],
           ),
         ],
@@ -66,17 +50,10 @@ void main() {
       const config = RestrictionModesConfig(
         enabled: true,
         modes: [
-          RestrictionMode(
-            modeId: 'manual_only',
-            blockedAppIds: [AppIdentifier('com.example.manual')],
-          ),
+          RestrictionMode(modeId: 'manual_only', blockedAppIds: [AppIdentifier('com.example.manual')]),
           RestrictionMode(
             modeId: 'focus',
-            schedule: RestrictionSchedule(
-              daysOfWeekIso: {1, 2},
-              startMinutes: 9 * 60,
-              endMinutes: 10 * 60,
-            ),
+            schedule: RestrictionSchedule(daysOfWeekIso: {1, 2}, startMinutes: 9 * 60, endMinutes: 10 * 60),
             blockedAppIds: [AppIdentifier('com.example.app')],
           ),
         ],
@@ -91,11 +68,7 @@ void main() {
         modes: [
           RestrictionMode(
             modeId: 'focus',
-            schedule: RestrictionSchedule(
-              daysOfWeekIso: {1, 2},
-              startMinutes: 9 * 60,
-              endMinutes: 10 * 60,
-            ),
+            schedule: RestrictionSchedule(daysOfWeekIso: {1, 2}, startMinutes: 9 * 60, endMinutes: 10 * 60),
             blockedAppIds: [AppIdentifier('com.example.app')],
           ),
         ],
@@ -105,25 +78,16 @@ void main() {
       expect(roundTrip.enabled, isTrue);
       expect(roundTrip.modes, hasLength(1));
       expect(roundTrip.modes.first.modeId, 'focus');
-      expect(
-        roundTrip.modes.first.blockedAppIds.first.value,
-        'com.example.app',
-      );
+      expect(roundTrip.modes.first.blockedAppIds.first.value, 'com.example.app');
     });
 
     test('mode map contract does not include isEnabled', () {
-      const mode = RestrictionMode(
-        modeId: 'focus',
-        blockedAppIds: [AppIdentifier('com.example.app')],
-      );
+      const mode = RestrictionMode(modeId: 'focus', blockedAppIds: [AppIdentifier('com.example.app')]);
 
       final serialized = mode.toMap();
       expect(serialized.containsKey('isEnabled'), isFalse);
 
-      final parsed = RestrictionMode.fromMap({
-        ...serialized,
-        'isEnabled': false,
-      });
+      final parsed = RestrictionMode.fromMap({...serialized, 'isEnabled': false});
       expect(parsed.modeId, 'focus');
       expect(parsed.blockedAppIds.first.value, 'com.example.app');
     });

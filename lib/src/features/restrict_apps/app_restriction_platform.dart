@@ -38,9 +38,7 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
 
   /// Returns whether a restriction session is currently active.
   Future<bool> isRestrictionSessionActiveNow() {
-    throw UnimplementedError(
-      'isRestrictionSessionActiveNow() has not been implemented.',
-    );
+    throw UnimplementedError('isRestrictionSessionActiveNow() has not been implemented.');
   }
 
   /// Pauses restriction enforcement for [duration].
@@ -64,12 +62,8 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
   }
 
   /// Returns pending lifecycle events ordered oldest-first.
-  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
-    int limit = 200,
-  }) {
-    throw UnimplementedError(
-      'getPendingLifecycleEvents() has not been implemented.',
-    );
+  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({int limit = 200}) {
+    throw UnimplementedError('getPendingLifecycleEvents() has not been implemented.');
   }
 
   /// Acknowledges lifecycle events through [throughEventId] inclusively.
@@ -79,8 +73,6 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
 
   /// Returns the current restriction session snapshot.
   Future<RestrictionState> getRestrictionSession() {
-    throw UnimplementedError(
-      'getRestrictionSession() has not been implemented.',
-    );
+    throw UnimplementedError('getRestrictionSession() has not been implemented.');
   }
 }

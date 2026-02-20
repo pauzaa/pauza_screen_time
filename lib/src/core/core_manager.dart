@@ -4,8 +4,7 @@ import 'package:pauza_screen_time/src/core/core_method_channel.dart';
 class CoreManager {
   final CoreMethodChannel _channel;
 
-  CoreManager({CoreMethodChannel? channel})
-    : _channel = channel ?? CoreMethodChannel();
+  CoreManager({CoreMethodChannel? channel}) : _channel = channel ?? CoreMethodChannel();
 
   /// Returns the current platform version (for testing/debugging).
   Future<String?> getPlatformVersion() => _channel.getPlatformVersion();

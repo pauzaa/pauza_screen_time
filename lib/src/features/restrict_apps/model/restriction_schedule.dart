@@ -1,10 +1,6 @@
 /// Weekly schedule entry for automatic restriction enforcement.
 class RestrictionSchedule {
-  const RestrictionSchedule({
-    required this.daysOfWeekIso,
-    required this.startMinutes,
-    required this.endMinutes,
-  });
+  const RestrictionSchedule({required this.daysOfWeekIso, required this.startMinutes, required this.endMinutes});
 
   /// ISO weekdays: Monday=1 .. Sunday=7.
   final Set<int> daysOfWeekIso;
@@ -21,11 +17,7 @@ class RestrictionSchedule {
   factory RestrictionSchedule.fromMap(Map<String, dynamic> map) {
     final days = switch (map['daysOfWeekIso']) {
       final List<dynamic> values =>
-        values
-            .whereType<num>()
-            .map((value) => value.toInt())
-            .where((value) => value >= 1 && value <= 7)
-            .toSet(),
+        values.whereType<num>().map((value) => value.toInt()).where((value) => value >= 1 && value <= 7).toSet(),
       _ => <int>{},
     };
     final start = switch (map['startMinutes']) {
@@ -39,21 +31,13 @@ class RestrictionSchedule {
       _ => -1,
     };
 
-    return RestrictionSchedule(
-      daysOfWeekIso: days,
-      startMinutes: start,
-      endMinutes: end,
-    );
+    return RestrictionSchedule(daysOfWeekIso: days, startMinutes: start, endMinutes: end);
   }
 
   /// Serializes this schedule to method-channel payload.
   Map<String, dynamic> toMap() {
     final sortedDays = daysOfWeekIso.toList()..sort();
-    return <String, dynamic>{
-      'daysOfWeekIso': sortedDays,
-      'startMinutes': startMinutes,
-      'endMinutes': endMinutes,
-    };
+    return <String, dynamic>{'daysOfWeekIso': sortedDays, 'startMinutes': startMinutes, 'endMinutes': endMinutes};
   }
 
   /// Returns true when all scalar fields are in allowed bounds.

@@ -1,13 +1,16 @@
 package com.example.pauza_screen_time.app_restriction.lifecycle
 
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import org.json.JSONObject
 
+@Serializable
 internal enum class RestrictionLifecycleAction(val wireValue: String) {
-    START("START"),
-    PAUSE("PAUSE"),
-    RESUME("RESUME"),
-    END("END");
+    @SerialName("START") START("START"),
+    @SerialName("PAUSE") PAUSE("PAUSE"),
+    @SerialName("RESUME") RESUME("RESUME"),
+    @SerialName("END") END("END");
 
     companion object {
         fun fromWireValue(raw: String?): RestrictionLifecycleAction? {
@@ -19,9 +22,10 @@ internal enum class RestrictionLifecycleAction(val wireValue: String) {
     }
 }
 
+@Serializable
 internal enum class RestrictionLifecycleSource(val wireValue: String) {
-    MANUAL("manual"),
-    SCHEDULE("schedule");
+    @SerialName("manual") MANUAL("manual"),
+    @SerialName("schedule") SCHEDULE("schedule");
 
     companion object {
         fun fromWireValue(raw: String?): RestrictionLifecycleSource? {
@@ -33,6 +37,7 @@ internal enum class RestrictionLifecycleSource(val wireValue: String) {
     }
 }
 
+@Serializable
 internal data class RestrictionLifecycleEventDraft(
     val sessionId: String,
     val modeId: String,
@@ -42,6 +47,7 @@ internal data class RestrictionLifecycleEventDraft(
     val occurredAtEpochMs: Long,
 )
 
+@Serializable
 internal data class RestrictionLifecycleEvent(
     val id: String,
     val sessionId: String,
@@ -61,45 +67,6 @@ internal data class RestrictionLifecycleEvent(
             "reason" to reason,
             "occurredAtEpochMs" to occurredAtEpochMs,
         )
-    }
-
-    fun toStorageJson(): JSONObject {
-        return JSONObject()
-            .put("id", id)
-            .put("sessionId", sessionId)
-            .put("modeId", modeId)
-            .put("action", action.wireValue)
-            .put("source", source.wireValue)
-            .put("reason", reason)
-            .put("occurredAtEpochMs", occurredAtEpochMs)
-    }
-
-    companion object {
-        fun fromStorageJson(raw: JSONObject): RestrictionLifecycleEvent? {
-            val id = raw.optString("id", "").trim()
-            val sessionId = raw.optString("sessionId", "").trim()
-            val modeId = raw.optString("modeId", "").trim()
-            val action = RestrictionLifecycleAction.fromWireValue(raw.optString("action", null))
-            val source = RestrictionLifecycleSource.fromWireValue(raw.optString("source", null))
-            val reason = raw.optString("reason", "").trim()
-            val occurredAtEpochMs = raw.optLong("occurredAtEpochMs", -1L)
-
-            if (id.isEmpty() || sessionId.isEmpty() || modeId.isEmpty() || action == null || source == null) {
-                return null
-            }
-            if (reason.isEmpty() || occurredAtEpochMs <= 0L) {
-                return null
-            }
-            return RestrictionLifecycleEvent(
-                id = id,
-                sessionId = sessionId,
-                modeId = modeId,
-                action = action,
-                source = source,
-                reason = reason,
-                occurredAtEpochMs = occurredAtEpochMs,
-            )
-        }
     }
 }
 

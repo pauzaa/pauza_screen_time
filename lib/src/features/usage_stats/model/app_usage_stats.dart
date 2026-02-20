@@ -110,6 +110,5 @@ class UsageStats {
   int get hashCode => Object.hash(appInfo, totalDuration, totalLaunchCount);
 
   @override
-  String toString() =>
-      'UsageStats(appInfo: $appInfo, totalDuration: $totalDuration, launches: $totalLaunchCount)';
+  String toString() => 'UsageStats(appInfo: $appInfo, totalDuration: $totalDuration, launches: $totalLaunchCount)';
 }

@@ -21,39 +21,27 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
 
   @override
   Future<void> configureShield(ShieldConfiguration configuration) {
-    return channel.invokeMethod<void>(
-      RestrictionsMethodNames.configureShield,
-      configuration.toMap(),
-    );
+    return channel.invokeMethod<void>(RestrictionsMethodNames.configureShield, configuration.toMap());
   }
 
   @override
   Future<void> upsertMode(RestrictionMode mode) {
-    return channel.invokeMethod<void>(
-      RestrictionsMethodNames.upsertMode,
-      mode.toMap(),
-    );
+    return channel.invokeMethod<void>(RestrictionsMethodNames.upsertMode, mode.toMap());
   }
 
   @override
   Future<void> removeMode(String modeId) {
-    return channel.invokeMethod<void>(RestrictionsMethodNames.removeMode, {
-      'modeId': modeId,
-    });
+    return channel.invokeMethod<void>(RestrictionsMethodNames.removeMode, {'modeId': modeId});
   }
 
   @override
   Future<void> setModesEnabled(bool enabled) {
-    return channel.invokeMethod<void>(RestrictionsMethodNames.setModesEnabled, {
-      'enabled': enabled,
-    });
+    return channel.invokeMethod<void>(RestrictionsMethodNames.setModesEnabled, {'enabled': enabled});
   }
 
   @override
   Future<RestrictionModesConfig> getModesConfig() async {
-    final result = await channel.invokeMethod<Map<dynamic, dynamic>>(
-      RestrictionsMethodNames.getModesConfig,
-    );
+    final result = await channel.invokeMethod<Map<dynamic, dynamic>>(RestrictionsMethodNames.getModesConfig);
     if (result == null) {
       throw _decodeFailure(
         action: RestrictionsMethodNames.getModesConfig,
@@ -77,33 +65,25 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
 
   @override
   Future<bool> isRestrictionSessionActiveNow() async {
-    final result = await channel.invokeMethod<bool>(
-      RestrictionsMethodNames.isRestrictionSessionActiveNow,
-    );
+    final result = await channel.invokeMethod<bool>(RestrictionsMethodNames.isRestrictionSessionActiveNow);
     return result ?? false;
   }
 
   @override
   Future<void> pauseEnforcement(Duration duration) {
-    return channel.invokeMethod<void>(
-      RestrictionsMethodNames.pauseEnforcement,
-      {'durationMs': duration.inMilliseconds},
-    );
+    return channel.invokeMethod<void>(RestrictionsMethodNames.pauseEnforcement, {
+      'durationMs': duration.inMilliseconds,
+    });
   }
 
   @override
   Future<void> resumeEnforcement() {
-    return channel.invokeMethod<void>(
-      RestrictionsMethodNames.resumeEnforcement,
-    );
+    return channel.invokeMethod<void>(RestrictionsMethodNames.resumeEnforcement);
   }
 
   @override
   Future<void> startSession(RestrictionMode mode) {
-    return channel.invokeMethod<void>(
-      RestrictionsMethodNames.startSession,
-      mode.toMap(),
-    );
+    return channel.invokeMethod<void>(RestrictionsMethodNames.startSession, mode.toMap());
   }
 
   @override
@@ -112,9 +92,7 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   }
 
   @override
-  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
-    int limit = 200,
-  }) async {
+  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({int limit = 200}) async {
     final result = await BackgroundChannelRunner.invokeMethod<List<dynamic>>(
       channel.name,
       RestrictionsMethodNames.getPendingLifecycleEvents,
@@ -125,11 +103,7 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
     }
     try {
       return result
-          .map(
-            (value) => RestrictionLifecycleEvent.fromMap(
-              Map<String, dynamic>.from(value as Map),
-            ),
-          )
+          .map((value) => RestrictionLifecycleEvent.fromMap(Map<String, dynamic>.from(value as Map)))
           .toList(growable: false);
     } on PlatformException {
       rethrow;
@@ -146,17 +120,12 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
 
   @override
   Future<void> ackLifecycleEvents({required String throughEventId}) {
-    return channel.invokeMethod<void>(
-      RestrictionsMethodNames.ackLifecycleEvents,
-      {'throughEventId': throughEventId},
-    );
+    return channel.invokeMethod<void>(RestrictionsMethodNames.ackLifecycleEvents, {'throughEventId': throughEventId});
   }
 
   @override
   Future<RestrictionState> getRestrictionSession() async {
-    final result = await channel.invokeMethod<Map<dynamic, dynamic>>(
-      RestrictionsMethodNames.getRestrictionSession,
-    );
+    final result = await channel.invokeMethod<Map<dynamic, dynamic>>(RestrictionsMethodNames.getRestrictionSession);
     if (result == null) {
       throw _decodeFailure(
         action: RestrictionsMethodNames.getRestrictionSession,
@@ -197,10 +166,7 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
         if (payload != null) 'payloadType': payload.runtimeType.toString(),
         if (error != null) 'errorType': error.runtimeType.toString(),
         if (error != null || stackTrace != null)
-          'diagnostic': [
-            if (error != null) error.toString(),
-            if (stackTrace != null) stackTrace.toString(),
-          ].join('\n'),
+          'diagnostic': [if (error != null) error.toString(), if (stackTrace != null) stackTrace.toString()].join('\n'),
       },
     );
   }

@@ -116,13 +116,10 @@ class ShieldConfiguration {
       backgroundBlurStyle: backgroundBlurStyle ?? this.backgroundBlurStyle,
       iconBytes: iconBytes ?? this.iconBytes,
       primaryButtonLabel: primaryButtonLabel ?? this.primaryButtonLabel,
-      primaryButtonBackgroundColor:
-          primaryButtonBackgroundColor ?? this.primaryButtonBackgroundColor,
-      primaryButtonTextColor:
-          primaryButtonTextColor ?? this.primaryButtonTextColor,
+      primaryButtonBackgroundColor: primaryButtonBackgroundColor ?? this.primaryButtonBackgroundColor,
+      primaryButtonTextColor: primaryButtonTextColor ?? this.primaryButtonTextColor,
       secondaryButtonLabel: secondaryButtonLabel ?? this.secondaryButtonLabel,
-      secondaryButtonTextColor:
-          secondaryButtonTextColor ?? this.secondaryButtonTextColor,
+      secondaryButtonTextColor: secondaryButtonTextColor ?? this.secondaryButtonTextColor,
     );
   }
 }

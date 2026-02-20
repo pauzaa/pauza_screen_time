@@ -29,8 +29,7 @@ enum AndroidPermission {
   exactAlarm(
     key: 'android.exactAlarm',
     displayName: 'Exact Alarms',
-    description:
-        'Required for precise pause and schedule timing on Android 12+',
+    description: 'Required for precise pause and schedule timing on Android 12+',
   ),
 
   /// Permission to query all installed packages.
@@ -42,11 +41,7 @@ enum AndroidPermission {
     description: 'Required to list all installed applications',
   );
 
-  const AndroidPermission({
-    required this.key,
-    required this.displayName,
-    required this.description,
-  });
+  const AndroidPermission({required this.key, required this.displayName, required this.description});
 
   /// The string key for platform channel communication.
   final String key;

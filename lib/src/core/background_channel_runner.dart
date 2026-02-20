@@ -66,11 +66,7 @@ class BackgroundChannelRunner {
   }
 
   static bool _usesTestBinaryMessenger() {
-    final messengerType = ServicesBinding
-        .instance
-        .defaultBinaryMessenger
-        .runtimeType
-        .toString();
+    final messengerType = ServicesBinding.instance.defaultBinaryMessenger.runtimeType.toString();
     return messengerType.contains('TestDefaultBinaryMessenger');
   }
 
@@ -150,10 +146,7 @@ class BackgroundChannelRunner {
 
   static Future<_IsolateWorker> _ensureWorker() async {
     if (_worker != null) return _worker!;
-    _worker = await _IsolateWorker.spawn(
-      ServicesBinding.rootIsolateToken!,
-      onResponse: _handleWorkerResponse,
-    );
+    _worker = await _IsolateWorker.spawn(ServicesBinding.rootIsolateToken!, onResponse: _handleWorkerResponse);
     return _worker!;
   }
 
@@ -188,12 +181,9 @@ class BackgroundChannelRunner {
           ),
         );
       } else {
-        final error =
-            message['error'] as String? ?? 'Unknown background isolate error';
+        final error = message['error'] as String? ?? 'Unknown background isolate error';
         final stack = message['stack'] as String?;
-        request.completeError(
-          StateError(stack == null ? error : '$error\n$stack'),
-        );
+        request.completeError(StateError(stack == null ? error : '$error\n$stack'));
       }
     }
 
@@ -353,13 +343,7 @@ class _IsolateWorker {
   final StreamSubscription<dynamic> _subscription;
   final ReceivePort _exitPort;
 
-  _IsolateWorker._(
-    this._isolate,
-    this._requestPort,
-    this._responsePort,
-    this._subscription,
-    this._exitPort,
-  );
+  _IsolateWorker._(this._isolate, this._requestPort, this._responsePort, this._subscription, this._exitPort);
 
   static Future<_IsolateWorker> spawn(
     RootIsolateToken token, {
@@ -371,11 +355,7 @@ class _IsolateWorker {
 
     final isolate = await Isolate.spawn<_WorkerInitMessage>(
       _backgroundInvokeEntry,
-      _WorkerInitMessage(
-        readyTo: readyPort.sendPort,
-        replyTo: responsePort.sendPort,
-        token: token,
-      ),
+      _WorkerInitMessage(readyTo: readyPort.sendPort, replyTo: responsePort.sendPort, token: token),
       onExit: exitPort.sendPort,
     );
 
@@ -384,13 +364,7 @@ class _IsolateWorker {
 
     final subscription = responsePort.listen(onResponse);
 
-    return _IsolateWorker._(
-      isolate,
-      requestPort,
-      responsePort,
-      subscription,
-      exitPort,
-    );
+    return _IsolateWorker._(isolate, requestPort, responsePort, subscription, exitPort);
   }
 
   void sendRequest(Map<String, Object?> message) {
@@ -414,11 +388,7 @@ class _WorkerInitMessage {
   final SendPort replyTo;
   final RootIsolateToken token;
 
-  const _WorkerInitMessage({
-    required this.readyTo,
-    required this.replyTo,
-    required this.token,
-  });
+  const _WorkerInitMessage({required this.readyTo, required this.replyTo, required this.token});
 }
 
 Future<void> _backgroundInvokeEntry(_WorkerInitMessage init) async {
@@ -446,11 +416,7 @@ Future<void> _backgroundInvokeEntry(_WorkerInitMessage init) async {
     try {
       final channel = MethodChannel(channelName);
       final result = await channel.invokeMethod<dynamic>(method, arguments);
-      init.replyTo.send(<String, Object?>{
-        'id': id,
-        'ok': true,
-        'result': _toSendable(result),
-      });
+      init.replyTo.send(<String, Object?>{'id': id, 'ok': true, 'result': _toSendable(result)});
     } on PlatformException catch (e, st) {
       init.replyTo.send(<String, Object?>{
         'id': id,

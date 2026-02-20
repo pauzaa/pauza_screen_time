@@ -30,11 +30,7 @@ void main() {
       for (final path in paths) {
         final content = File(path).readAsStringSync();
         for (final needle in forbidden) {
-          expect(
-            content.contains(needle),
-            isFalse,
-            reason: 'Found forbidden legacy marker "$needle" in $path',
-          );
+          expect(content.contains(needle), isFalse, reason: 'Found forbidden legacy marker "$needle" in $path');
         }
       }
     });

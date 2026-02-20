@@ -13,41 +13,23 @@ import 'package:pauza_screen_time/src/features/usage_stats/usage_stats_platform.
 
 void main() {
   group('InstalledAppsManager decode failures', () {
-    test(
-      'getAndroidInstalledApps throws typed internal failure on malformed item',
-      () async {
-        final manager = InstalledAppsManager(
-          platform: _MalformedInstalledApps(),
-        );
+    test('getAndroidInstalledApps throws typed internal failure on malformed item', () async {
+      final manager = InstalledAppsManager(platform: _MalformedInstalledApps());
 
-        await expectLater(
-          manager.getAndroidInstalledApps(),
-          throwsA(isA<PauzaInternalFailureError>()),
-        );
-      },
-      skip: !Platform.isAndroid,
-    );
+      await expectLater(manager.getAndroidInstalledApps(), throwsA(isA<PauzaInternalFailureError>()));
+    }, skip: !Platform.isAndroid);
   });
 
   group('UsageStatsManager decode failures', () {
-    test(
-      'getUsageStats throws typed internal failure on malformed item',
-      () async {
-        final manager = UsageStatsManager(
-          platform: _MalformedUsageStatsPlatform(),
-        );
-        final now = DateTime.now();
+    test('getUsageStats throws typed internal failure on malformed item', () async {
+      final manager = UsageStatsManager(platform: _MalformedUsageStatsPlatform());
+      final now = DateTime.now();
 
-        await expectLater(
-          manager.getUsageStats(
-            startDate: now.subtract(const Duration(days: 1)),
-            endDate: now,
-          ),
-          throwsA(isA<PauzaInternalFailureError>()),
-        );
-      },
-      skip: !Platform.isAndroid,
-    );
+      await expectLater(
+        manager.getUsageStats(startDate: now.subtract(const Duration(days: 1)), endDate: now),
+        throwsA(isA<PauzaInternalFailureError>()),
+      );
+    }, skip: !Platform.isAndroid);
   });
 }
 
@@ -59,10 +41,7 @@ class _MalformedInstalledApps extends InstalledAppsPlatform {
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    throw PlatformException(
-      code: 'INTERNAL_FAILURE',
-      message: 'Failed to decode installed apps payload',
-    );
+    throw PlatformException(code: 'INTERNAL_FAILURE', message: 'Failed to decode installed apps payload');
   }
 
   @override
@@ -76,9 +55,7 @@ class _MalformedInstalledApps extends InstalledAppsPlatform {
   }
 
   @override
-  Future<List<IOSAppInfo>> showFamilyActivityPicker({
-    List<String>? preSelectedTokens,
-  }) async {
+  Future<List<IOSAppInfo>> showFamilyActivityPicker({List<String>? preSelectedTokens}) async {
     return const [];
   }
 }
@@ -104,9 +81,6 @@ class _MalformedUsageStatsPlatform extends UsageStatsPlatform {
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    throw PlatformException(
-      code: 'INTERNAL_FAILURE',
-      message: 'Failed to decode usage stats payload',
-    );
+    throw PlatformException(code: 'INTERNAL_FAILURE', message: 'Failed to decode usage stats payload');
   }
 }

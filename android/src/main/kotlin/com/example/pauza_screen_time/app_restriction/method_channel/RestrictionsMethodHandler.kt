@@ -3,17 +3,11 @@ package com.example.pauza_screen_time.app_restriction.method_channel
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import com.example.pauza_screen_time.app_restriction.RestrictionManager
-import com.example.pauza_screen_time.app_restriction.RestrictionSessionController
-import com.example.pauza_screen_time.app_restriction.model.RestrictionModeDto
-import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
-import com.example.pauza_screen_time.app_restriction.model.RestrictionSessionDto
-import com.example.pauza_screen_time.app_restriction.alarm.RestrictionAlarmOrchestrator
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleConfig
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleEntry
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeEntry
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
+import com.example.pauza_screen_time.app_restriction.usecase.ConfigureShieldUseCase
+import com.example.pauza_screen_time.app_restriction.usecase.LifecycleEventsUseCase
+import com.example.pauza_screen_time.app_restriction.usecase.ManageModesUseCase
+import com.example.pauza_screen_time.app_restriction.usecase.SessionEnforcementUseCase
 import com.example.pauza_screen_time.core.MethodNames
 import com.example.pauza_screen_time.core.PluginErrorHelper
 import com.example.pauza_screen_time.permissions.PermissionHandler
@@ -80,669 +74,229 @@ class RestrictionsMethodHandler(
     }
 
     private fun handleConfigureShield(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.CONFIGURE_SHIELD,
-                message = "Application context is not available",
-            )
-            return
-        }
-
+        val context = contextProvider() ?: return noContext(result, MethodNames.CONFIGURE_SHIELD)
         val configMap = call.arguments as? Map<String, Any?>
         if (configMap == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.CONFIGURE_SHIELD,
-                message = "Shield configuration map is required",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.CONFIGURE_SHIELD, "Shield configuration map is required")
             return
         }
-
         try {
-            com.example.pauza_screen_time.app_restriction.ShieldOverlayManager.getInstance(context).configure(configMap)
+            ConfigureShieldUseCase(context).execute(configMap)
             result.success(null)
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.CONFIGURE_SHIELD,
-                message = "Failed to configure shield: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.CONFIGURE_SHIELD, "Failed to configure shield", e)
         }
     }
 
     private fun handleUpsertMode(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.UPSERT_MODE,
-                message = "Application context is not available",
-            )
-            return
-        }
-        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.UPSERT_MODE, result)) {
-            return
-        }
+        val context = contextProvider() ?: return noContext(result, MethodNames.UPSERT_MODE)
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.UPSERT_MODE, result)) return
 
         val payload = call.arguments as? Map<*, *>
         if (payload == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.UPSERT_MODE,
-                message = "Missing or invalid mode payload",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.UPSERT_MODE, "Missing or invalid mode payload")
             return
         }
 
         val modeId = (payload["modeId"] as? String)?.trim().orEmpty()
         val blockedAppIdsRaw = payload["blockedAppIds"] as? List<*>
         if (modeId.isEmpty() || blockedAppIdsRaw == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.UPSERT_MODE,
-                message = "Mode requires 'modeId' and 'blockedAppIds'",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.UPSERT_MODE, "Mode requires 'modeId' and 'blockedAppIds'")
             return
         }
 
         val blockedAppIds = blockedAppIdsRaw.mapNotNull { (it as? String)?.trim() }.filter { it.isNotEmpty() }.distinct()
         val scheduleMap = payload["schedule"] as? Map<*, *>
-        val schedule = if (scheduleMap == null) {
-            null
-        } else {
+        val schedule: RestrictionScheduleEntry? = if (scheduleMap != null) {
             val rawDays = scheduleMap["daysOfWeekIso"] as? List<*>
             val startMinutes = (scheduleMap["startMinutes"] as? Number)?.toInt()
             val endMinutes = (scheduleMap["endMinutes"] as? Number)?.toInt()
             if (rawDays == null || startMinutes == null || endMinutes == null) {
-                PluginErrorHelper.invalidArgument(
-                    result = result,
-                    feature = FEATURE,
-                    action = MethodNames.UPSERT_MODE,
-                    message = "Schedule requires 'daysOfWeekIso', 'startMinutes', and 'endMinutes'",
-                )
+                PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.UPSERT_MODE, "Schedule requires 'daysOfWeekIso', 'startMinutes', and 'endMinutes'")
                 return
             }
             val days = rawDays.mapNotNull { (it as? Number)?.toInt() }.toSet()
-            RestrictionScheduleEntry(
-                daysOfWeekIso = days,
-                startMinutes = startMinutes,
-                endMinutes = endMinutes,
-            )
-        }
-
-        if (schedule != null) {
-            val scheduleCalculator = RestrictionScheduleCalculator()
-            if (!scheduleCalculator.isScheduleShapeValid(RestrictionScheduleConfig(enabled = true, schedules = listOf(schedule)))) {
-                PluginErrorHelper.invalidArgument(
-                    result = result,
-                    feature = FEATURE,
-                    action = MethodNames.UPSERT_MODE,
-                    message = "Mode schedule payload is invalid",
-                )
-                return
-            }
-        }
+            RestrictionScheduleEntry(daysOfWeekIso = days, startMinutes = startMinutes, endMinutes = endMinutes)
+        } else null
 
         try {
-            val store = RestrictionScheduledModesStore(context)
-            val mode = RestrictionScheduledModeEntry(
-                modeId = modeId,
-                schedule = schedule,
-                blockedAppIds = blockedAppIds,
-            )
-
-            val nextModes = store.getConfig().modes.toMutableList()
-            nextModes.removeAll { it.modeId == mode.modeId }
-            if (mode.shouldPersistForScheduleEnforcement()) {
-                nextModes += mode
-            }
-            val scheduleCalculator = RestrictionScheduleCalculator()
-            val shapeIsValid = scheduleCalculator.isScheduleShapeValid(
-                RestrictionScheduleConfig(
-                    enabled = true,
-                    schedules = nextModes.filter { it.schedule != null }.mapNotNull { it.schedule },
-                ),
-            )
-            if (!shapeIsValid) {
-                PluginErrorHelper.invalidArgument(
-                    result = result,
-                    feature = FEATURE,
-                    action = MethodNames.UPSERT_MODE,
-                    message = "Mode schedule overlaps with an existing schedule",
-                )
-                return
-            }
-
-            if (mode.shouldPersistForScheduleEnforcement()) {
-                store.upsertMode(mode)
-            } else {
-                store.removeMode(mode.modeId)
-            }
-
-            val restrictionManager = RestrictionManager.getInstance(context)
-            val activeSession = restrictionManager.getActiveSession()
-            if (activeSession?.modeId == mode.modeId) {
-                if (mode.blockedAppIds.isNotEmpty()) {
-                    restrictionManager.setActiveSession(mode.modeId, mode.blockedAppIds, activeSession.source)
-                } else {
-                    restrictionManager.clearActiveSession()
-                }
-            }
-
-            RestrictionAlarmOrchestrator(context).rescheduleAll()
-            RestrictionSessionController(context).applyCurrentEnforcementState(trigger = "upsert_mode")
+            ManageModesUseCase(context).upsertMode(modeId, blockedAppIds, schedule)
             result.success(null)
+        } catch (e: IllegalArgumentException) {
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.UPSERT_MODE, e.message ?: "Invalid mode payload")
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.UPSERT_MODE,
-                message = "Failed to save mode: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.UPSERT_MODE, "Failed to save mode", e)
         }
     }
 
     private fun handleRemoveMode(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.REMOVE_MODE,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        val payload = call.arguments as? Map<*, *>
-        val modeId = (payload?.get("modeId") as? String)?.trim().orEmpty()
+        val context = contextProvider() ?: return noContext(result, MethodNames.REMOVE_MODE)
+        val modeId = ((call.arguments as? Map<*, *>)?.get("modeId") as? String)?.trim().orEmpty()
         if (modeId.isEmpty()) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.REMOVE_MODE,
-                message = "Missing or invalid 'modeId' argument",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.REMOVE_MODE, "Missing or invalid 'modeId' argument")
             return
         }
-
         try {
-            val modesStore = RestrictionScheduledModesStore(context)
-            modesStore.removeMode(modeId)
-            val restrictionManager = RestrictionManager.getInstance(context)
-            if (restrictionManager.getActiveSession()?.modeId == modeId) {
-                restrictionManager.clearActiveSession()
-            }
-            RestrictionAlarmOrchestrator(context).rescheduleAll()
-            RestrictionSessionController(context).applyCurrentEnforcementState(trigger = "remove_mode")
+            ManageModesUseCase(context).removeMode(modeId)
             result.success(null)
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.REMOVE_MODE,
-                message = "Failed to remove mode: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.REMOVE_MODE, "Failed to remove mode", e)
         }
     }
 
     private fun handleSetModesEnabled(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_MODES_ENABLED,
-                message = "Application context is not available",
-            )
-            return
-        }
-        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.SET_MODES_ENABLED, result)) {
-            return
-        }
-
-        val payload = call.arguments as? Map<*, *>
-        val enabled = payload?.get("enabled") as? Boolean
+        val context = contextProvider() ?: return noContext(result, MethodNames.SET_MODES_ENABLED)
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.SET_MODES_ENABLED, result)) return
+        val enabled = (call.arguments as? Map<*, *>)?.get("enabled") as? Boolean
         if (enabled == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_MODES_ENABLED,
-                message = "Missing or invalid 'enabled' argument",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.SET_MODES_ENABLED, "Missing or invalid 'enabled' argument")
             return
         }
-
         try {
-            RestrictionScheduledModesStore(context).setEnabled(enabled)
-            RestrictionAlarmOrchestrator(context).rescheduleAll()
-            RestrictionSessionController(context).applyCurrentEnforcementState(trigger = "set_modes_enabled")
+            ManageModesUseCase(context).setModesEnabled(enabled)
             result.success(null)
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.SET_MODES_ENABLED,
-                message = "Failed to update modes toggle: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.SET_MODES_ENABLED, "Failed to update modes toggle", e)
         }
     }
 
     private fun handleGetModesConfig(result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_MODES_CONFIG,
-                message = "Application context is not available",
-            )
-            return
-        }
-
+        val context = contextProvider() ?: return noContext(result, MethodNames.GET_MODES_CONFIG)
         try {
-            val config = RestrictionScheduledModesStore(context).getConfig()
+            val config = ManageModesUseCase(context).getModesConfig()
             result.success(config.toChannelMap())
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_MODES_CONFIG,
-                message = "Failed to load modes config: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.GET_MODES_CONFIG, "Failed to load modes config", e)
         }
     }
 
     private fun handleIsRestrictionSessionActiveNow(result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.IS_RESTRICTION_SESSION_ACTIVE_NOW,
-                message = "Application context is not available",
-            )
-            return
-        }
-
+        val context = contextProvider() ?: return noContext(result, MethodNames.IS_RESTRICTION_SESSION_ACTIVE_NOW)
         try {
-            val sessionState = RestrictionSessionController(context).resolveSessionState()
-            val isPausedNow = RestrictionManager.getInstance(context).isPausedNow()
-            val isPrerequisitesMet = areRestrictionPrerequisitesMet(context)
-            val shouldEnforceSession = sessionState.activeModeSource != RestrictionModeSource.NONE
-            result.success(sessionState.blockedAppIds.isNotEmpty() && !isPausedNow && isPrerequisitesMet && shouldEnforceSession)
+            val isActive = SessionEnforcementUseCase(context).isRestrictionSessionActiveNow(areRestrictionPrerequisitesMet(context))
+            result.success(isActive)
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.IS_RESTRICTION_SESSION_ACTIVE_NOW,
-                message = "Failed to get restriction session active state: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.IS_RESTRICTION_SESSION_ACTIVE_NOW, "Failed to get restriction session active state", e)
         }
     }
 
     private fun handlePauseEnforcement(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.PAUSE_ENFORCEMENT,
-                message = "Application context is not available",
-            )
-            return
-        }
-        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.PAUSE_ENFORCEMENT, result)) {
-            return
-        }
+        val context = contextProvider() ?: return noContext(result, MethodNames.PAUSE_ENFORCEMENT)
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.PAUSE_ENFORCEMENT, result)) return
 
         val durationMs = call.argument<Number>("durationMs")?.toLong()
         if (durationMs == null || durationMs <= 0L) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.PAUSE_ENFORCEMENT,
-                message = "Missing or invalid 'durationMs' argument",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.PAUSE_ENFORCEMENT, "Missing or invalid 'durationMs' argument")
             return
         }
         if (durationMs >= MAX_RELIABLE_PAUSE_DURATION_MS) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.PAUSE_ENFORCEMENT,
-                message = "Pause duration must be less than 24 hours on Android",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.PAUSE_ENFORCEMENT, "Pause duration must be less than 24 hours on Android")
             return
         }
 
         try {
-            val restrictionManager = RestrictionManager.getInstance(context)
-            val sessionController = RestrictionSessionController(context)
-            val previousSnapshot = sessionController.captureLifecycleSnapshot()
-            if (restrictionManager.isPausedNow()) {
-                PluginErrorHelper.invalidArgument(
-                    result = result,
-                    feature = FEATURE,
-                    action = MethodNames.PAUSE_ENFORCEMENT,
-                    message = "Restriction enforcement is already paused",
-                )
-                return
-            }
-
-            restrictionManager.pauseFor(durationMs)
-            RestrictionAlarmOrchestrator(context).rescheduleAll()
-            com.example.pauza_screen_time.app_restriction.ShieldOverlayManager.getInstanceOrNull()?.hideShield()
-            sessionController.applyCurrentEnforcementState(
-                trigger = "pause_enforcement",
-                previousLifecycleSnapshot = previousSnapshot,
-            )
+            SessionEnforcementUseCase(context).pauseEnforcement(durationMs)
             result.success(null)
+        } catch (e: IllegalStateException) {
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.PAUSE_ENFORCEMENT, e.message ?: "Invalid state for pause")
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.PAUSE_ENFORCEMENT,
-                message = "Failed to pause restriction enforcement: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.PAUSE_ENFORCEMENT, "Failed to pause restriction enforcement", e)
         }
     }
 
     private fun handleResumeEnforcement(result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.RESUME_ENFORCEMENT,
-                message = "Application context is not available",
-            )
-            return
-        }
-        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.RESUME_ENFORCEMENT, result)) {
-            return
-        }
-
+        val context = contextProvider() ?: return noContext(result, MethodNames.RESUME_ENFORCEMENT)
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.RESUME_ENFORCEMENT, result)) return
         try {
-            val sessionController = RestrictionSessionController(context)
-            val previousSnapshot = sessionController.captureLifecycleSnapshot()
-            RestrictionManager.getInstance(context).clearPause()
-            RestrictionAlarmOrchestrator(context).rescheduleAll()
-            sessionController.applyCurrentEnforcementState(
-                trigger = "resume_enforcement",
-                previousLifecycleSnapshot = previousSnapshot,
-            )
+            SessionEnforcementUseCase(context).resumeEnforcement()
             result.success(null)
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.RESUME_ENFORCEMENT,
-                message = "Failed to resume restriction enforcement: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.RESUME_ENFORCEMENT, "Failed to resume restriction enforcement", e)
         }
     }
 
     private fun handleStartSession(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.START_SESSION,
-                message = "Application context is not available",
-            )
-            return
-        }
-        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.START_SESSION, result)) {
-            return
-        }
+        val context = contextProvider() ?: return noContext(result, MethodNames.START_SESSION)
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.START_SESSION, result)) return
 
         val payload = call.arguments as? Map<*, *>
         if (payload == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.START_SESSION,
-                message = "Missing or invalid mode payload",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.START_SESSION, "Missing or invalid mode payload")
             return
         }
 
         val modeId = (payload["modeId"] as? String)?.trim().orEmpty()
         val blockedAppIdsRaw = payload["blockedAppIds"] as? List<*>
         if (modeId.isEmpty() || blockedAppIdsRaw == null) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.START_SESSION,
-                message = "Mode requires 'modeId' and 'blockedAppIds'",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.START_SESSION, "Mode requires 'modeId' and 'blockedAppIds'")
             return
         }
-        val blockedAppIds = blockedAppIdsRaw
-            .mapNotNull { (it as? String)?.trim() }
-            .filter { it.isNotEmpty() }
-            .distinct()
+        val blockedAppIds = blockedAppIdsRaw.mapNotNull { (it as? String)?.trim() }.filter { it.isNotEmpty() }.distinct()
         if (blockedAppIds.isEmpty()) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.START_SESSION,
-                message = "Mode requires non-empty 'blockedAppIds'",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.START_SESSION, "Mode requires non-empty 'blockedAppIds'")
             return
         }
 
         try {
-            RestrictionSessionController(context).startSession(
-                modeId = modeId,
-                blockedAppIds = blockedAppIds,
-                source = RestrictionModeSource.MANUAL,
-                trigger = "start_session_manual",
-            )
+            SessionEnforcementUseCase(context).startSession(modeId, blockedAppIds)
             result.success(null)
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.START_SESSION,
-                message = "Failed to start session: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.START_SESSION, "Failed to start session", e)
         }
     }
 
     private fun handleEndSession(result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.END_SESSION,
-                message = "Application context is not available",
-            )
-            return
-        }
-
+        val context = contextProvider() ?: return noContext(result, MethodNames.END_SESSION)
         try {
-            RestrictionSessionController(context).endSession(
-                source = RestrictionModeSource.MANUAL,
-                trigger = "end_session_manual",
-            )
+            SessionEnforcementUseCase(context).endSession()
             result.success(null)
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.END_SESSION,
-                message = "Failed to end session: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.END_SESSION, "Failed to end session", e)
         }
     }
 
     private fun handleGetRestrictionSession(result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_RESTRICTION_SESSION,
-                message = "Application context is not available",
-            )
-            return
-        }
-
+        val context = contextProvider() ?: return noContext(result, MethodNames.GET_RESTRICTION_SESSION)
         try {
-            val restrictionManager = RestrictionManager.getInstance(context)
-            val pausedUntilEpochMs = restrictionManager.getPausedUntilEpochMs()
-            val isPausedNow = pausedUntilEpochMs > 0L
-            val state = RestrictionSessionController(context).resolveSessionState()
-            val activeSession = restrictionManager.getActiveSession()
-            val currentSessionEvents = if (activeSession == null) {
-                emptyList()
-            } else {
-                restrictionManager
-                    .loadActiveSessionLifecycleEvents()
-                    .map { it.toChannelMap() }
-            }
-            val payload = RestrictionSessionDto(
-                isScheduleEnabled = state.isScheduleEnabled,
-                isInScheduleNow = state.isInScheduleNow,
-                pausedUntilEpochMs = if (isPausedNow) pausedUntilEpochMs else null,
-                activeMode = state.activeModeId?.let { activeModeId ->
-                    RestrictionModeDto(
-                        modeId = activeModeId,
-                        blockedAppIds = state.blockedAppIds,
-                    )
-                },
-                activeModeSource = state.activeModeSource,
-                currentSessionEvents = currentSessionEvents,
-            )
-            result.success(payload.toChannelMap())
+            val session = SessionEnforcementUseCase(context).getRestrictionSession()
+            result.success(session.toChannelMap())
         } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_RESTRICTION_SESSION,
-                message = "Failed to get restriction session: ${e.message}",
-                error = e,
-            )
+            internalFailure(result, MethodNames.GET_RESTRICTION_SESSION, "Failed to get restriction session", e)
         }
     }
 
     private fun handleGetPendingLifecycleEvents(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_PENDING_LIFECYCLE_EVENTS,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        val payload = call.arguments as? Map<*, *>
-        val limit = (payload?.get("limit") as? Number)?.toInt() ?: 200
+        val context = contextProvider() ?: return noContext(result, MethodNames.GET_PENDING_LIFECYCLE_EVENTS)
+        val limit = ((call.arguments as? Map<*, *>)?.get("limit") as? Number)?.toInt() ?: 200
         if (limit <= 0) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.GET_PENDING_LIFECYCLE_EVENTS,
-                message = "Missing or invalid 'limit' argument",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.GET_PENDING_LIFECYCLE_EVENTS, "Missing or invalid 'limit' argument")
             return
         }
 
         lifecycleExecutor.execute {
             try {
-                val events = RestrictionManager.getInstance(context).getPendingLifecycleEvents(limit)
-                postResult {
-                    result.success(events.map { it.toChannelMap() })
-                }
+                val events = LifecycleEventsUseCase(context).getPendingLifecycleEvents(limit)
+                postResult { result.success(events.map { it.toChannelMap() }) }
             } catch (e: Exception) {
-                postResult {
-                    PluginErrorHelper.internalFailure(
-                        result = result,
-                        feature = FEATURE,
-                        action = MethodNames.GET_PENDING_LIFECYCLE_EVENTS,
-                        message = "Failed to load pending lifecycle events: ${e.message}",
-                        error = e,
-                    )
-                }
+                postResult { internalFailure(result, MethodNames.GET_PENDING_LIFECYCLE_EVENTS, "Failed to load pending lifecycle events", e) }
             }
         }
     }
 
     private fun handleAckLifecycleEvents(call: MethodCall, result: Result) {
-        val context = contextProvider()
-        if (context == null) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.ACK_LIFECYCLE_EVENTS,
-                message = "Application context is not available",
-            )
-            return
-        }
-
-        val payload = call.arguments as? Map<*, *>
-        val throughEventId = (payload?.get("throughEventId") as? String)?.trim().orEmpty()
+        val context = contextProvider() ?: return noContext(result, MethodNames.ACK_LIFECYCLE_EVENTS)
+        val throughEventId = ((call.arguments as? Map<*, *>)?.get("throughEventId") as? String)?.trim().orEmpty()
         if (throughEventId.isEmpty()) {
-            PluginErrorHelper.invalidArgument(
-                result = result,
-                feature = FEATURE,
-                action = MethodNames.ACK_LIFECYCLE_EVENTS,
-                message = "Missing or invalid 'throughEventId' argument",
-            )
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.ACK_LIFECYCLE_EVENTS, "Missing or invalid 'throughEventId' argument")
             return
         }
 
         lifecycleExecutor.execute {
             try {
-                val success = RestrictionManager.getInstance(context).ackLifecycleEventsThrough(throughEventId)
-                if (!success) {
-                    postResult {
-                        PluginErrorHelper.internalFailure(
-                            result = result,
-                            feature = FEATURE,
-                            action = MethodNames.ACK_LIFECYCLE_EVENTS,
-                            message = "Failed to acknowledge lifecycle events",
-                        )
-                    }
-                    return@execute
-                }
-                postResult {
-                    result.success(null)
-                }
+                LifecycleEventsUseCase(context).ackLifecycleEventsThrough(throughEventId)
+                postResult { result.success(null) }
             } catch (e: Exception) {
-                postResult {
-                    PluginErrorHelper.internalFailure(
-                        result = result,
-                        feature = FEATURE,
-                        action = MethodNames.ACK_LIFECYCLE_EVENTS,
-                        message = "Failed to acknowledge lifecycle events: ${e.message}",
-                        error = e,
-                    )
-                }
+                postResult { internalFailure(result, MethodNames.ACK_LIFECYCLE_EVENTS, "Failed to acknowledge lifecycle events", e) }
             }
         }
     }
@@ -775,8 +329,12 @@ class RestrictionsMethodHandler(
         )
         return true
     }
-}
 
-private fun RestrictionScheduledModeEntry.shouldPersistForScheduleEnforcement(): Boolean {
-    return schedule != null && blockedAppIds.isNotEmpty()
+    private fun noContext(result: Result, action: String) {
+        PluginErrorHelper.internalFailure(result, FEATURE, action, "Application context is not available")
+    }
+
+    private fun internalFailure(result: Result, action: String, message: String, e: Exception) {
+        PluginErrorHelper.internalFailure(result, FEATURE, action, "$message: ${e.message}", e.message)
+    }
 }

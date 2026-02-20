@@ -9,8 +9,7 @@ import 'package:pauza_screen_time/src/features/installed_apps/method_channel/ins
 class InstalledAppsManager {
   final InstalledAppsPlatform _platform;
 
-  InstalledAppsManager({InstalledAppsPlatform? platform})
-    : _platform = platform ?? InstalledAppsMethodChannel();
+  InstalledAppsManager({InstalledAppsPlatform? platform}) : _platform = platform ?? InstalledAppsMethodChannel();
 
   // ============================================================
   // Android-Only Methods
@@ -36,12 +35,7 @@ class InstalledAppsManager {
     }
 
     final result = await _platform
-        .getInstalledApps(
-          includeSystemApps,
-          includeIcons: includeIcons,
-          cancelToken: cancelToken,
-          timeout: timeout,
-        )
+        .getInstalledApps(includeSystemApps, includeIcons: includeIcons, cancelToken: cancelToken, timeout: timeout)
         .throwTypedPauzaError();
     final apps = <AndroidAppInfo>[];
     for (var index = 0; index < result.length; index++) {
@@ -79,12 +73,7 @@ class InstalledAppsManager {
     }
 
     final result = await _platform
-        .getAppInfo(
-          packageId.raw,
-          includeIcons: includeIcons,
-          cancelToken: cancelToken,
-          timeout: timeout,
-        )
+        .getAppInfo(packageId.raw, includeIcons: includeIcons, cancelToken: cancelToken, timeout: timeout)
         .throwTypedPauzaError();
     if (result == null) return null;
 
@@ -135,10 +124,7 @@ class InstalledAppsManager {
   /// if you want to re-open the picker with a previous selection.
   Future<List<IOSAppInfo>> selectIOSApps({List<IOSAppInfo>? preSelectedApps}) async {
     if (!Platform.isIOS) {
-      throw const PauzaUnsupportedError(
-        message: 'selectIOSApps is only available on iOS',
-        rawCode: 'UNSUPPORTED',
-      );
+      throw const PauzaUnsupportedError(message: 'selectIOSApps is only available on iOS', rawCode: 'UNSUPPORTED');
     }
 
     // Extract tokens from pre-selected apps
@@ -167,10 +153,7 @@ class InstalledAppsManager {
         if (payload != null) 'payloadType': payload.runtimeType.toString(),
         if (error != null) 'errorType': error.runtimeType.toString(),
         if (error != null || stackTrace != null)
-          'diagnostic': [
-            if (error != null) error.toString(),
-            if (stackTrace != null) stackTrace.toString(),
-          ].join('\n'),
+          'diagnostic': [if (error != null) error.toString(), if (stackTrace != null) stackTrace.toString()].join('\n'),
       },
     );
     return PauzaError.fromPlatformException(exception) as PauzaInternalFailureError;

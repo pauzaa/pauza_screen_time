@@ -6,8 +6,7 @@ class CancelledException implements Exception {
   const CancelledException([this.reason]);
 
   @override
-  String toString() =>
-      reason == null ? 'CancelledException' : 'CancelledException: $reason';
+  String toString() => reason == null ? 'CancelledException' : 'CancelledException: $reason';
 }
 
 typedef CancelListener = void Function(String? reason);

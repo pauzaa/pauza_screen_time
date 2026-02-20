@@ -18,8 +18,7 @@ class UsageStatsMethodChannel extends UsageStatsPlatform {
   @visibleForTesting
   final MethodChannel channel;
 
-  UsageStatsMethodChannel({MethodChannel? channel})
-    : channel = channel ?? const MethodChannel(usageStatsChannelName);
+  UsageStatsMethodChannel({MethodChannel? channel}) : channel = channel ?? const MethodChannel(usageStatsChannelName);
 
   @override
   Future<List<UsageStats>> queryUsageStats({
@@ -39,22 +38,13 @@ class UsageStatsMethodChannel extends UsageStatsPlatform {
     final result = await BackgroundChannelRunner.invokeMethod<List<dynamic>>(
       channel.name,
       UsageStatsMethodNames.queryUsageStats,
-      arguments: {
-        'startTimeMs': startTimeMs,
-        'endTimeMs': endTimeMs,
-        'includeIcons': includeIcons,
-      },
+      arguments: {'startTimeMs': startTimeMs, 'endTimeMs': endTimeMs, 'includeIcons': includeIcons},
       cancelToken: cancelToken,
       timeout: timeout,
     );
     if (result == null) return const [];
     try {
-      return result
-          .map(
-            (entry) =>
-                UsageStats.fromMap(Map<String, dynamic>.from(entry as Map)),
-          )
-          .toList();
+      return result.map((entry) => UsageStats.fromMap(Map<String, dynamic>.from(entry as Map))).toList();
     } catch (error, stackTrace) {
       throw _decodeFailure(
         action: UsageStatsMethodNames.queryUsageStats,
@@ -82,19 +72,18 @@ class UsageStatsMethodChannel extends UsageStatsPlatform {
       );
     }
 
-    final result =
-        await BackgroundChannelRunner.invokeMethod<Map<dynamic, dynamic>?>(
-          channel.name,
-          UsageStatsMethodNames.queryAppUsageStats,
-          arguments: {
-            'packageId': packageId,
-            'startTimeMs': startTimeMs,
-            'endTimeMs': endTimeMs,
-            'includeIcons': includeIcons,
-          },
-          cancelToken: cancelToken,
-          timeout: timeout,
-        );
+    final result = await BackgroundChannelRunner.invokeMethod<Map<dynamic, dynamic>?>(
+      channel.name,
+      UsageStatsMethodNames.queryAppUsageStats,
+      arguments: {
+        'packageId': packageId,
+        'startTimeMs': startTimeMs,
+        'endTimeMs': endTimeMs,
+        'includeIcons': includeIcons,
+      },
+      cancelToken: cancelToken,
+      timeout: timeout,
+    );
     if (result == null) return null;
     try {
       return UsageStats.fromMap(Map<String, dynamic>.from(result));
@@ -126,10 +115,7 @@ class UsageStatsMethodChannel extends UsageStatsPlatform {
         if (payload != null) 'payloadType': payload.runtimeType.toString(),
         if (error != null) 'errorType': error.runtimeType.toString(),
         if (error != null || stackTrace != null)
-          'diagnostic': [
-            if (error != null) error.toString(),
-            if (stackTrace != null) stackTrace.toString(),
-          ].join('\n'),
+          'diagnostic': [if (error != null) error.toString(), if (stackTrace != null) stackTrace.toString()].join('\n'),
       },
     );
   }

@@ -14,64 +14,52 @@ void main() {
   const channel = MethodChannel(permissionsChannelName);
 
   tearDown(() async {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(channel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
   });
 
   test('AndroidPermission.fromKey resolves exact alarm key', () {
-    expect(
-      AndroidPermission.fromKey('android.exactAlarm'),
-      AndroidPermission.exactAlarm,
-    );
+    expect(AndroidPermission.fromKey('android.exactAlarm'), AndroidPermission.exactAlarm);
   });
 
-  test(
-    'PermissionHelper requests exact alarm when usage/accessibility are granted',
-    () async {
-      final requested = <String>[];
-      _setPermissionsHandler(
-        channel: channel,
-        onCheckPermission: (permissionKey) {
-          if (permissionKey == AndroidPermission.exactAlarm.key) {
-            return 'denied';
-          }
-          return 'granted';
-        },
-        onRequestPermission: (permissionKey) {
-          requested.add(permissionKey);
-          return true;
-        },
-      );
+  test('PermissionHelper requests exact alarm when usage/accessibility are granted', () async {
+    final requested = <String>[];
+    _setPermissionsHandler(
+      channel: channel,
+      onCheckPermission: (permissionKey) {
+        if (permissionKey == AndroidPermission.exactAlarm.key) {
+          return 'denied';
+        }
+        return 'granted';
+      },
+      onRequestPermission: (permissionKey) {
+        requested.add(permissionKey);
+        return true;
+      },
+    );
 
-      final helper = PermissionHelper(PermissionManager());
-      await helper.requestAllRequiredPermissions();
+    final helper = PermissionHelper(PermissionManager());
+    await helper.requestAllRequiredPermissions();
 
-      expect(requested, [AndroidPermission.exactAlarm.key]);
-    },
-    skip: !Platform.isAndroid,
-  );
+    expect(requested, [AndroidPermission.exactAlarm.key]);
+  }, skip: !Platform.isAndroid);
 
-  test(
-    'getMissingAndroidPermissions() includes exact alarm when denied',
-    () async {
-      _setPermissionsHandler(
-        channel: channel,
-        onCheckPermission: (permissionKey) {
-          if (permissionKey == AndroidPermission.exactAlarm.key) {
-            return 'denied';
-          }
-          return 'granted';
-        },
-        onRequestPermission: (_) => true,
-      );
+  test('getMissingAndroidPermissions() includes exact alarm when denied', () async {
+    _setPermissionsHandler(
+      channel: channel,
+      onCheckPermission: (permissionKey) {
+        if (permissionKey == AndroidPermission.exactAlarm.key) {
+          return 'denied';
+        }
+        return 'granted';
+      },
+      onRequestPermission: (_) => true,
+    );
 
-      final manager = PermissionManager();
-      final missing = await manager.getMissingAndroidPermissions();
+    final manager = PermissionManager();
+    final missing = await manager.getMissingAndroidPermissions();
 
-      expect(missing.contains(AndroidPermission.exactAlarm), isTrue);
-    },
-    skip: !Platform.isAndroid,
-  );
+    expect(missing.contains(AndroidPermission.exactAlarm), isTrue);
+  }, skip: !Platform.isAndroid);
 }
 
 void _setPermissionsHandler({
@@ -79,26 +67,27 @@ void _setPermissionsHandler({
   required String Function(String permissionKey) onCheckPermission,
   required bool Function(String permissionKey) onRequestPermission,
 }) {
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMethodCallHandler(channel, (MethodCall call) async {
-        final args = call.arguments as Map<dynamic, dynamic>?;
-        final permissionKey = args?['permissionKey'] as String?;
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (
+    MethodCall call,
+  ) async {
+    final args = call.arguments as Map<dynamic, dynamic>?;
+    final permissionKey = args?['permissionKey'] as String?;
 
-        switch (call.method) {
-          case PermissionsMethodNames.checkPermission:
-            if (permissionKey == null) {
-              return 'unknown';
-            }
-            return onCheckPermission(permissionKey);
-          case PermissionsMethodNames.requestPermission:
-            if (permissionKey == null) {
-              return false;
-            }
-            return onRequestPermission(permissionKey);
-          case PermissionsMethodNames.openPermissionSettings:
-            return null;
-          default:
-            return null;
+    switch (call.method) {
+      case PermissionsMethodNames.checkPermission:
+        if (permissionKey == null) {
+          return 'unknown';
         }
-      });
+        return onCheckPermission(permissionKey);
+      case PermissionsMethodNames.requestPermission:
+        if (permissionKey == null) {
+          return false;
+        }
+        return onRequestPermission(permissionKey);
+      case PermissionsMethodNames.openPermissionSettings:
+        return null;
+      default:
+        return null;
+    }
+  });
 }

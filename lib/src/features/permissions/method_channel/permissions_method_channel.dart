@@ -11,37 +11,29 @@ class PermissionsMethodChannel extends PermissionPlatform {
   @visibleForTesting
   final MethodChannel channel;
 
-  PermissionsMethodChannel({MethodChannel? channel})
-    : channel = channel ?? const MethodChannel(permissionsChannelName);
+  PermissionsMethodChannel({MethodChannel? channel}) : channel = channel ?? const MethodChannel(permissionsChannelName);
 
   @override
   Future<PermissionStatus> checkPermission(String permissionKey) async {
-    final result = await channel.invokeMethod<String>(
-      PermissionsMethodNames.checkPermission,
-      {'permissionKey': permissionKey},
-    );
+    final result = await channel.invokeMethod<String>(PermissionsMethodNames.checkPermission, {
+      'permissionKey': permissionKey,
+    });
     if (result == null) {
-      throw StateError(
-        'Native layer returned null for permission check: $permissionKey',
-      );
+      throw StateError('Native layer returned null for permission check: $permissionKey');
     }
     return PermissionStatus.fromString(result);
   }
 
   @override
   Future<bool> requestPermission(String permissionKey) async {
-    final result = await channel.invokeMethod<bool>(
-      PermissionsMethodNames.requestPermission,
-      {'permissionKey': permissionKey},
-    );
+    final result = await channel.invokeMethod<bool>(PermissionsMethodNames.requestPermission, {
+      'permissionKey': permissionKey,
+    });
     return result ?? false;
   }
 
   @override
   Future<void> openPermissionSettings(String permissionKey) {
-    return channel.invokeMethod<void>(
-      PermissionsMethodNames.openPermissionSettings,
-      {'permissionKey': permissionKey},
-    );
+    return channel.invokeMethod<void>(PermissionsMethodNames.openPermissionSettings, {'permissionKey': permissionKey});
   }
 }

@@ -13,6 +13,7 @@ buildscript {
         classpath("com.android.tools.build:gradle:8.9.1")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
         classpath("org.jetbrains.kotlin:compose-compiler-gradle-plugin:$kotlin_version")
+        classpath("org.jetbrains.kotlin:kotlin-serialization:$kotlin_version")
     }
 }
 
@@ -26,6 +27,7 @@ allprojects {
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 apply plugin: "org.jetbrains.kotlin.plugin.compose"
+apply plugin: "org.jetbrains.kotlin.plugin.serialization"
 
 android {
     namespace = "com.example.pauza_screen_time"
@@ -74,6 +76,9 @@ android {
 
         // Coroutines for background method handlers
         implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+        // Kotlinx Serialization
+        implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
         
         // Test dependencies
         testImplementation("org.jetbrains.kotlin:kotlin-test")

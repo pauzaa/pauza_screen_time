@@ -12,56 +12,32 @@ import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_s
 import 'package:pauza_screen_time/src/features/restrict_apps/model/shield_configuration.dart';
 
 void main() {
-  test(
-    'manager throws typed PauzaError for upsertMode platform exception',
-    () async {
-      final manager = AppRestrictionManager(
-        platform: _FailingRestrictionPlatform(),
-      );
-
-      await expectLater(
-        manager.upsertMode(
-          const RestrictionMode(
-            modeId: 'focus',
-            blockedAppIds: [AppIdentifier('x')],
-          ),
-        ),
-        throwsA(isA<PauzaMissingPermissionError>()),
-      );
-    },
-  );
-
-  test('manager throws typed PauzaError for setModesEnabled', () async {
-    final manager = AppRestrictionManager(
-      platform: _FailingRestrictionPlatform(),
-    );
+  test('manager throws typed PauzaError for upsertMode platform exception', () async {
+    final manager = AppRestrictionManager(platform: _FailingRestrictionPlatform());
 
     await expectLater(
-      manager.setModesEnabled(true),
+      manager.upsertMode(const RestrictionMode(modeId: 'focus', blockedAppIds: [AppIdentifier('x')])),
       throwsA(isA<PauzaMissingPermissionError>()),
     );
   });
 
+  test('manager throws typed PauzaError for setModesEnabled', () async {
+    final manager = AppRestrictionManager(platform: _FailingRestrictionPlatform());
+
+    await expectLater(manager.setModesEnabled(true), throwsA(isA<PauzaMissingPermissionError>()));
+  });
+
   test('manager throws typed PauzaError for startSession', () async {
-    final manager = AppRestrictionManager(
-      platform: _FailingRestrictionPlatform(),
-    );
+    final manager = AppRestrictionManager(platform: _FailingRestrictionPlatform());
 
     await expectLater(
-      manager.startSession(
-        const RestrictionMode(
-          modeId: 'focus',
-          blockedAppIds: [AppIdentifier('x')],
-        ),
-      ),
+      manager.startSession(const RestrictionMode(modeId: 'focus', blockedAppIds: [AppIdentifier('x')])),
       throwsA(isA<PauzaMissingPermissionError>()),
     );
   });
 
   test('manager throws typed PauzaError for pauseEnforcement', () async {
-    final manager = AppRestrictionManager(
-      platform: _FailingRestrictionPlatform(),
-    );
+    final manager = AppRestrictionManager(platform: _FailingRestrictionPlatform());
 
     await expectLater(
       manager.pauseEnforcement(const Duration(minutes: 1)),
@@ -70,34 +46,19 @@ void main() {
   });
 
   test('manager throws typed PauzaError for resumeEnforcement', () async {
-    final manager = AppRestrictionManager(
-      platform: _FailingRestrictionPlatform(),
-    );
+    final manager = AppRestrictionManager(platform: _FailingRestrictionPlatform());
 
-    await expectLater(
-      manager.resumeEnforcement(),
-      throwsA(isA<PauzaMissingPermissionError>()),
-    );
+    await expectLater(manager.resumeEnforcement(), throwsA(isA<PauzaMissingPermissionError>()));
   });
 
-  test(
-    'manager throws typed PauzaError for getPendingLifecycleEvents',
-    () async {
-      final manager = AppRestrictionManager(
-        platform: _FailingRestrictionPlatform(),
-      );
+  test('manager throws typed PauzaError for getPendingLifecycleEvents', () async {
+    final manager = AppRestrictionManager(platform: _FailingRestrictionPlatform());
 
-      await expectLater(
-        manager.getPendingLifecycleEvents(),
-        throwsA(isA<PauzaMissingPermissionError>()),
-      );
-    },
-  );
+    await expectLater(manager.getPendingLifecycleEvents(), throwsA(isA<PauzaMissingPermissionError>()));
+  });
 
   test('manager throws typed PauzaError for ackLifecycleEvents', () async {
-    final manager = AppRestrictionManager(
-      platform: _FailingRestrictionPlatform(),
-    );
+    final manager = AppRestrictionManager(platform: _FailingRestrictionPlatform());
 
     await expectLater(
       manager.ackLifecycleEvents(throughEventId: 'event-1'),
@@ -111,19 +72,17 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   Future<void> configureShield(ShieldConfiguration configuration) async {}
 
   @override
-  Future<RestrictionModesConfig> getModesConfig() async =>
-      const RestrictionModesConfig(enabled: false, modes: []);
+  Future<RestrictionModesConfig> getModesConfig() async => const RestrictionModesConfig(enabled: false, modes: []);
 
   @override
-  Future<RestrictionState> getRestrictionSession() async =>
-      const RestrictionState(
-        isScheduleEnabled: false,
-        isInScheduleNow: false,
-        pausedUntil: null,
-        activeMode: null,
-        activeModeSource: RestrictionModeSource.none,
-        currentSessionEvents: <RestrictionLifecycleEvent>[],
-      );
+  Future<RestrictionState> getRestrictionSession() async => const RestrictionState(
+    isScheduleEnabled: false,
+    isInScheduleNow: false,
+    pausedUntil: null,
+    activeMode: null,
+    activeModeSource: RestrictionModeSource.none,
+    currentSessionEvents: <RestrictionLifecycleEvent>[],
+  );
 
   @override
   Future<bool> isRestrictionSessionActiveNow() async => false;
@@ -135,9 +94,7 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   Future<void> endSession() async {}
 
   @override
-  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({
-    int limit = 200,
-  }) async {
+  Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({int limit = 200}) async {
     throw PlatformException(code: 'MISSING_PERMISSION', message: 'missing');
   }
 

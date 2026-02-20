@@ -11,8 +11,7 @@ import 'package:pauza_screen_time/src/features/permissions/permission_platform.d
 class PermissionManager {
   final PermissionPlatform _platform;
 
-  PermissionManager({PermissionPlatform? platform})
-    : _platform = platform ?? PermissionsMethodChannel();
+  PermissionManager({PermissionPlatform? platform}) : _platform = platform ?? PermissionsMethodChannel();
 
   // ============================================================
   // Android Permissions
@@ -21,9 +20,7 @@ class PermissionManager {
   /// Checks the status of an Android permission.
   ///
   /// Only call this on Android platform.
-  Future<PermissionStatus> checkAndroidPermission(
-    AndroidPermission permission,
-  ) {
+  Future<PermissionStatus> checkAndroidPermission(AndroidPermission permission) {
     if (!Platform.isAndroid) {
       throw const PauzaUnsupportedError(
         message: 'checkAndroidPermission is only available on Android',
@@ -68,9 +65,7 @@ class PermissionManager {
         rawCode: 'UNSUPPORTED',
       );
     }
-    return _platform
-        .openPermissionSettings(permission.key)
-        .throwTypedPauzaError();
+    return _platform.openPermissionSettings(permission.key).throwTypedPauzaError();
   }
 
   // ============================================================
@@ -82,10 +77,7 @@ class PermissionManager {
   /// Only call this on iOS platform.
   Future<PermissionStatus> checkIOSPermission(IOSPermission permission) {
     if (!Platform.isIOS) {
-      throw const PauzaUnsupportedError(
-        message: 'checkIOSPermission is only available on iOS',
-        rawCode: 'UNSUPPORTED',
-      );
+      throw const PauzaUnsupportedError(message: 'checkIOSPermission is only available on iOS', rawCode: 'UNSUPPORTED');
     }
     return _platform.checkPermission(permission.key).throwTypedPauzaError();
   }
@@ -112,9 +104,7 @@ class PermissionManager {
   ///
   /// Returns a typed map of permissions to their status.
   /// Only call this on Android platform.
-  Future<Map<AndroidPermission, PermissionStatus>> checkAndroidPermissions(
-    List<AndroidPermission> permissions,
-  ) async {
+  Future<Map<AndroidPermission, PermissionStatus>> checkAndroidPermissions(List<AndroidPermission> permissions) async {
     if (!Platform.isAndroid) {
       throw const PauzaUnsupportedError(
         message: 'checkAndroidPermissions is only available on Android',
@@ -123,9 +113,7 @@ class PermissionManager {
     }
     final results = <AndroidPermission, PermissionStatus>{};
     for (final permission in permissions) {
-      results[permission] = await _platform
-          .checkPermission(permission.key)
-          .throwTypedPauzaError();
+      results[permission] = await _platform.checkPermission(permission.key).throwTypedPauzaError();
     }
     return results;
   }
@@ -134,9 +122,7 @@ class PermissionManager {
   ///
   /// Returns a typed map of permissions to their status.
   /// Only call this on iOS platform.
-  Future<Map<IOSPermission, PermissionStatus>> checkIOSPermissions(
-    List<IOSPermission> permissions,
-  ) async {
+  Future<Map<IOSPermission, PermissionStatus>> checkIOSPermissions(List<IOSPermission> permissions) async {
     if (!Platform.isIOS) {
       throw const PauzaUnsupportedError(
         message: 'checkIOSPermissions is only available on iOS',
@@ -145,9 +131,7 @@ class PermissionManager {
     }
     final results = <IOSPermission, PermissionStatus>{};
     for (final permission in permissions) {
-      results[permission] = await _platform
-          .checkPermission(permission.key)
-          .throwTypedPauzaError();
+      results[permission] = await _platform.checkPermission(permission.key).throwTypedPauzaError();
     }
     return results;
   }
@@ -156,9 +140,7 @@ class PermissionManager {
   ///
   /// If [subset] is provided, only checks those permissions.
   /// Otherwise, checks all Android permissions.
-  Future<List<AndroidPermission>> getMissingAndroidPermissions([
-    List<AndroidPermission>? subset,
-  ]) async {
+  Future<List<AndroidPermission>> getMissingAndroidPermissions([List<AndroidPermission>? subset]) async {
     if (!Platform.isAndroid) {
       throw const PauzaUnsupportedError(
         message: 'getMissingAndroidPermissions is only available on Android',
@@ -167,19 +149,14 @@ class PermissionManager {
     }
     final permissionsToCheck = subset ?? AndroidPermission.values;
     final statuses = await checkAndroidPermissions(permissionsToCheck);
-    return statuses.entries
-        .where((entry) => !entry.value.isGranted)
-        .map((entry) => entry.key)
-        .toList();
+    return statuses.entries.where((entry) => !entry.value.isGranted).map((entry) => entry.key).toList();
   }
 
   /// Returns a list of iOS permissions that are not granted.
   ///
   /// If [subset] is provided, only checks those permissions.
   /// Otherwise, checks all iOS permissions.
-  Future<List<IOSPermission>> getMissingIOSPermissions([
-    List<IOSPermission>? subset,
-  ]) async {
+  Future<List<IOSPermission>> getMissingIOSPermissions([List<IOSPermission>? subset]) async {
     if (!Platform.isIOS) {
       throw const PauzaUnsupportedError(
         message: 'getMissingIOSPermissions is only available on iOS',
@@ -188,9 +165,6 @@ class PermissionManager {
     }
     final permissionsToCheck = subset ?? IOSPermission.values;
     final statuses = await checkIOSPermissions(permissionsToCheck);
-    return statuses.entries
-        .where((entry) => !entry.value.isGranted)
-        .map((entry) => entry.key)
-        .toList();
+    return statuses.entries.where((entry) => !entry.value.isGranted).map((entry) => entry.key).toList();
   }
 }
