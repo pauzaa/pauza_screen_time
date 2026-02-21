@@ -123,7 +123,7 @@ struct SessionEnforcementUseCase {
         let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         
         let storeResult: RestrictionStateStore.StoreResult
-        if let activeSession = RestrictionStateStore.loadActiveSession(), activeSession.source == .manual {
+        if let activeSession = try? RestrictionStateStore.loadActiveSession(), activeSession.source == .manual {
             storeResult = RestrictionStateStore.clearActiveSession()
         } else {
             storeResult = .success
@@ -151,7 +151,7 @@ struct SessionEnforcementUseCase {
         let state = resolveSessionState()
         let pausedUntilEpochMs = RestrictionStateStore.loadPausedUntilEpochMs()
         let isPausedNow = pausedUntilEpochMs > 0
-        let activeSessionId = RestrictionStateStore.loadActiveSession()?.sessionId
+        let activeSessionId = (try? RestrictionStateStore.loadActiveSession())?.sessionId
         let currentSessionEvents: [RestrictionLifecycleEvent]
         if let activeSessionId, !activeSessionId.isEmpty {
             currentSessionEvents = RestrictionStateStore
@@ -222,7 +222,7 @@ struct SessionEnforcementUseCase {
             modes: modes
         )
         let resolution = RestrictionScheduledModeEvaluator.resolveNow(config: config)
-        let activeSession = RestrictionStateStore.loadActiveSession()
+        let activeSession = try? RestrictionStateStore.loadActiveSession()
 
         if let activeSession {
             if activeSession.source == .manual {

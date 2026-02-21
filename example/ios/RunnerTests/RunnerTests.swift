@@ -126,6 +126,57 @@ class RunnerTests: XCTestCase {
     waitForExpectations(timeout: 2)
   }
 
+  func testLoadActiveSession_corruptData_throwsAndClears() {
+    testDefaults.set(["invalid": "data"], forKey: RestrictionStateStore.activeSessionKey)
+
+    XCTAssertThrowsError(try RestrictionStateStore.loadActiveSession()) { error in
+      guard let decodeError = error as? RestrictionStateStore.StorageDecodeError else {
+        XCTFail("Expected StorageDecodeError but got \(error)")
+        return
+      }
+      XCTAssertTrue(decodeError.message.contains("missing modeId or blockedAppIds"))
+    }
+
+    let remaining = testDefaults.dictionary(forKey: RestrictionStateStore.activeSessionKey)
+    XCTAssertNil(remaining, "Active session should be cleared after corrupt load")
+  }
+
+  func testAppendLifecycleEvents_corruptData_clearsAndAppends() {
+    testDefaults.set("[{corrupt}]", forKey: RestrictionStateStore.lifecycleEventsKey)
+    
+    let drafts = [
+      RestrictionLifecycleEventDraft(
+        sessionId: "s1",
+        modeId: "focus",
+        action: .start,
+        source: .manual,
+        reason: "test",
+        occurredAtEpochMs: 1
+      )
+    ]
+
+    RestrictionStateStore.appendLifecycleEvents(drafts)
+
+    let events = testDefaults.array(forKey: RestrictionStateStore.lifecycleEventsKey) as? [[String: Any]] ?? []
+    // It should have reset the corrupt array and appended 1 new event
+    XCTAssertEqual(events.count, 1)
+    XCTAssertEqual(events.first?["reason"] as? String, "test")
+  }
+
+  func testDecodeTokens_corruptBase64_appendsToInvalidTokens() {
+    if #available(iOS 16.0, *) {
+      let manager = ShieldManager.shared
+      let corruptTokens = ["invalid_base64_!@#", "vfvfvf=="]
+      
+      let result = manager.decodeTokens(base64Tokens: corruptTokens)
+      
+      XCTAssertTrue(result.tokens.isEmpty)
+      XCTAssertTrue(result.appliedBase64Tokens.isEmpty)
+      XCTAssertEqual(result.invalidTokens.count, 2)
+      XCTAssertEqual(result.invalidTokens, corruptTokens)
+    }
+  }
+
   private func assertStoreSuccess(_ result: RestrictionStateStore.StoreResult) {
     switch result {
     case .success:

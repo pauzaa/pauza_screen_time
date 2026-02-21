@@ -60,7 +60,7 @@ struct ManageModesUseCase {
             }
         }
 
-        if let activeSession = RestrictionStateStore.loadActiveSession(),
+        if let activeSession = try? RestrictionStateStore.loadActiveSession(),
            activeSession.modeId == mode.modeId {
             let storeResult: RestrictionStateStore.StoreResult
             if mode.isStartable {
@@ -111,7 +111,7 @@ struct ManageModesUseCase {
             }
         }
 
-        if RestrictionStateStore.loadActiveSession()?.modeId == modeId {
+        if (try? RestrictionStateStore.loadActiveSession())?.modeId == modeId {
             switch RestrictionStateStore.clearActiveSession() {
             case .success:
                 break

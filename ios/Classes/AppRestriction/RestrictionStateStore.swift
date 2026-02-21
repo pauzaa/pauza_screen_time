@@ -19,6 +19,11 @@ enum RestrictionStateStore {
         case appGroupUnavailable(resolvedGroupId: String)
     }
 
+    struct StorageDecodeError: Error, LocalizedError {
+        let message: String
+        var errorDescription: String? { return message }
+    }
+
     struct ActiveSession {
         let sessionId: String
         let modeId: String
@@ -34,7 +39,7 @@ enum RestrictionStateStore {
             ]
         }
 
-        static func fromStorageMap(_ map: [String: Any]) -> ActiveSession? {
+        static func fromStorageMap(_ map: [String: Any]) throws -> ActiveSession {
             let sessionId = (map["sessionId"] as? String ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             let modeId = (map["modeId"] as? String ?? "")
@@ -48,10 +53,18 @@ enum RestrictionStateStore {
             }
             let sourceRaw = (map["source"] as? String ?? RestrictionModeSource.manual.wireValue)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            let source = RestrictionModeSource(rawValue: sourceRaw) ?? .manual
+            
+            let source: RestrictionModeSource
+            if let parsedSource = RestrictionModeSource(rawValue: sourceRaw) {
+                source = parsedSource
+            } else {
+                print("⚠️ [RestrictionStateStore] Unknown RestrictionModeSource wire value '\(sourceRaw)' in legacy format; defaulting to manual")
+                source = .manual
+            }
+            
             let uniqueBlockedAppIds = Array(NSOrderedSet(array: blockedAppIds)) as? [String] ?? blockedAppIds
             guard !modeId.isEmpty, !uniqueBlockedAppIds.isEmpty else {
-                return nil
+                throw StorageDecodeError(message: "Active session missing modeId or blockedAppIds")
             }
             return ActiveSession(
                 sessionId: sessionId,
@@ -86,17 +99,14 @@ enum RestrictionStateStore {
         return pausedUntilValue(defaults) > 0
     }
 
-    static func loadActiveSession() -> ActiveSession? {
+    static func loadActiveSession() throws -> ActiveSession? {
         guard let defaults = AppGroupStore.sharedDefaults() else {
             return nil
         }
         guard let raw = defaults.dictionary(forKey: activeSessionKey) else {
             return nil
         }
-        guard let parsed = ActiveSession.fromStorageMap(raw) else {
-            _ = clearActiveSession()
-            return nil
-        }
+        let parsed = try ActiveSession.fromStorageMap(raw)
         if parsed.sessionId.isEmpty {
             let migrated = ActiveSession(
                 sessionId: nextSessionId(defaults: defaults),
@@ -116,7 +126,8 @@ enum RestrictionStateStore {
         guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
             return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
         }
-        let previousSessionId = ActiveSession.fromStorageMap(defaults.dictionary(forKey: activeSessionKey) ?? [:])?.sessionId
+        let previousMap = defaults.dictionary(forKey: activeSessionKey) ?? [:]
+        let previousSessionId = (try? ActiveSession.fromStorageMap(previousMap))?.sessionId
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if let session {
             let normalizedSessionId = session.sessionId.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -143,7 +154,13 @@ enum RestrictionStateStore {
     }
 
     static func snapshotLifecycleState() -> RestrictionLifecycleSnapshot {
-        let activeSession = loadActiveSession()
+        var activeSession: ActiveSession?
+        do {
+            activeSession = try loadActiveSession()
+        } catch {
+            print("⚠️ [RestrictionStateStore] Corrupt active session storage; resetting. Error: \(error)")
+            _ = clearActiveSession()
+        }
         if let activeSession {
             return RestrictionLifecycleSnapshot(
                 isActive: true,
@@ -179,7 +196,13 @@ enum RestrictionStateStore {
         let normalizedLimit = max(1, min(limit, PlatformConstants.maxLifecycleEvents))
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
-        return loadLifecycleEvents(defaults: defaults).prefix(normalizedLimit).map { $0 }
+        do {
+            return try loadLifecycleEvents(defaults: defaults).prefix(normalizedLimit).map { $0 }
+        } catch {
+            print("⚠️ [RestrictionStateStore] Corrupt lifecycle events storage; resetting. Error: \(error)")
+            defaults.removeObject(forKey: lifecycleEventsKey)
+            return []
+        }
     }
 
     static func loadActiveSessionLifecycleEvents(limit: Int) -> [RestrictionLifecycleEvent] {
@@ -189,7 +212,13 @@ enum RestrictionStateStore {
         let normalizedLimit = max(1, min(limit, PlatformConstants.maxLifecycleEvents))
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
-        return loadActiveSessionLifecycleEvents(defaults: defaults).prefix(normalizedLimit).map { $0 }
+        do {
+            return try loadActiveSessionLifecycleEvents(defaults: defaults).prefix(normalizedLimit).map { $0 }
+        } catch {
+            print("⚠️ [RestrictionStateStore] Corrupt active-session lifecycle events storage; resetting. Error: \(error)")
+            clearActiveSessionLifecycleEvents(defaults: defaults)
+            return []
+        }
     }
 
     @discardableResult
@@ -206,16 +235,22 @@ enum RestrictionStateStore {
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
 
-        let events = loadLifecycleEvents(defaults: defaults)
-        let filtered = events.filter { $0.id > normalizedId }
-        if filtered.count != events.count {
-            persistLifecycleEvents(
-                filtered,
-                seq: sequenceValue(defaults, key: lifecycleEventSeqKey),
-                defaults: defaults
-            )
+        do {
+            let events = try loadLifecycleEvents(defaults: defaults)
+            let filtered = events.filter { $0.id > normalizedId }
+            if filtered.count != events.count {
+                persistLifecycleEvents(
+                    filtered,
+                    seq: sequenceValue(defaults, key: lifecycleEventSeqKey),
+                    defaults: defaults
+                )
+            }
+            return .success
+        } catch {
+            print("⚠️ [RestrictionStateStore] Corrupt lifecycle events storage during ack; resetting. id=\(normalizedId). Error: \(error)")
+            defaults.removeObject(forKey: lifecycleEventsKey)
+            return .success
         }
-        return .success
     }
 
     @discardableResult
@@ -230,9 +265,27 @@ enum RestrictionStateStore {
         lifecycleLock.lock()
         defer { lifecycleLock.unlock() }
 
-        var events = loadLifecycleEvents(defaults: defaults)
-        var activeSessionEvents = loadActiveSessionLifecycleEvents(defaults: defaults)
-        let activeSessionId = ActiveSession.fromStorageMap(defaults.dictionary(forKey: activeSessionKey) ?? [:])?.sessionId
+        var events: [RestrictionLifecycleEvent]
+        do {
+            events = try loadLifecycleEvents(defaults: defaults)
+        } catch {
+            print("⚠️ [RestrictionStateStore] Corrupt lifecycle events storage; resetting before append. Error: \(error)")
+            defaults.removeObject(forKey: lifecycleEventsKey)
+            clearActiveSessionLifecycleEvents(defaults: defaults)
+            events = []
+        }
+        
+        var activeSessionEvents: [RestrictionLifecycleEvent]
+        do {
+            activeSessionEvents = try loadActiveSessionLifecycleEvents(defaults: defaults)
+        } catch {
+            print("⚠️ [RestrictionStateStore] Corrupt active session lifecycle events; resetting before append. Error: \(error)")
+            clearActiveSessionLifecycleEvents(defaults: defaults)
+            activeSessionEvents = []
+        }
+        
+        let previousMap = defaults.dictionary(forKey: activeSessionKey) ?? [:]
+        let activeSessionId = (try? ActiveSession.fromStorageMap(previousMap))?.sessionId
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         var nextSeq = sequenceValue(defaults, key: lifecycleEventSeqKey)
         for draft in drafts {
@@ -377,22 +430,32 @@ enum RestrictionStateStore {
         return "s-\(formatCounter(nextSeq, width: 12))-\(formatEpochMs(currentEpochMs()))"
     }
 
-    private static func loadLifecycleEvents(defaults: UserDefaults) -> [RestrictionLifecycleEvent] {
-        guard let values = defaults.array(forKey: lifecycleEventsKey) as? [[String: Any]] else {
+    private static func loadLifecycleEvents(defaults: UserDefaults) throws -> [RestrictionLifecycleEvent] {
+        guard defaults.object(forKey: lifecycleEventsKey) != nil else {
             return []
         }
-        return values
-            .compactMap(RestrictionLifecycleEvent.init)
-            .sorted { $0.id < $1.id }
+        guard let values = defaults.array(forKey: lifecycleEventsKey) as? [[String: Any]] else {
+            throw StorageDecodeError(message: "Lifecycle events JSON is corrupt")
+        }
+        let parsed = values.compactMap(RestrictionLifecycleEvent.init)
+        if parsed.count != values.count {
+            throw StorageDecodeError(message: "Lifecycle events have invalid properties")
+        }
+        return parsed.sorted { $0.id < $1.id }
     }
 
-    private static func loadActiveSessionLifecycleEvents(defaults: UserDefaults) -> [RestrictionLifecycleEvent] {
-        guard let values = defaults.array(forKey: activeSessionLifecycleEventsKey) as? [[String: Any]] else {
+    private static func loadActiveSessionLifecycleEvents(defaults: UserDefaults) throws -> [RestrictionLifecycleEvent] {
+        guard defaults.object(forKey: activeSessionLifecycleEventsKey) != nil else {
             return []
         }
-        return values
-            .compactMap(RestrictionLifecycleEvent.init)
-            .sorted { $0.id < $1.id }
+        guard let values = defaults.array(forKey: activeSessionLifecycleEventsKey) as? [[String: Any]] else {
+            throw StorageDecodeError(message: "Active-session lifecycle events JSON is corrupt")
+        }
+        let parsed = values.compactMap(RestrictionLifecycleEvent.init)
+        if parsed.count != values.count {
+            throw StorageDecodeError(message: "Active-session lifecycle events have invalid properties")
+        }
+        return parsed.sorted { $0.id < $1.id }
     }
 
     private static func persistLifecycleEvents(
