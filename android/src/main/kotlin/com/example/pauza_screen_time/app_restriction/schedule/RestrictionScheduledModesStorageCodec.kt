@@ -29,18 +29,18 @@ internal object RestrictionScheduledModesStorageCodec {
     }
 
     fun fromStorageJson(serialized: String): List<RestrictionScheduledModeEntry> {
-        return try {
-            val raw = JSONArray(serialized)
-            val parsed = mutableListOf<RestrictionScheduledModeEntry>()
-            for (index in 0 until raw.length()) {
-                val mode = raw.optJSONObject(index) ?: continue
-                val parsedMode = parseMode(mode) ?: continue
-                parsed += parsedMode
-            }
-            parsed
-        } catch (_: Exception) {
-            emptyList()
+        val raw = try {
+            JSONArray(serialized)
+        } catch (e: Exception) {
+            throw StorageDecodeException("Scheduled modes JSON is corrupt", e)
         }
+        val parsed = mutableListOf<RestrictionScheduledModeEntry>()
+        for (index in 0 until raw.length()) {
+            val mode = raw.optJSONObject(index) ?: continue
+            val parsedMode = parseMode(mode) ?: continue
+            parsed += parsedMode
+        }
+        return parsed
     }
 
     private fun parseMode(mode: JSONObject): RestrictionScheduledModeEntry? {
@@ -100,3 +100,6 @@ internal object RestrictionScheduledModesStorageCodec {
         )
     }
 }
+
+/** Thrown when stored JSON cannot be decoded into the expected structure. */
+class StorageDecodeException(message: String, cause: Throwable? = null) : Exception(message, cause)

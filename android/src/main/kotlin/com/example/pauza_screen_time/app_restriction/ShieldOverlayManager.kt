@@ -90,9 +90,10 @@ class ShieldOverlayManager private constructor(context: Context) {
      * @param configMap Map containing shield configuration parameters
      */
     fun configure(configMap: Map<String, Any?>) {
-        configuration = ShieldConfig.fromMap(configMap)
-        persistConfig(configuration)
-        Log.d(TAG, "Shield configured: ${configuration?.title}")
+        val config = ShieldConfig.fromMap(configMap)
+        configuration = config
+        persistConfig(config)
+        Log.d(TAG, "Shield configured: ${config.title}")
     }
 
     /**
@@ -219,13 +220,7 @@ class ShieldOverlayManager private constructor(context: Context) {
         appContext.startActivity(homeIntent)
     }
 
-    private fun persistConfig(config: ShieldConfig?) {
-        if (config == null) {
-            preferences.edit()
-                .remove(KEY_SHIELD_CONFIG)
-                .apply()
-            return
-        }
+    private fun persistConfig(config: ShieldConfig) {
         preferences.edit()
             .putString(KEY_SHIELD_CONFIG, ShieldConfig.toJson(config))
             .apply()
@@ -236,13 +231,14 @@ class ShieldOverlayManager private constructor(context: Context) {
         if (serialized.isEmpty()) {
             return null
         }
-        val config = ShieldConfig.fromJson(serialized)
-        if (config == null) {
-            Log.w(TAG, "Failed to parse persisted shield config; clearing stored value")
+        return try {
+            ShieldConfig.fromJson(serialized)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to parse persisted shield config; reverting to DEFAULT", e)
             preferences.edit()
                 .remove(KEY_SHIELD_CONFIG)
                 .apply()
+            null
         }
-        return config
     }
 }

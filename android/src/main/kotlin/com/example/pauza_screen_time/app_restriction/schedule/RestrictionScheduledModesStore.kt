@@ -74,7 +74,13 @@ internal class RestrictionScheduledModesStore(
         if (serialized.isNullOrBlank()) {
             return emptyList()
         }
-        return RestrictionScheduledModesStorageCodec.fromStorageJson(serialized)
+        return try {
+            RestrictionScheduledModesStorageCodec.fromStorageJson(serialized)
+        } catch (e: StorageDecodeException) {
+            android.util.Log.w("RestrictionScheduledModesStore", "Corrupt scheduled modes storage; resetting", e)
+            preferences.edit().remove(KEY_SCHEDULED_MODES).apply()
+            emptyList()
+        }
     }
 }
 

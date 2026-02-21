@@ -3,6 +3,7 @@ package com.example.pauza_screen_time.app_restriction.lifecycle
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import com.example.pauza_screen_time.app_restriction.schedule.StorageDecodeException
 import com.example.pauza_screen_time.core.PlatformConstants
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -100,8 +101,12 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
             persistLifecycleEvents(trimmedPersisted, nextSeq)
             persistActiveSessionLifecycleEvents(trimmedActiveSessionPersisted)
             true
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to append lifecycle events", e)
+        } catch (e: StorageDecodeException) {
+            Log.w(TAG, "Corrupt lifecycle events storage; resetting before append", e)
+            preferences.edit()
+                .remove(KEY_LIFECYCLE_EVENTS)
+                .remove(KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS)
+                .apply()
             false
         }
     }
@@ -109,7 +114,13 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
     @Synchronized
     internal fun getPendingLifecycleEvents(limit: Int): List<RestrictionLifecycleEvent> {
         val normalizedLimit = limit.coerceIn(1, PlatformConstants.MAX_LIFECYCLE_EVENTS)
-        return loadLifecycleEvents().take(normalizedLimit)
+        return try {
+            loadLifecycleEvents().take(normalizedLimit)
+        } catch (e: StorageDecodeException) {
+            Log.w(TAG, "Corrupt lifecycle events storage; resetting", e)
+            preferences.edit().remove(KEY_LIFECYCLE_EVENTS).apply()
+            emptyList()
+        }
     }
 
     @Synchronized
@@ -117,11 +128,11 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
         val serialized = preferences.getString(KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS, null)?.trim().orEmpty()
         if (serialized.isEmpty()) return emptyList()
 
+        // ignoreUnknownKeys = true handles old JSON fields; a real parse failure is propagated.
         return try {
             json.decodeFromString(serialized)
         } catch (e: Exception) {
-            // Because previous app versions saved manually built JSON object arrays, we provide a silent fallback:
-            emptyList()
+            throw StorageDecodeException("Active-session lifecycle events JSON is corrupt", e)
         }
     }
 
@@ -137,8 +148,9 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
                 persistLifecycleEvents(next, preferences.getLong(KEY_LIFECYCLE_EVENT_SEQ, 0L))
             }
             true
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to ack lifecycle events through id=$normalizedId", e)
+        } catch (e: StorageDecodeException) {
+            Log.w(TAG, "Corrupt lifecycle events storage during ack; resetting. id=$normalizedId", e)
+            preferences.edit().remove(KEY_LIFECYCLE_EVENTS).apply()
             false
         }
     }
@@ -150,7 +162,7 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
         return try {
             json.decodeFromString(serialized)
         } catch (e: Exception) {
-            emptyList()
+            throw StorageDecodeException("Lifecycle events JSON is corrupt", e)
         }
     }
 

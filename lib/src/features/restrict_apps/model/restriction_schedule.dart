@@ -14,6 +14,7 @@ class RestrictionSchedule {
   final int endMinutes;
 
   /// Builds a schedule from a method-channel payload.
+  /// Throws [ArgumentError] if the payload produces an invalid schedule.
   factory RestrictionSchedule.fromMap(Map<String, dynamic> map) {
     final days = switch (map['daysOfWeekIso']) {
       final List<dynamic> values =>
@@ -31,7 +32,11 @@ class RestrictionSchedule {
       _ => -1,
     };
 
-    return RestrictionSchedule(daysOfWeekIso: days, startMinutes: start, endMinutes: end);
+    final schedule = RestrictionSchedule(daysOfWeekIso: days, startMinutes: start, endMinutes: end);
+    if (!schedule.isValidBasic) {
+      throw ArgumentError('Invalid schedule payload: $map');
+    }
+    return schedule;
   }
 
   /// Serializes this schedule to method-channel payload.

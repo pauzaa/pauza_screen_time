@@ -102,37 +102,43 @@ data class ShieldConfig(
             return payload.toString()
         }
 
-        fun fromJson(serialized: String): ShieldConfig? {
-            return try {
-                val payload = JSONObject(serialized)
-                val iconBase64 = payload.optString(KEY_ICON_BASE64, "").trim()
-                val iconBytes = if (iconBase64.isNotEmpty()) {
-                    try {
-                        Base64.decode(iconBase64, Base64.DEFAULT)
-                    } catch (e: IllegalArgumentException) {
-                        null
-                    }
-                } else {
-                    null
+        /**
+         * Deserializes a [ShieldConfig] from its persisted JSON representation.
+         *
+         * @throws org.json.JSONException if [serialized] is not valid JSON.
+         * @throws IllegalArgumentException if required fields are corrupt or undecodable.
+         */
+        fun fromJson(serialized: String): ShieldConfig {
+            val payload = JSONObject(serialized)
+            val iconBase64 = if (payload.has(KEY_ICON_BASE64) && !payload.isNull(KEY_ICON_BASE64)) {
+                payload.getString(KEY_ICON_BASE64).trim()
+            } else {
+                ""
+            }
+            val iconBytes = if (iconBase64.isNotEmpty()) {
+                try {
+                    Base64.decode(iconBase64, Base64.DEFAULT)
+                } catch (e: IllegalArgumentException) {
+                    throw IllegalArgumentException("Shield icon bytes are not valid Base64", e)
                 }
-
-                ShieldConfig(
-                    title = payload.optString(KEY_TITLE, "App Blocked"),
-                    subtitle = payload.optStringOrNull(KEY_SUBTITLE),
-                    backgroundColor = payload.optInt(KEY_BACKGROUND_COLOR, 0xFF1A1A2E.toInt()),
-                    titleColor = payload.optInt(KEY_TITLE_COLOR, 0xFFFFFFFF.toInt()),
-                    subtitleColor = payload.optInt(KEY_SUBTITLE_COLOR, 0xFFB0B0B0.toInt()),
-                    backgroundBlurStyle = payload.optStringOrNull(KEY_BACKGROUND_BLUR_STYLE),
-                    iconBytes = iconBytes,
-                    primaryButtonLabel = payload.optStringOrNull(KEY_PRIMARY_BUTTON_LABEL),
-                    primaryButtonBackgroundColor = payload.optIntOrNull(KEY_PRIMARY_BUTTON_BACKGROUND_COLOR),
-                    primaryButtonTextColor = payload.optIntOrNull(KEY_PRIMARY_BUTTON_TEXT_COLOR),
-                    secondaryButtonLabel = payload.optStringOrNull(KEY_SECONDARY_BUTTON_LABEL),
-                    secondaryButtonTextColor = payload.optIntOrNull(KEY_SECONDARY_BUTTON_TEXT_COLOR)
-                )
-            } catch (e: Exception) {
+            } else {
                 null
             }
+
+            return ShieldConfig(
+                title = payload.optString(KEY_TITLE, "App Blocked"),
+                subtitle = payload.optStringOrNull(KEY_SUBTITLE),
+                backgroundColor = payload.optInt(KEY_BACKGROUND_COLOR, 0xFF1A1A2E.toInt()),
+                titleColor = payload.optInt(KEY_TITLE_COLOR, 0xFFFFFFFF.toInt()),
+                subtitleColor = payload.optInt(KEY_SUBTITLE_COLOR, 0xFFB0B0B0.toInt()),
+                backgroundBlurStyle = payload.optStringOrNull(KEY_BACKGROUND_BLUR_STYLE),
+                iconBytes = iconBytes,
+                primaryButtonLabel = payload.optStringOrNull(KEY_PRIMARY_BUTTON_LABEL),
+                primaryButtonBackgroundColor = payload.optIntOrNull(KEY_PRIMARY_BUTTON_BACKGROUND_COLOR),
+                primaryButtonTextColor = payload.optIntOrNull(KEY_PRIMARY_BUTTON_TEXT_COLOR),
+                secondaryButtonLabel = payload.optStringOrNull(KEY_SECONDARY_BUTTON_LABEL),
+                secondaryButtonTextColor = payload.optIntOrNull(KEY_SECONDARY_BUTTON_TEXT_COLOR),
+            )
         }
     }
 

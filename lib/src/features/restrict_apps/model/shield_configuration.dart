@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
-
 import 'package:pauza_screen_time/src/features/restrict_apps/model/background_blur_style.dart';
 
 /// Configuration for the native blocking shield displayed over restricted apps.
@@ -71,7 +70,41 @@ class ShieldConfiguration {
     this.secondaryButtonTextColor,
   });
 
+  /// Creates a [ShieldConfiguration] from a platform-channel map.
+  factory ShieldConfiguration.fromMap(Map<String, dynamic> map) {
+    return ShieldConfiguration(
+      appGroupId: map['appGroupId'] as String?,
+      title: map['title'] as String? ?? 'App Blocked',
+      subtitle: map['subtitle'] as String?,
+      backgroundColor: _colorFromArgb32(map['backgroundColor']),
+      titleColor: _colorFromArgb32(map['titleColor']),
+      subtitleColor: _colorFromArgb32(map['subtitleColor']),
+      backgroundBlurStyle: BackgroundBlurStyle.fromValue(map['backgroundBlurStyle'] as String?),
+      iconBytes: map['iconBytes'] as Uint8List?,
+      primaryButtonLabel: map['primaryButtonLabel'] as String?,
+      primaryButtonBackgroundColor: _colorFromArgb32Nullable(map['primaryButtonBackgroundColor']),
+      primaryButtonTextColor: _colorFromArgb32Nullable(map['primaryButtonTextColor']),
+      secondaryButtonLabel: map['secondaryButtonLabel'] as String?,
+      secondaryButtonTextColor: _colorFromArgb32Nullable(map['secondaryButtonTextColor']),
+    );
+  }
+
+  static Color _colorFromArgb32(Object? value) {
+    final argb = switch (value) {
+      final int v => v,
+      final num v => v.toInt(),
+      _ => 0xFF1A1A2E,
+    };
+    return Color(argb);
+  }
+
+  static Color? _colorFromArgb32Nullable(Object? value) {
+    if (value == null) return null;
+    return _colorFromArgb32(value);
+  }
+
   /// Converts this configuration to a map for platform channel serialization.
+
   Map<String, dynamic> toMap() {
     return {
       'appGroupId': appGroupId,

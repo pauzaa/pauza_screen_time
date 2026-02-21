@@ -68,12 +68,7 @@ class RestrictionState {
     assert(startEventsCount <= 1, 'currentSessionEvents must contain at most one START event');
 
     final sourceRaw = map['activeModeSource'] as String? ?? 'none';
-    final activeModeSource = switch (sourceRaw) {
-      'none' => RestrictionModeSource.none,
-      'manual' => RestrictionModeSource.manual,
-      'schedule' => RestrictionModeSource.schedule,
-      _ => throw ArgumentError.value(sourceRaw, 'activeModeSource', 'Unsupported mode source'),
-    };
+    final activeModeSource = RestrictionModeSource.fromWire(sourceRaw);
 
     return RestrictionState(
       isScheduleEnabled: isScheduleEnabled,

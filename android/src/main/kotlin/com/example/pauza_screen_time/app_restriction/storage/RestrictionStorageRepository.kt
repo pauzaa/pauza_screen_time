@@ -115,7 +115,13 @@ class RestrictionStorageRepository private constructor(context: Context) {
                 val obj = json.parseToJsonElement(serialized).jsonObject
                 val modeId = obj["modeId"]?.jsonPrimitive?.content ?: ""
                 val blocked = obj["blockedAppIds"]?.jsonArray?.map { it.jsonPrimitive.content } ?: emptyList()
-                val source = RestrictionModeSource.entries.firstOrNull { it.wireValue == obj["source"]?.jsonPrimitive?.content } ?: RestrictionModeSource.MANUAL
+                val rawSource = obj["source"]?.jsonPrimitive?.content.orEmpty()
+                val source = try {
+                    RestrictionModeSource.fromWireValue(rawSource)
+                } catch (e: IllegalArgumentException) {
+                    Log.w(TAG, "Unknown RestrictionModeSource wire value '$rawSource' in legacy format; defaulting to MANUAL", e)
+                    RestrictionModeSource.MANUAL
+                }
                 val sessionId = obj["sessionId"]?.jsonPrimitive?.content ?: nextSessionId()
                 
                 val session = ActiveSession(

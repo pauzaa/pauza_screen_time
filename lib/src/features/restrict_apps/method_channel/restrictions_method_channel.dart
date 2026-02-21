@@ -66,7 +66,13 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   @override
   Future<bool> isRestrictionSessionActiveNow() async {
     final result = await channel.invokeMethod<bool>(RestrictionsMethodNames.isRestrictionSessionActiveNow);
-    return result ?? false;
+    if (result == null) {
+      throw _decodeFailure(
+        action: RestrictionsMethodNames.isRestrictionSessionActiveNow,
+        message: 'Received null boolean from platform',
+      );
+    }
+    return result;
   }
 
   @override

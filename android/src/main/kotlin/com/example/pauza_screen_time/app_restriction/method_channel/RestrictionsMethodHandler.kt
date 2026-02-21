@@ -4,7 +4,7 @@ import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import com.example.pauza_screen_time.core.PlatformConstants
-import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleEntry
+import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModeEntry
 import com.example.pauza_screen_time.app_restriction.usecase.ConfigureShieldUseCase
 import com.example.pauza_screen_time.app_restriction.usecase.LifecycleEventsUseCase
 import com.example.pauza_screen_time.app_restriction.usecase.ManageModesUseCase
@@ -98,29 +98,9 @@ class RestrictionsMethodHandler(
             return
         }
 
-        val modeId = (payload["modeId"] as? String)?.trim().orEmpty()
-        val blockedAppIdsRaw = payload["blockedAppIds"] as? List<*>
-        if (modeId.isEmpty() || blockedAppIdsRaw == null) {
-            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.UPSERT_MODE, "Mode requires 'modeId' and 'blockedAppIds'")
-            return
-        }
-
-        val blockedAppIds = blockedAppIdsRaw.mapNotNull { (it as? String)?.trim() }.filter { it.isNotEmpty() }.distinct()
-        val scheduleMap = payload["schedule"] as? Map<*, *>
-        val schedule: RestrictionScheduleEntry? = if (scheduleMap != null) {
-            val rawDays = scheduleMap["daysOfWeekIso"] as? List<*>
-            val startMinutes = (scheduleMap["startMinutes"] as? Number)?.toInt()
-            val endMinutes = (scheduleMap["endMinutes"] as? Number)?.toInt()
-            if (rawDays == null || startMinutes == null || endMinutes == null) {
-                PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.UPSERT_MODE, "Schedule requires 'daysOfWeekIso', 'startMinutes', and 'endMinutes'")
-                return
-            }
-            val days = rawDays.mapNotNull { (it as? Number)?.toInt() }.toSet()
-            RestrictionScheduleEntry(daysOfWeekIso = days, startMinutes = startMinutes, endMinutes = endMinutes)
-        } else null
-
         try {
-            ManageModesUseCase(context).upsertMode(modeId, blockedAppIds, schedule)
+            val mode = RestrictionScheduledModeEntry.fromMap(payload)
+            ManageModesUseCase(context).upsertMode(mode.modeId, mode.blockedAppIds, mode.schedule)
             result.success(null)
         } catch (e: IllegalArgumentException) {
             PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.UPSERT_MODE, e.message ?: "Invalid mode payload")
@@ -225,21 +205,16 @@ class RestrictionsMethodHandler(
             return
         }
 
-        val modeId = (payload["modeId"] as? String)?.trim().orEmpty()
-        val blockedAppIdsRaw = payload["blockedAppIds"] as? List<*>
-        if (modeId.isEmpty() || blockedAppIdsRaw == null) {
-            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.START_SESSION, "Mode requires 'modeId' and 'blockedAppIds'")
-            return
-        }
-        val blockedAppIds = blockedAppIdsRaw.mapNotNull { (it as? String)?.trim() }.filter { it.isNotEmpty() }.distinct()
-        if (blockedAppIds.isEmpty()) {
-            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.START_SESSION, "Mode requires non-empty 'blockedAppIds'")
-            return
-        }
-
         try {
-            SessionEnforcementUseCase(context).startSession(modeId, blockedAppIds)
+            val mode = RestrictionScheduledModeEntry.fromMap(payload)
+            if (mode.blockedAppIds.isEmpty()) {
+                PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.START_SESSION, "Mode requires non-empty 'blockedAppIds'")
+                return
+            }
+            SessionEnforcementUseCase(context).startSession(mode.modeId, mode.blockedAppIds)
             result.success(null)
+        } catch (e: IllegalArgumentException) {
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.START_SESSION, e.message ?: "Invalid mode payload")
         } catch (e: Exception) {
             internalFailure(result, MethodNames.START_SESSION, "Failed to start session", e)
         }
