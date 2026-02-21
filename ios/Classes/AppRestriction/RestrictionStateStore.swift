@@ -106,7 +106,13 @@ enum RestrictionStateStore {
         guard let raw = defaults.dictionary(forKey: activeSessionKey) else {
             return nil
         }
-        let parsed = try ActiveSession.fromStorageMap(raw)
+        let parsed: ActiveSession
+        do {
+            parsed = try ActiveSession.fromStorageMap(raw)
+        } catch {
+            defaults.removeObject(forKey: activeSessionKey)
+            throw error
+        }
         if parsed.sessionId.isEmpty {
             let migrated = ActiveSession(
                 sessionId: nextSessionId(defaults: defaults),
@@ -308,6 +314,7 @@ enum RestrictionStateStore {
             if !activeSessionId.isEmpty, generated.sessionId == activeSessionId {
                 activeSessionEvents.append(generated)
             }
+            nextSeq += 1
         }
         if events.count > PlatformConstants.maxLifecycleEvents {
             events = Array(events.suffix(PlatformConstants.maxLifecycleEvents))

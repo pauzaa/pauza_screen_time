@@ -69,6 +69,65 @@ class RunnerTests: XCTestCase {
     XCTAssertEqual(.pause, remaining.first?.action)
   }
 
+  func testAppendLifecycleEvents_assignsUniqueMonotonicIdsAndAdvancesSequence() {
+    let initialDrafts = [
+      RestrictionLifecycleEventDraft(
+        sessionId: "s1",
+        modeId: "focus",
+        action: .start,
+        source: .manual,
+        reason: "batch_1",
+        occurredAtEpochMs: 1
+      ),
+      RestrictionLifecycleEventDraft(
+        sessionId: "s1",
+        modeId: "focus",
+        action: .pause,
+        source: .manual,
+        reason: "batch_2",
+        occurredAtEpochMs: 2
+      ),
+      RestrictionLifecycleEventDraft(
+        sessionId: "s1",
+        modeId: "focus",
+        action: .resume,
+        source: .manual,
+        reason: "batch_3",
+        occurredAtEpochMs: 3
+      ),
+    ]
+    assertStoreSuccess(RestrictionStateStore.appendLifecycleEvents(initialDrafts))
+
+    let initialEvents = RestrictionStateStore.loadPendingLifecycleEvents(limit: 10)
+    XCTAssertEqual(3, initialEvents.count)
+    let initialIds = initialEvents.map(\.id)
+    XCTAssertEqual(initialIds.count, Set(initialIds).count)
+    XCTAssertEqual(initialIds, initialIds.sorted())
+
+    XCTAssertEqual(3, sequenceValue(forKey: RestrictionStateStore.lifecycleEventSeqKey))
+
+    let nextDrafts = [
+      RestrictionLifecycleEventDraft(
+        sessionId: "s1",
+        modeId: "focus",
+        action: .pause,
+        source: .manual,
+        reason: "batch_4",
+        occurredAtEpochMs: 4
+      ),
+    ]
+    assertStoreSuccess(RestrictionStateStore.appendLifecycleEvents(nextDrafts))
+
+    let allEvents = RestrictionStateStore.loadPendingLifecycleEvents(limit: 10)
+    XCTAssertEqual(4, allEvents.count)
+    let allIds = allEvents.map(\.id)
+    XCTAssertEqual(allIds.count, Set(allIds).count)
+    XCTAssertEqual(allIds, allIds.sorted())
+    XCTAssertTrue(allIds.last! > initialIds.last!)
+
+    XCTAssertEqual(4, sequenceValue(forKey: RestrictionStateStore.lifecycleEventSeqKey))
+  }
+
   func testLifecycleHandlerGetPending_returnsOnMainThread() {
     let handler = RestrictionsMethodHandler()
     let drafts = [
@@ -139,6 +198,9 @@ class RunnerTests: XCTestCase {
 
     let remaining = testDefaults.dictionary(forKey: RestrictionStateStore.activeSessionKey)
     XCTAssertNil(remaining, "Active session should be cleared after corrupt load")
+
+    XCTAssertNoThrow(try RestrictionStateStore.loadActiveSession())
+    XCTAssertNil(try RestrictionStateStore.loadActiveSession())
   }
 
   func testAppendLifecycleEvents_corruptData_clearsAndAppends() {
@@ -184,5 +246,18 @@ class RunnerTests: XCTestCase {
     case .appGroupUnavailable(let resolvedGroupId):
       XCTFail("App Group unavailable: \(resolvedGroupId)")
     }
+  }
+
+  private func sequenceValue(forKey key: String) -> Int64 {
+    if let number = testDefaults.object(forKey: key) as? NSNumber {
+      return number.int64Value
+    }
+    if let raw = testDefaults.object(forKey: key) as? Int64 {
+      return raw
+    }
+    if let raw = testDefaults.object(forKey: key) as? Int {
+      return Int64(raw)
+    }
+    return 0
   }
 }
