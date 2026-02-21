@@ -6,4 +6,8 @@ class UsageStatsMethodNames {
 
   static const String queryUsageStats = 'queryUsageStats';
   static const String queryAppUsageStats = 'queryAppUsageStats';
+  static const String queryUsageEvents = 'queryUsageEvents';
+  static const String queryEventStats = 'queryEventStats';
+  static const String isAppInactive = 'isAppInactive';
+  static const String getAppStandbyBucket = 'getAppStandbyBucket';
 }

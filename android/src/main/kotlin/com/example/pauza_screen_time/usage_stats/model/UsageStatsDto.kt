@@ -13,19 +13,33 @@ data class UsageStatsDto(
     val lastTimeUsedMs: Long?,
     val lastTimeVisibleMs: Long?,
 ) {
-    fun toChannelMap(): Map<String, Any?> {
-        return mapOf(
-            "packageId" to packageId,
-            "appName" to appName,
-            "appIcon" to appIcon,
-            "category" to category,
-            "isSystemApp" to isSystemApp,
-            "totalDurationMs" to totalDurationMs,
-            "totalLaunchCount" to totalLaunchCount,
-            "bucketStartMs" to bucketStartMs,
-            "bucketEndMs" to bucketEndMs,
-            "lastTimeUsedMs" to lastTimeUsedMs,
-            "lastTimeVisibleMs" to lastTimeVisibleMs,
+    fun toChannelMap(): Map<String, Any?> = mapOf(
+        "packageId" to packageId,
+        "appName" to appName,
+        "appIcon" to appIcon,
+        "category" to category,
+        "isSystemApp" to isSystemApp,
+        "totalDurationMs" to totalDurationMs,
+        "totalLaunchCount" to totalLaunchCount,
+        "bucketStartMs" to bucketStartMs,
+        "bucketEndMs" to bucketEndMs,
+        "lastTimeUsedMs" to lastTimeUsedMs,
+        "lastTimeVisibleMs" to lastTimeVisibleMs,
+    )
+
+    companion object {
+        fun fromChannelMap(map: Map<String, Any?>): UsageStatsDto = UsageStatsDto(
+            packageId = map["packageId"] as String,
+            appName = map["appName"] as String,
+            appIcon = (map["appIcon"] as? ByteArray),
+            category = map["category"] as? String,
+            isSystemApp = map["isSystemApp"] as Boolean,
+            totalDurationMs = (map["totalDurationMs"] as Number).toLong(),
+            totalLaunchCount = (map["totalLaunchCount"] as Number).toInt(),
+            bucketStartMs = (map["bucketStartMs"] as? Number)?.toLong(),
+            bucketEndMs = (map["bucketEndMs"] as? Number)?.toLong(),
+            lastTimeUsedMs = (map["lastTimeUsedMs"] as? Number)?.toLong(),
+            lastTimeVisibleMs = (map["lastTimeVisibleMs"] as? Number)?.toLong(),
         )
     }
 }

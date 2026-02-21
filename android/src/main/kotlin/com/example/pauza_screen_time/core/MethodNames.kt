@@ -16,6 +16,10 @@ object MethodNames {
     // Usage stats
     const val QUERY_USAGE_STATS = "queryUsageStats"
     const val QUERY_APP_USAGE_STATS = "queryAppUsageStats"
+    const val QUERY_USAGE_EVENTS = "queryUsageEvents"
+    const val QUERY_EVENT_STATS = "queryEventStats"
+    const val IS_APP_INACTIVE = "isAppInactive"
+    const val GET_APP_STANDBY_BUCKET = "getAppStandbyBucket"
 
     // Restrictions
     const val CONFIGURE_SHIELD = "configureShield"

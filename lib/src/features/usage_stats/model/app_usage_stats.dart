@@ -59,24 +59,12 @@ class UsageStats {
         category: map['category'] as String?,
         isSystemApp: map['isSystemApp'] as bool? ?? false,
       ),
-      totalDuration: Duration(milliseconds: map['totalDurationMs'] as int),
-      totalLaunchCount: map['totalLaunchCount'] as int,
-      bucketStart: map['bucketStartMs'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['bucketStartMs'] as int)
-          : map['firstTimeStampMs'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['firstTimeStampMs'] as int)
-          : null,
-      bucketEnd: map['bucketEndMs'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['bucketEndMs'] as int)
-          : map['lastTimeStampMs'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['lastTimeStampMs'] as int)
-          : null,
-      lastTimeUsed: map['lastTimeUsedMs'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['lastTimeUsedMs'] as int)
-          : null,
-      lastTimeVisible: map['lastTimeVisibleMs'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(map['lastTimeVisibleMs'] as int)
-          : null,
+      totalDuration: Duration(milliseconds: _asInt(map['totalDurationMs'])),
+      totalLaunchCount: _asInt(map['totalLaunchCount']),
+      bucketStart: _optionalDateTime(map['bucketStartMs'] ?? map['firstTimeStampMs']),
+      bucketEnd: _optionalDateTime(map['bucketEndMs'] ?? map['lastTimeStampMs']),
+      lastTimeUsed: _optionalDateTime(map['lastTimeUsedMs']),
+      lastTimeVisible: _optionalDateTime(map['lastTimeVisibleMs']),
     );
   }
 
@@ -95,6 +83,23 @@ class UsageStats {
       'lastTimeUsedMs': lastTimeUsed?.millisecondsSinceEpoch,
       'lastTimeVisibleMs': lastTimeVisible?.millisecondsSinceEpoch,
     };
+  }
+
+  // ============================================================
+  // Private helpers
+  // ============================================================
+
+  /// Safe numeric-to-int cast. The Flutter platform channel may deliver
+  /// 64-bit integers as [int] on Android but as [num] in some edge cases.
+  static int _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    throw ArgumentError.value(value, 'value', 'Expected a numeric type, got ${value.runtimeType}');
+  }
+
+  static DateTime? _optionalDateTime(dynamic ms) {
+    if (ms == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(_asInt(ms));
   }
 
   @override
