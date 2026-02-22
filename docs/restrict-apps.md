@@ -61,6 +61,7 @@ await restrictions.startSession(
   duration: const Duration(minutes: 30), // optional
 );
 await restrictions.endSession();
+await restrictions.endSession(duration: const Duration(minutes: 10));
 ```
 
 Manual session rules:
@@ -71,8 +72,11 @@ Manual session rules:
 - `startSession(...)` writes the active session snapshot separately from recurring scheduled modes.
 - Manual session overrides scheduled activation until `endSession()`.
 - `endSession()` requires an active session and returns `INVALID_ARGUMENT` if none is active.
+- `endSession({duration})` supports delayed ending for the currently active session (`manual` or `schedule`).
+- If `endSession(duration: ...)` is used, `duration` must be `> 0` and `< 24h`.
 - `endSession()` always clears the active session regardless of source (`manual` or `schedule`).
 - If `endSession()` ends a schedule session during its active interval, reactivation is suppressed until that interval ends.
+- If delayed end expires during a schedule interval, schedule reactivation is suppressed until that interval ends.
 
 ## 4) Pause / resume
 

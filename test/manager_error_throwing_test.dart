@@ -91,7 +91,7 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   Future<void> removeMode(String modeId) async {}
 
   @override
-  Future<void> endSession() async {}
+  Future<void> endSession({Duration? duration}) async {}
 
   @override
   Future<List<RestrictionLifecycleEvent>> getPendingLifecycleEvents({int limit = 200}) async {

@@ -4,6 +4,7 @@ import Foundation
 enum RestrictionStateStore {
     static let pausedUntilEpochMsKey = "pausedUntilEpochMs"
     static let manualSessionEndEpochMsKey = "manualSessionEndEpochMs"
+    static let pendingEndSessionEpochMsKey = "pendingEndSessionEpochMs"
     static let activeSessionKey = "activeSession"
     static let scheduleMonitorNamesKey = "scheduleMonitorNames"
     static let modesEnabledKey = "modesEnabled"
@@ -133,6 +134,32 @@ enum RestrictionStateStore {
         return .success
     }
 
+    static func loadPendingEndSessionEpochMs(
+        nowEpochMs: Int64 = currentEpochMs(),
+        clearExpired: Bool = true
+    ) -> Int64 {
+        guard let defaults = AppGroupStore.sharedDefaults() else {
+            return 0
+        }
+        let pendingEnd = pendingEndSessionValue(defaults)
+        if pendingEnd <= nowEpochMs {
+            if clearExpired, pendingEnd > 0 {
+                defaults.set(Int64(0), forKey: pendingEndSessionEpochMsKey)
+            }
+            return 0
+        }
+        return pendingEnd
+    }
+
+    static func storePendingEndSessionEpochMs(_ value: Int64) -> StoreResult {
+        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
+        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
+            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
+        }
+        defaults.set(value, forKey: pendingEndSessionEpochMsKey)
+        return .success
+    }
+
     static func loadActiveSession() throws -> ActiveSession? {
         guard let defaults = AppGroupStore.sharedDefaults() else {
             return nil
@@ -184,9 +211,11 @@ enum RestrictionStateStore {
             if persisted.source != .manual {
                 defaults.set(Int64(0), forKey: manualSessionEndEpochMsKey)
             }
+            defaults.set(Int64(0), forKey: pendingEndSessionEpochMsKey)
         } else {
             defaults.removeObject(forKey: activeSessionKey)
             defaults.set(Int64(0), forKey: manualSessionEndEpochMsKey)
+            defaults.set(Int64(0), forKey: pendingEndSessionEpochMsKey)
             clearActiveSessionLifecycleEvents(defaults: defaults)
         }
         return .success
@@ -509,6 +538,19 @@ enum RestrictionStateStore {
             return raw
         }
         if let raw = defaults.object(forKey: manualSessionEndEpochMsKey) as? Int {
+            return Int64(raw)
+        }
+        return 0
+    }
+
+    private static func pendingEndSessionValue(_ defaults: UserDefaults) -> Int64 {
+        if let number = defaults.object(forKey: pendingEndSessionEpochMsKey) as? NSNumber {
+            return number.int64Value
+        }
+        if let raw = defaults.object(forKey: pendingEndSessionEpochMsKey) as? Int64 {
+            return raw
+        }
+        if let raw = defaults.object(forKey: pendingEndSessionEpochMsKey) as? Int {
             return Int64(raw)
         }
         return 0

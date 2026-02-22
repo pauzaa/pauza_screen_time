@@ -157,6 +157,8 @@ struct SessionEnforcementUseCase {
             _ = RestrictionStateStore.storeManualSessionEndEpochMs(0)
             ManualSessionAutoEndMonitor.stopMonitoring()
         }
+        _ = RestrictionStateStore.storePendingEndSessionEpochMs(0)
+        PendingEndSessionMonitor.stopMonitoring()
 
         let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         switch RestrictionStateStore.storeActiveSession(
@@ -185,7 +187,51 @@ struct SessionEnforcementUseCase {
         return nil
     }
 
-    static func endSession() -> FlutterError? {
+    static func endSession(durationMs: Int64? = nil) -> FlutterError? {
+        if let durationMs {
+            return scheduleEndSession(durationMs: durationMs)
+        }
+        return endSessionNow()
+    }
+
+    private static func scheduleEndSession(durationMs: Int64) -> FlutterError? {
+        let state = resolveSessionState()
+        guard state.activeModeSource != .none else {
+            return PluginErrors.invalidArguments(
+                feature: featureRestrictions,
+                action: MethodNames.endSession,
+                message: "No active restriction session to end"
+            )
+        }
+
+        let pendingEndSessionEpochMs = RestrictionStateStore.currentEpochMs() + durationMs
+        switch RestrictionStateStore.storePendingEndSessionEpochMs(pendingEndSessionEpochMs) {
+        case .success:
+            break
+        case .appGroupUnavailable(let resolvedGroupId):
+            return PluginErrors.internalFailure(
+                feature: featureRestrictions,
+                action: MethodNames.endSession,
+                message: PluginErrorMessage.appGroupUnavailable,
+                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+            )
+        }
+
+        do {
+            try PendingEndSessionMonitor.startMonitoring(untilEpochMs: pendingEndSessionEpochMs)
+        } catch {
+            _ = RestrictionStateStore.storePendingEndSessionEpochMs(0)
+            return PluginErrors.internalFailure(
+                feature: featureRestrictions,
+                action: MethodNames.endSession,
+                message: "Failed to start delayed end session monitor",
+                diagnostic: "activityName=\(PendingEndSessionMonitor.activityNameRaw), error=\(String(describing: error))"
+            )
+        }
+        return nil
+    }
+
+    private static func endSessionNow() -> FlutterError? {
         let state = resolveSessionState()
         guard state.activeModeSource != .none, let activeModeId = state.activeModeId else {
             return PluginErrors.invalidArguments(
@@ -196,7 +242,9 @@ struct SessionEnforcementUseCase {
         }
         let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         _ = RestrictionStateStore.storeManualSessionEndEpochMs(0)
+        _ = RestrictionStateStore.storePendingEndSessionEpochMs(0)
         ManualSessionAutoEndMonitor.stopMonitoring()
+        PendingEndSessionMonitor.stopMonitoring()
 
         if state.activeModeSource == .schedule,
            let suppressionUntilEpochMs = state.activeScheduleBoundaryEndEpochMs,
@@ -324,9 +372,32 @@ struct SessionEnforcementUseCase {
         }
         let activeSession = try? RestrictionStateStore.loadActiveSession()
         let manualSessionEndEpochMs = RestrictionStateStore.loadManualSessionEndEpochMs(clearExpired: false)
+        let pendingEndSessionEpochMs = RestrictionStateStore.loadPendingEndSessionEpochMs(clearExpired: false)
         let nowEpochMs = RestrictionStateStore.currentEpochMs()
 
         if let activeSession {
+            if pendingEndSessionEpochMs > 0, pendingEndSessionEpochMs <= nowEpochMs {
+                _ = RestrictionStateStore.storePendingEndSessionEpochMs(0)
+                PendingEndSessionMonitor.stopMonitoring()
+                if activeSession.source == .schedule,
+                   resolution.isInScheduleNow,
+                   activeSession.modeId == resolution.activeModeId,
+                   let suppressionUntilEpochMs = resolution.activeIntervalEndEpochMs,
+                   suppressionUntilEpochMs > nowEpochMs {
+                    _ = RestrictionStateStore.storeScheduleSuppression(
+                        modeId: activeSession.modeId,
+                        untilEpochMs: suppressionUntilEpochMs
+                    )
+                }
+                _ = RestrictionStateStore.clearActiveSession()
+                return resolveSessionState()
+            } else if pendingEndSessionEpochMs > 0 {
+                do {
+                    try PendingEndSessionMonitor.startMonitoring(untilEpochMs: pendingEndSessionEpochMs, nowEpochMs: nowEpochMs)
+                } catch {
+                    // Keep session active; monitor failures are non-fatal for state resolution.
+                }
+            }
             if activeSession.source == .manual {
                 if manualSessionEndEpochMs > 0, manualSessionEndEpochMs <= nowEpochMs {
                     _ = RestrictionStateStore.storeManualSessionEndEpochMs(0)
@@ -368,6 +439,9 @@ struct SessionEnforcementUseCase {
             }
 
             _ = RestrictionStateStore.clearActiveSession()
+        } else if pendingEndSessionEpochMs > 0 {
+            _ = RestrictionStateStore.storePendingEndSessionEpochMs(0)
+            PendingEndSessionMonitor.stopMonitoring()
         }
 
         if !shouldSuppressCurrentMode,

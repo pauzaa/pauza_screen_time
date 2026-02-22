@@ -61,8 +61,10 @@ class AppRestrictionManager {
   }
 
   /// Ends the current active session.
-  Future<void> endSession() {
-    return _platform.endSession().throwTypedPauzaError();
+  ///
+  /// If [duration] is provided, the current session is ended after it elapses.
+  Future<void> endSession({Duration? duration}) {
+    return _platform.endSession(duration: duration).throwTypedPauzaError();
   }
 
   /// Returns pending lifecycle events ordered oldest-first.

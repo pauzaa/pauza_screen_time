@@ -171,6 +171,7 @@ void main() {
       Object? capturedModeId;
       Object? capturedBlockedAppIds;
       Object? capturedDurationMs;
+      Object? capturedEndDurationMs;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
         if (call.method == RestrictionsMethodNames.startSession) {
           startCalled = true;
@@ -179,6 +180,7 @@ void main() {
           capturedDurationMs = (call.arguments as Map)['durationMs'];
         } else if (call.method == RestrictionsMethodNames.endSession) {
           endCalled = true;
+          capturedEndDurationMs = (call.arguments as Map?)?['durationMs'];
         }
         return null;
       });
@@ -192,6 +194,21 @@ void main() {
       expect(capturedModeId, 'focus');
       expect(capturedBlockedAppIds, ['com.example.focus']);
       expect(capturedDurationMs, isNull);
+      expect(capturedEndDurationMs, isNull);
+    });
+
+    test('endSession passes optional durationMs', () async {
+      Object? capturedEndDurationMs;
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.endSession) {
+          capturedEndDurationMs = (call.arguments as Map)['durationMs'];
+        }
+        return null;
+      });
+
+      await methodChannel.endSession(duration: const Duration(minutes: 15));
+
+      expect(capturedEndDurationMs, const Duration(minutes: 15).inMilliseconds);
     });
 
     test('endSession surfaces INVALID_ARGUMENT when no active session exists', () async {
@@ -297,7 +314,7 @@ void main() {
         const RestrictionMode(modeId: 'focus', blockedAppIds: [AppIdentifier('com.example.app')]),
         duration: const Duration(minutes: 10),
       );
-      await manager.endSession();
+      await manager.endSession(duration: const Duration(minutes: 5));
       final lifecycleEvents = await manager.getPendingLifecycleEvents();
       await manager.ackLifecycleEvents(throughEventId: 'event-1');
       final session = await manager.getRestrictionSession();
@@ -311,6 +328,7 @@ void main() {
       expect(fakePlatform.startSessionCalled, isTrue);
       expect(fakePlatform.startSessionDuration, const Duration(minutes: 10));
       expect(fakePlatform.endSessionCalled, isTrue);
+      expect(fakePlatform.endSessionDuration, const Duration(minutes: 5));
       expect(fakePlatform.getPendingLifecycleEventsCalled, isTrue);
       expect(fakePlatform.ackLifecycleEventsCalled, isTrue);
       expect(fakePlatform.getRestrictionSessionCalled, isTrue);
@@ -487,6 +505,7 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   bool startSessionCalled = false;
   Duration? startSessionDuration;
   bool endSessionCalled = false;
+  Duration? endSessionDuration;
   bool getPendingLifecycleEventsCalled = false;
   bool ackLifecycleEventsCalled = false;
   bool getRestrictionSessionCalled = false;
@@ -549,8 +568,9 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> endSession() async {
+  Future<void> endSession({Duration? duration}) async {
     endSessionCalled = true;
+    endSessionDuration = duration;
     calls.add('endSession');
   }
 

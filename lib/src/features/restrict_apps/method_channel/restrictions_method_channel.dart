@@ -96,8 +96,11 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> endSession() {
-    return channel.invokeMethod<void>(RestrictionsMethodNames.endSession);
+  Future<void> endSession({Duration? duration}) {
+    return channel.invokeMethod<void>(
+      RestrictionsMethodNames.endSession,
+      duration == null ? null : {'durationMs': duration.inMilliseconds},
+    );
   }
 
   @override

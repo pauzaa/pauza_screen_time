@@ -83,6 +83,8 @@ await restrictions.startSession(
 
 // startSession(...) fails with INVALID_ARGUMENT if any session is already active.
 // endSession() fails with INVALID_ARGUMENT when no session is active.
+// endSession(duration: ...) schedules a delayed end for the currently active session.
+// endSession(duration: ...) accepts only durations > 0 and < 24h.
 // endSession() clears both manual and schedule sessions.
 // If a schedule session is ended inside an active interval, schedule reactivation is suppressed
 // until that interval boundary, then normal schedule behavior resumes.
@@ -109,7 +111,7 @@ final session = await restrictions.getRestrictionSession();
 
 - `restrictApps` / `restrictApp` / `unrestrictApp` / `clearAllRestrictions` -> `upsertMode` + `removeMode`
 - `upsertScheduledMode` / `removeScheduledMode` / `setScheduledModesEnabled` / `getScheduledModesConfig` -> `upsertMode` / `removeMode` / `setModesEnabled` / `getModesConfig`
-- `startRestrictionSession` / `endRestrictionSession` -> `startSession(mode, {duration})` / `endSession()`
+- `startRestrictionSession` / `endRestrictionSession` -> `startSession(mode, {duration})` / `endSession({duration})`
 
 ## Session payload
 

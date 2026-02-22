@@ -223,6 +223,7 @@ One or more tokens you passed to restrictions could not be decoded as iOS `Appli
 - Call `getRestrictionSession()` and verify no active session (`activeMode == null`)
 - Call `endSession()` before starting a new manual session
 - Pass valid mode payload and optional duration under 24 hours
+- Optional: use `endSession(duration: ...)` to schedule ending the current session later
 
 ### `endSession()` fails with `INVALID_ARGUMENT`
 
@@ -232,6 +233,16 @@ One or more tokens you passed to restrictions could not be decoded as iOS `Appli
 **Fix**:
 - Call `getRestrictionSession()` and verify `activeMode != null` before `endSession()`
 - If session source is `schedule`, ending it suppresses immediate reactivation until the current interval ends
+
+### `endSession(duration: ...)` fails with `INVALID_ARGUMENT`
+
+**Likely causes**:
+- no active restriction session exists
+- duration is invalid (`<= 0` or `>= 24h`)
+
+**Fix**:
+- Call `getRestrictionSession()` and verify `activeMode != null` before scheduling delayed end
+- Pass duration strictly greater than zero and less than 24 hours
 
 ## Next
 

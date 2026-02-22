@@ -72,6 +72,19 @@ class RestrictionManager private constructor(context: Context) {
     fun clearManualSessionEndEpochMs() = storage.clearManualSessionEndEpochMs()
 
     @Synchronized
+    fun getPendingEndSessionEpochMs(
+        nowMs: Long = System.currentTimeMillis(),
+        clearExpired: Boolean = true,
+    ): Long = storage.getPendingEndSessionEpochMs(nowMs, clearExpired)
+
+    @Synchronized
+    fun setPendingEndSessionEpochMs(pendingEndSessionEpochMs: Long) =
+        storage.setPendingEndSessionEpochMs(pendingEndSessionEpochMs)
+
+    @Synchronized
+    fun clearPendingEndSessionEpochMs() = storage.clearPendingEndSessionEpochMs()
+
+    @Synchronized
     fun getActiveSession(): ActiveSession? = storage.getActiveSession()
 
     @Synchronized
@@ -93,6 +106,7 @@ class RestrictionManager private constructor(context: Context) {
     fun clearActiveSession() {
         storage.clearActiveSession()
         storage.clearManualSessionEndEpochMs()
+        storage.clearPendingEndSessionEpochMs()
     }
 
     @Synchronized

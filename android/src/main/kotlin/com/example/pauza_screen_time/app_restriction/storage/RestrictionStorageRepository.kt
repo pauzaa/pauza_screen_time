@@ -20,6 +20,7 @@ class RestrictionStorageRepository private constructor(context: Context) {
         private const val KEY_BLOCKED_APPS = "blocked_apps"
         private const val KEY_PAUSED_UNTIL_EPOCH_MS = "paused_until_epoch_ms"
         private const val KEY_MANUAL_SESSION_END_EPOCH_MS = "manual_session_end_epoch_ms"
+        private const val KEY_PENDING_END_SESSION_EPOCH_MS = "pending_end_session_epoch_ms"
         private const val KEY_ACTIVE_SESSION = "active_session"
         private const val KEY_SESSION_ID_SEQ = "session_id_seq"
         private const val KEY_SUPPRESSED_SCHEDULE_MODE_ID = "suppressed_schedule_mode_id"
@@ -125,6 +126,31 @@ class RestrictionStorageRepository private constructor(context: Context) {
     }
 
     @Synchronized
+    fun getPendingEndSessionEpochMs(
+        nowMs: Long = System.currentTimeMillis(),
+        clearExpired: Boolean = true,
+    ): Long {
+        val pendingEnd = preferences.getLong(KEY_PENDING_END_SESSION_EPOCH_MS, 0L)
+        if (pendingEnd <= nowMs) {
+            if (clearExpired && pendingEnd != 0L) {
+                preferences.edit().putLong(KEY_PENDING_END_SESSION_EPOCH_MS, 0L).apply()
+            }
+            return 0L
+        }
+        return pendingEnd
+    }
+
+    @Synchronized
+    fun setPendingEndSessionEpochMs(pendingEndSessionEpochMs: Long) {
+        preferences.edit().putLong(KEY_PENDING_END_SESSION_EPOCH_MS, pendingEndSessionEpochMs).apply()
+    }
+
+    @Synchronized
+    fun clearPendingEndSessionEpochMs() {
+        preferences.edit().putLong(KEY_PENDING_END_SESSION_EPOCH_MS, 0L).apply()
+    }
+
+    @Synchronized
     fun getActiveSession(): ActiveSession? {
         val serialized = preferences.getString(KEY_ACTIVE_SESSION, null)?.trim().orEmpty()
         if (serialized.isEmpty()) return null
@@ -204,6 +230,7 @@ class RestrictionStorageRepository private constructor(context: Context) {
         if (source != RestrictionModeSource.MANUAL) {
             clearManualSessionEndEpochMs()
         }
+        clearPendingEndSessionEpochMs()
         persistActiveSession(nextSession)
         Log.d(TAG, "Active session set to: $normalizedModeId [${source.wireValue}] sessionId=${nextSession.sessionId}")
         return nextSession
@@ -213,6 +240,7 @@ class RestrictionStorageRepository private constructor(context: Context) {
     fun clearActiveSession() {
         preferences.edit()
             .remove(KEY_ACTIVE_SESSION)
+            .putLong(KEY_PENDING_END_SESSION_EPOCH_MS, 0L)
             .apply()
         Log.d(TAG, "Active session cleared")
     }

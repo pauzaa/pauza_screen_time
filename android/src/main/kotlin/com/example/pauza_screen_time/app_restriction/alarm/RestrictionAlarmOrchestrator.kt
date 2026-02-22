@@ -10,6 +10,7 @@ import com.example.pauza_screen_time.app_restriction.schedule.RestrictionSchedul
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleConfig
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
+import com.example.pauza_screen_time.app_restriction.usecase.SessionEnforcementUseCase
 
 internal class RestrictionAlarmOrchestrator(
     context: Context,
@@ -29,6 +30,7 @@ internal class RestrictionAlarmOrchestrator(
         when (alarmType) {
             RestrictionAlarmType.PAUSE_END -> onPauseEndFired()
             RestrictionAlarmType.MANUAL_SESSION_END -> onManualSessionEndFired()
+            RestrictionAlarmType.DELAYED_END_SESSION -> onDelayedEndSessionFired()
             RestrictionAlarmType.SCHEDULE_SESSION_START,
             RestrictionAlarmType.SCHEDULE_SESSION_END,
             -> onScheduleBoundaryFired(alarmType)
@@ -64,6 +66,7 @@ internal class RestrictionAlarmOrchestrator(
             RestrictionAlarmType.SCHEDULE_SESSION_END -> applyScheduleEnd()
             RestrictionAlarmType.MANUAL_SESSION_END -> Unit
             RestrictionAlarmType.PAUSE_END -> Unit
+            RestrictionAlarmType.DELAYED_END_SESSION -> Unit
         }
         rescheduleScheduleBoundary()
     }
@@ -81,6 +84,12 @@ internal class RestrictionAlarmOrchestrator(
             scheduleManualSessionEnd(manualSessionEndMs, nowMs)
         } else {
             scheduler.cancel(RestrictionAlarmType.MANUAL_SESSION_END)
+        }
+        val delayedEndSessionMs = restrictionManager.getPendingEndSessionEpochMs(nowMs)
+        if (delayedEndSessionMs > 0L) {
+            scheduleDelayedEndSession(delayedEndSessionMs, nowMs)
+        } else {
+            scheduler.cancel(RestrictionAlarmType.DELAYED_END_SESSION)
         }
 
         rescheduleScheduleBoundary()
@@ -108,6 +117,27 @@ internal class RestrictionAlarmOrchestrator(
         rescheduleScheduleBoundary()
     }
 
+    fun onDelayedEndSessionFired() {
+        val nowMs = System.currentTimeMillis()
+        val pendingEndMs = restrictionManager.getPendingEndSessionEpochMs(nowMs, clearExpired = false)
+        if (pendingEndMs > nowMs) {
+            scheduleDelayedEndSession(pendingEndMs, nowMs)
+            return
+        }
+        restrictionManager.clearPendingEndSessionEpochMs()
+        val activeSession = restrictionManager.getActiveSession()
+        if (activeSession != null) {
+            try {
+                SessionEnforcementUseCase(appContext).endSessionNow()
+            } catch (_: IllegalStateException) {
+                sessionController.applyCurrentEnforcementState(trigger = "delayed_end_session_noop")
+            }
+        } else {
+            sessionController.applyCurrentEnforcementState(trigger = "delayed_end_session_noop")
+        }
+        rescheduleScheduleBoundary()
+    }
+
     private fun schedulePauseEnd(pausedUntilMs: Long, nowMs: Long) {
         val remainingMs = (pausedUntilMs - nowMs).coerceAtLeast(0L)
         val triggerElapsedMs = SystemClock.elapsedRealtime() + remainingMs
@@ -122,6 +152,15 @@ internal class RestrictionAlarmOrchestrator(
         val triggerElapsedMs = SystemClock.elapsedRealtime() + remainingMs
         scheduler.schedule(
             type = RestrictionAlarmType.MANUAL_SESSION_END,
+            timebase = RestrictionAlarmTimebase.ElapsedRealtime(triggerElapsedMs),
+        )
+    }
+
+    private fun scheduleDelayedEndSession(delayedEndSessionMs: Long, nowMs: Long) {
+        val remainingMs = (delayedEndSessionMs - nowMs).coerceAtLeast(0L)
+        val triggerElapsedMs = SystemClock.elapsedRealtime() + remainingMs
+        scheduler.schedule(
+            type = RestrictionAlarmType.DELAYED_END_SESSION,
             timebase = RestrictionAlarmTimebase.ElapsedRealtime(triggerElapsedMs),
         )
     }

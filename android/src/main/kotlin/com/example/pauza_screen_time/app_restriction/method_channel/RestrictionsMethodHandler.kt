@@ -45,7 +45,7 @@ class RestrictionsMethodHandler(
                 MethodNames.PAUSE_ENFORCEMENT -> handlePauseEnforcement(call, result)
                 MethodNames.RESUME_ENFORCEMENT -> handleResumeEnforcement(result)
                 MethodNames.START_SESSION -> handleStartSession(call, result)
-                MethodNames.END_SESSION -> handleEndSession(result)
+                MethodNames.END_SESSION -> handleEndSession(call, result)
                 MethodNames.GET_PENDING_LIFECYCLE_EVENTS -> handleGetPendingLifecycleEvents(call, result)
                 MethodNames.ACK_LIFECYCLE_EVENTS -> handleAckLifecycleEvents(call, result)
                 MethodNames.GET_RESTRICTION_SESSION -> handleGetRestrictionSession(result)
@@ -229,10 +229,13 @@ class RestrictionsMethodHandler(
         }
     }
 
-    private fun handleEndSession(result: Result) {
+    private fun handleEndSession(call: MethodCall, result: Result) {
         val context = contextProvider() ?: return noContext(result, MethodNames.END_SESSION)
+        val durationMs = (call.arguments as? Map<*, *>)?.get("durationMs")?.let { rawDuration ->
+            parseEndSessionDurationMs(rawDuration, result) ?: return
+        }
         try {
-            SessionEnforcementUseCase(context).endSession()
+            SessionEnforcementUseCase(context).endSession(durationMs)
             result.success(null)
         } catch (e: IllegalStateException) {
             PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.END_SESSION, e.message ?: "No active restriction session to end")
@@ -345,6 +348,29 @@ class RestrictionsMethodHandler(
                 FEATURE,
                 MethodNames.START_SESSION,
                 "Session duration must be less than 24 hours on Android",
+            )
+            return null
+        }
+        return durationMs
+    }
+
+    private fun parseEndSessionDurationMs(rawDurationMs: Any?, result: Result): Long? {
+        val durationMs = (rawDurationMs as? Number)?.toLong()
+        if (durationMs == null || durationMs <= 0L) {
+            PluginErrorHelper.invalidArgument(
+                result,
+                FEATURE,
+                MethodNames.END_SESSION,
+                "Missing or invalid 'durationMs' argument",
+            )
+            return null
+        }
+        if (durationMs >= PlatformConstants.MAX_RELIABLE_PAUSE_DURATION_MS) {
+            PluginErrorHelper.invalidArgument(
+                result,
+                FEATURE,
+                MethodNames.END_SESSION,
+                "Session end duration must be less than 24 hours on Android",
             )
             return null
         }

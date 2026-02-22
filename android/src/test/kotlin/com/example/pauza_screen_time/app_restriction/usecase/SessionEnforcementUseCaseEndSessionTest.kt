@@ -124,6 +124,31 @@ internal class SessionEnforcementUseCaseEndSessionTest {
         }
     }
 
+    @Test
+    fun endSession_withDuration_storesPendingEndEpochMs() {
+        val manager = RestrictionManager.getInstance(context)
+        manager.setActiveSession(
+            modeId = "manual-focus",
+            blockedAppIds = listOf("com.example.app"),
+            source = RestrictionModeSource.MANUAL,
+        )
+
+        SessionEnforcementUseCase(context).endSession(durationMs = 5_000L)
+
+        assertTrue(manager.getPendingEndSessionEpochMs(clearExpired = false) > 0L)
+        assertNotNull(manager.getActiveSession())
+    }
+
+    @Test
+    fun endSession_withDuration_withoutActiveSession_throwsIllegalStateException() {
+        try {
+            SessionEnforcementUseCase(context).endSession(durationMs = 5_000L)
+            fail("Expected IllegalStateException when no active session exists")
+        } catch (error: IllegalStateException) {
+            assertEquals("No active restriction session to end", error.message)
+        }
+    }
+
     private fun seedActiveScheduleMode(modeId: String) {
         val scheduleStore = RestrictionScheduledModesStore(context)
         scheduleStore.setEnabled(true)

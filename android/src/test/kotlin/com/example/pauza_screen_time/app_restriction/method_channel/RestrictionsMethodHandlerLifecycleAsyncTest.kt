@@ -7,6 +7,7 @@ import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecy
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleEventDraft
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleSource
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
+import com.example.pauza_screen_time.core.PlatformConstants
 import com.example.pauza_screen_time.core.MethodNames
 import com.example.pauza_screen_time.permissions.PermissionHandler
 import io.flutter.plugin.common.MethodCall
@@ -218,6 +219,69 @@ internal class RestrictionsMethodHandlerLifecycleAsyncTest {
         assertTrue(result.await())
         assertEquals("INVALID_ARGUMENT", result.errorCode)
         assertEquals("No active restriction session to end", result.errorMessage)
+        handler.dispose()
+    }
+
+    @Test
+    fun endSession_withInvalidDuration_returnsInvalidArgument() {
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.END_SESSION, mapOf("durationMs" to 0L)),
+            result,
+        )
+
+        assertTrue(result.await())
+        assertEquals("INVALID_ARGUMENT", result.errorCode)
+        assertEquals("Missing or invalid 'durationMs' argument", result.errorMessage)
+        handler.dispose()
+    }
+
+    @Test
+    fun endSession_withTooLongDuration_returnsInvalidArgument() {
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.END_SESSION, mapOf("durationMs" to PlatformConstants.MAX_RELIABLE_PAUSE_DURATION_MS)),
+            result,
+        )
+
+        assertTrue(result.await())
+        assertEquals("INVALID_ARGUMENT", result.errorCode)
+        assertEquals("Session end duration must be less than 24 hours on Android", result.errorMessage)
+        handler.dispose()
+    }
+
+    @Test
+    fun endSession_withDuration_schedulesDelayedEnd() {
+        val manager = RestrictionManager.getInstance(context)
+        manager.setActiveSession(
+            modeId = "focus",
+            blockedAppIds = listOf("com.example.app"),
+            source = RestrictionModeSource.MANUAL,
+        )
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.END_SESSION, mapOf("durationMs" to 1_000L)),
+            result,
+        )
+
+        assertTrue(result.await())
+        assertNull(result.errorCode)
+        assertTrue(manager.getPendingEndSessionEpochMs(clearExpired = false) > 0L)
         handler.dispose()
     }
 

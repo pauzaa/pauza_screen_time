@@ -79,7 +79,25 @@ internal class SessionEnforcementUseCase(private val context: Context) {
         )
     }
 
-    fun endSession() {
+    fun endSession(durationMs: Long? = null) {
+        if (durationMs != null) {
+            scheduleEndSession(durationMs)
+            return
+        }
+        endSessionNow()
+    }
+
+    private fun scheduleEndSession(durationMs: Long) {
+        val restrictionManager = RestrictionManager.getInstance(context)
+        val state = RestrictionSessionController(context).resolveSessionState()
+        if (state.activeModeSource == RestrictionModeSource.NONE || state.activeModeId == null) {
+            throw IllegalStateException("No active restriction session to end")
+        }
+        restrictionManager.setPendingEndSessionEpochMs(System.currentTimeMillis() + durationMs)
+        RestrictionAlarmOrchestrator(context).rescheduleAll()
+    }
+
+    fun endSessionNow() {
         val restrictionManager = RestrictionManager.getInstance(context)
         val sessionController = RestrictionSessionController(context)
         val state = sessionController.resolveSessionState()
@@ -96,6 +114,7 @@ internal class SessionEnforcementUseCase(private val context: Context) {
             }
         }
         restrictionManager.clearManualSessionEndEpochMs()
+        restrictionManager.clearPendingEndSessionEpochMs()
         sessionController.endSession(
             source = RestrictionModeSource.MANUAL,
             trigger = "end_session_manual",

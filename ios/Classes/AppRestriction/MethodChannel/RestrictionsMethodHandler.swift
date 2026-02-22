@@ -31,7 +31,7 @@ final class RestrictionsMethodHandler {
         case MethodNames.startSession:
             handleStartSession(call: call, result: result)
         case MethodNames.endSession:
-            handleEndSession(result: result)
+            handleEndSession(call: call, result: result)
         case MethodNames.getPendingLifecycleEvents:
             handleGetPendingLifecycleEvents(call: call, result: result)
         case MethodNames.ackLifecycleEvents:
@@ -195,7 +195,7 @@ final class RestrictionsMethodHandler {
         }
     }
 
-    private func handleEndSession(result: @escaping FlutterResult) {
+    private func handleEndSession(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(PluginErrors.unsupported(
                 feature: Self.featureRestrictions,
@@ -204,7 +204,18 @@ final class RestrictionsMethodHandler {
             ))
             return
         }
-        if let error = SessionEnforcementUseCase.endSession() {
+        let args = call.arguments as? [String: Any]
+        let durationMs: Int64?
+        if let rawDuration = args?["durationMs"] {
+            guard let parsedDurationMs = parseEndSessionDurationMs(rawValue: rawDuration, result: result) else {
+                return
+            }
+            durationMs = parsedDurationMs
+        } else {
+            durationMs = nil
+        }
+
+        if let error = SessionEnforcementUseCase.endSession(durationMs: durationMs) {
             result(error)
         } else {
             result(nil)
@@ -480,6 +491,35 @@ final class RestrictionsMethodHandler {
                 feature: Self.featureRestrictions,
                 action: MethodNames.startSession,
                 message: "Session duration must be less than 24 hours on iOS"
+            ))
+            return nil
+        }
+        return durationMs
+    }
+
+    private func parseEndSessionDurationMs(rawValue: Any, result: @escaping FlutterResult) -> Int64? {
+        guard let durationValue = rawValue as? NSNumber else {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.endSession,
+                message: "Missing or invalid 'durationMs' argument"
+            ))
+            return nil
+        }
+        let durationMs = durationValue.int64Value
+        if durationMs <= 0 {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.endSession,
+                message: "Missing or invalid 'durationMs' argument"
+            ))
+            return nil
+        }
+        if durationMs >= PlatformConstants.maxReliablePauseDurationMs {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.endSession,
+                message: "Session end duration must be less than 24 hours on iOS"
             ))
             return nil
         }
