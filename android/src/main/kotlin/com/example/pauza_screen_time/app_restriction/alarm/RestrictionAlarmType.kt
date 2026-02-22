@@ -6,7 +6,8 @@ internal enum class RestrictionAlarmType(
 ) {
     PAUSE_END(requestCode = 10101, value = "pause_end"),
     SCHEDULE_SESSION_START(requestCode = 10102, value = "schedule_session_start"),
-    SCHEDULE_SESSION_END(requestCode = 10103, value = "schedule_session_end");
+    SCHEDULE_SESSION_END(requestCode = 10103, value = "schedule_session_end"),
+    MANUAL_SESSION_END(requestCode = 10104, value = "manual_session_end");
 
     companion object {
         fun fromValue(value: String?): RestrictionAlarmType? {

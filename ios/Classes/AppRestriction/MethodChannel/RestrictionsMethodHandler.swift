@@ -6,6 +6,8 @@ final class RestrictionsMethodHandler {
     private static let iosFamilyControlsKey = "ios.familyControls"
     private static let featureRestrictions = "restrictions"
     private static let platformIOS = "ios"
+    private static let activeSessionErrorMessage =
+        "A restriction session is already active. End the current session before starting a new one."
     private let lifecycleQueue = DispatchQueue(label: "pauza.restrictions.lifecycle.queue")
 
     func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -154,6 +156,9 @@ final class RestrictionsMethodHandler {
             result(preflightError)
             return
         }
+        if emitActiveSessionErrorIfAny(action: MethodNames.startSession, result: result) {
+            return
+        }
         guard let args = call.arguments as? [String: Any] else {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
@@ -178,7 +183,20 @@ final class RestrictionsMethodHandler {
             ))
             return
         }
-        if let error = SessionEnforcementUseCase.startSession(modeId: modeId, blockedAppIds: blockedAppIds) {
+        let durationMs: Int64?
+        if let rawDuration = args["durationMs"] {
+            guard let parsedDurationMs = parseStartSessionDurationMs(rawValue: rawDuration, result: result) else {
+                return
+            }
+            durationMs = parsedDurationMs
+        } else {
+            durationMs = nil
+        }
+        if let error = SessionEnforcementUseCase.startSession(
+            modeId: modeId,
+            blockedAppIds: blockedAppIds,
+            durationMs: durationMs
+        ) {
             result(error)
         } else {
             result(nil)
@@ -433,5 +451,46 @@ final class RestrictionsMethodHandler {
         case .notDetermined: return "notDetermined"
         @unknown default: return "unknown"
         }
+    }
+
+    private func emitActiveSessionErrorIfAny(action: String, result: @escaping FlutterResult) -> Bool {
+        if !SessionEnforcementUseCase.hasActiveSession() {
+            return false
+        }
+        result(PluginErrors.invalidArguments(
+            feature: Self.featureRestrictions,
+            action: action,
+            message: Self.activeSessionErrorMessage
+        ))
+        return true
+    }
+
+    private func parseStartSessionDurationMs(rawValue: Any, result: @escaping FlutterResult) -> Int64? {
+        guard let durationValue = rawValue as? NSNumber else {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.startSession,
+                message: "Missing or invalid 'durationMs' argument"
+            ))
+            return nil
+        }
+        let durationMs = durationValue.int64Value
+        if durationMs <= 0 {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.startSession,
+                message: "Missing or invalid 'durationMs' argument"
+            ))
+            return nil
+        }
+        if durationMs >= PlatformConstants.maxReliablePauseDurationMs {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.startSession,
+                message: "Session duration must be less than 24 hours on iOS"
+            ))
+            return nil
+        }
+        return durationMs
     }
 }

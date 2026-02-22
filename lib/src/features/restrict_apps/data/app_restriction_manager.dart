@@ -54,8 +54,10 @@ class AppRestrictionManager {
   }
 
   /// Starts a session using [mode].
-  Future<void> startSession(RestrictionMode mode) {
-    return _platform.startSession(mode).throwTypedPauzaError();
+  ///
+  /// If [duration] is provided, the manual session auto-ends when it elapses.
+  Future<void> startSession(RestrictionMode mode, {Duration? duration}) {
+    return _platform.startSession(mode, duration: duration).throwTypedPauzaError();
   }
 
   /// Ends the current active session.

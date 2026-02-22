@@ -3,6 +3,7 @@ import Foundation
 /// Shared app-group-backed storage for restriction session state.
 enum RestrictionStateStore {
     static let pausedUntilEpochMsKey = "pausedUntilEpochMs"
+    static let manualSessionEndEpochMsKey = "manualSessionEndEpochMs"
     static let activeSessionKey = "activeSession"
     static let scheduleMonitorNamesKey = "scheduleMonitorNames"
     static let modesEnabledKey = "modesEnabled"
@@ -99,6 +100,32 @@ enum RestrictionStateStore {
         return pausedUntilValue(defaults) > 0
     }
 
+    static func loadManualSessionEndEpochMs(
+        nowEpochMs: Int64 = currentEpochMs(),
+        clearExpired: Bool = true
+    ) -> Int64 {
+        guard let defaults = AppGroupStore.sharedDefaults() else {
+            return 0
+        }
+        let manualSessionEnd = manualSessionEndValue(defaults)
+        if manualSessionEnd <= nowEpochMs {
+            if clearExpired, manualSessionEnd > 0 {
+                defaults.set(Int64(0), forKey: manualSessionEndEpochMsKey)
+            }
+            return 0
+        }
+        return manualSessionEnd
+    }
+
+    static func storeManualSessionEndEpochMs(_ value: Int64) -> StoreResult {
+        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
+        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
+            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
+        }
+        defaults.set(value, forKey: manualSessionEndEpochMsKey)
+        return .success
+    }
+
     static func loadActiveSession() throws -> ActiveSession? {
         guard let defaults = AppGroupStore.sharedDefaults() else {
             return nil
@@ -147,8 +174,12 @@ enum RestrictionStateStore {
                 clearActiveSessionLifecycleEvents(defaults: defaults)
             }
             defaults.set(persisted.toStorageMap(), forKey: activeSessionKey)
+            if persisted.source != .manual {
+                defaults.set(Int64(0), forKey: manualSessionEndEpochMsKey)
+            }
         } else {
             defaults.removeObject(forKey: activeSessionKey)
+            defaults.set(Int64(0), forKey: manualSessionEndEpochMsKey)
             clearActiveSessionLifecycleEvents(defaults: defaults)
         }
         return .success
@@ -413,6 +444,19 @@ enum RestrictionStateStore {
             return raw
         }
         if let raw = defaults.object(forKey: pausedUntilEpochMsKey) as? Int {
+            return Int64(raw)
+        }
+        return 0
+    }
+
+    private static func manualSessionEndValue(_ defaults: UserDefaults) -> Int64 {
+        if let number = defaults.object(forKey: manualSessionEndEpochMsKey) as? NSNumber {
+            return number.int64Value
+        }
+        if let raw = defaults.object(forKey: manualSessionEndEpochMsKey) as? Int64 {
+            return raw
+        }
+        if let raw = defaults.object(forKey: manualSessionEndEpochMsKey) as? Int {
             return Int64(raw)
         }
         return 0

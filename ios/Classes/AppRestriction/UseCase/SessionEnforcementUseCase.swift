@@ -81,7 +81,11 @@ struct SessionEnforcementUseCase {
         return nil
     }
 
-    static func startSession(modeId: String, blockedAppIds: [String]) -> FlutterError? {
+    static func hasActiveSession() -> Bool {
+        return resolveSessionState().activeModeSource != .none
+    }
+
+    static func startSession(modeId: String, blockedAppIds: [String], durationMs: Int64? = nil) -> FlutterError? {
         let decodeResult = ShieldManager.shared.decodeTokens(base64Tokens: blockedAppIds)
         if !decodeResult.invalidTokens.isEmpty {
             return PluginErrors.invalidArguments(
@@ -90,6 +94,35 @@ struct SessionEnforcementUseCase {
                 message: PluginErrorMessage.unableToDecodeTokens,
                 diagnostic: "invalidTokens=\(decodeResult.invalidTokens)"
             )
+        }
+
+        if let durationMs {
+            let manualSessionEndEpochMs = RestrictionStateStore.currentEpochMs() + durationMs
+            switch RestrictionStateStore.storeManualSessionEndEpochMs(manualSessionEndEpochMs) {
+            case .success:
+                break
+            case .appGroupUnavailable(let resolvedGroupId):
+                return PluginErrors.internalFailure(
+                    feature: featureRestrictions,
+                    action: MethodNames.startSession,
+                    message: PluginErrorMessage.appGroupUnavailable,
+                    diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                )
+            }
+            do {
+                try ManualSessionAutoEndMonitor.startMonitoring(untilEpochMs: manualSessionEndEpochMs)
+            } catch {
+                _ = RestrictionStateStore.storeManualSessionEndEpochMs(0)
+                return PluginErrors.internalFailure(
+                    feature: featureRestrictions,
+                    action: MethodNames.startSession,
+                    message: "Failed to start manual session auto-end monitor",
+                    diagnostic: "activityName=\(ManualSessionAutoEndMonitor.activityNameRaw), error=\(String(describing: error))"
+                )
+            }
+        } else {
+            _ = RestrictionStateStore.storeManualSessionEndEpochMs(0)
+            ManualSessionAutoEndMonitor.stopMonitoring()
         }
 
         let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
@@ -121,7 +154,9 @@ struct SessionEnforcementUseCase {
 
     static func endSession() -> FlutterError? {
         let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
-        
+        _ = RestrictionStateStore.storeManualSessionEndEpochMs(0)
+        ManualSessionAutoEndMonitor.stopMonitoring()
+
         let storeResult: RestrictionStateStore.StoreResult
         if let activeSession = try? RestrictionStateStore.loadActiveSession(), activeSession.source == .manual {
             storeResult = RestrictionStateStore.clearActiveSession()
@@ -223,16 +258,34 @@ struct SessionEnforcementUseCase {
         )
         let resolution = RestrictionScheduledModeEvaluator.resolveNow(config: config)
         let activeSession = try? RestrictionStateStore.loadActiveSession()
+        let manualSessionEndEpochMs = RestrictionStateStore.loadManualSessionEndEpochMs(clearExpired: false)
+        let nowEpochMs = RestrictionStateStore.currentEpochMs()
 
         if let activeSession {
             if activeSession.source == .manual {
-                return SessionState(
-                    isScheduleEnabled: modesEnabled,
-                    isInScheduleNow: resolution.isInScheduleNow,
-                    blockedAppIds: activeSession.blockedAppIds,
-                    activeModeId: activeSession.modeId,
-                    activeModeSource: .manual
-                )
+                if manualSessionEndEpochMs > 0, manualSessionEndEpochMs <= nowEpochMs {
+                    _ = RestrictionStateStore.storeManualSessionEndEpochMs(0)
+                    ManualSessionAutoEndMonitor.stopMonitoring()
+                    _ = RestrictionStateStore.clearActiveSession()
+                } else {
+                    if manualSessionEndEpochMs > 0 {
+                        do {
+                            try ManualSessionAutoEndMonitor.startMonitoring(untilEpochMs: manualSessionEndEpochMs, nowEpochMs: nowEpochMs)
+                        } catch {
+                            // Keep session active; monitor failures are non-fatal for state resolution.
+                        }
+                    }
+                    return SessionState(
+                        isScheduleEnabled: modesEnabled,
+                        isInScheduleNow: resolution.isInScheduleNow,
+                        blockedAppIds: activeSession.blockedAppIds,
+                        activeModeId: activeSession.modeId,
+                        activeModeSource: .manual
+                    )
+                }
+            } else if manualSessionEndEpochMs > 0 {
+                _ = RestrictionStateStore.storeManualSessionEndEpochMs(0)
+                ManualSessionAutoEndMonitor.stopMonitoring()
             }
 
             if resolution.isInScheduleNow, activeSession.modeId == resolution.activeModeId {

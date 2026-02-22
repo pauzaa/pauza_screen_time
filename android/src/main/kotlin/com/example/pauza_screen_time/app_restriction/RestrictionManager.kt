@@ -58,6 +58,19 @@ class RestrictionManager private constructor(context: Context) {
     fun clearPause() = storage.clearPause()
 
     @Synchronized
+    fun getManualSessionEndEpochMs(
+        nowMs: Long = System.currentTimeMillis(),
+        clearExpired: Boolean = true,
+    ): Long = storage.getManualSessionEndEpochMs(nowMs, clearExpired)
+
+    @Synchronized
+    fun setManualSessionEndEpochMs(manualSessionEndEpochMs: Long) =
+        storage.setManualSessionEndEpochMs(manualSessionEndEpochMs)
+
+    @Synchronized
+    fun clearManualSessionEndEpochMs() = storage.clearManualSessionEndEpochMs()
+
+    @Synchronized
     fun getActiveSession(): ActiveSession? = storage.getActiveSession()
 
     @Synchronized
@@ -76,7 +89,10 @@ class RestrictionManager private constructor(context: Context) {
     }
 
     @Synchronized
-    fun clearActiveSession() = storage.clearActiveSession()
+    fun clearActiveSession() {
+        storage.clearActiveSession()
+        storage.clearManualSessionEndEpochMs()
+    }
 
     @Synchronized
     internal fun snapshotLifecycleState(): RestrictionLifecycleSnapshot {

@@ -29,6 +29,8 @@ class RestrictionsMethodHandler(
     companion object {
         private const val ANDROID_ACCESSIBILITY_KEY = "android.accessibility"
         private const val FEATURE = "restrictions"
+        private const val ACTIVE_SESSION_ERROR_MESSAGE =
+            "A restriction session is already active. End the current session before starting a new one."
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -198,6 +200,8 @@ class RestrictionsMethodHandler(
     private fun handleStartSession(call: MethodCall, result: Result) {
         val context = contextProvider() ?: return noContext(result, MethodNames.START_SESSION)
         if (emitRestrictionPreflightErrorIfAny(context, MethodNames.START_SESSION, result)) return
+        val sessionUseCase = SessionEnforcementUseCase(context)
+        if (emitActiveSessionErrorIfAny(sessionUseCase, MethodNames.START_SESSION, result)) return
 
         val payload = call.arguments as? Map<*, *>
         if (payload == null) {
@@ -211,7 +215,10 @@ class RestrictionsMethodHandler(
                 PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.START_SESSION, "Mode requires non-empty 'blockedAppIds'")
                 return
             }
-            SessionEnforcementUseCase(context).startSession(mode.modeId, mode.blockedAppIds)
+            val durationMs = payload["durationMs"]?.let { rawDuration ->
+                parseStartSessionDurationMs(rawDuration, result) ?: return
+            }
+            sessionUseCase.startSession(mode.modeId, mode.blockedAppIds, durationMs)
             result.success(null)
         } catch (e: IllegalArgumentException) {
             PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.START_SESSION, e.message ?: "Invalid mode payload")
@@ -303,6 +310,41 @@ class RestrictionsMethodHandler(
             status = mapOf("androidAccessibilityStatus" to accessibilityStatus),
         )
         return true
+    }
+
+    private fun emitActiveSessionErrorIfAny(
+        sessionUseCase: SessionEnforcementUseCase,
+        action: String,
+        result: Result,
+    ): Boolean {
+        if (!sessionUseCase.hasActiveSession()) {
+            return false
+        }
+        PluginErrorHelper.invalidArgument(result, FEATURE, action, ACTIVE_SESSION_ERROR_MESSAGE)
+        return true
+    }
+
+    private fun parseStartSessionDurationMs(rawDurationMs: Any?, result: Result): Long? {
+        val durationMs = (rawDurationMs as? Number)?.toLong()
+        if (durationMs == null || durationMs <= 0L) {
+            PluginErrorHelper.invalidArgument(
+                result,
+                FEATURE,
+                MethodNames.START_SESSION,
+                "Missing or invalid 'durationMs' argument",
+            )
+            return null
+        }
+        if (durationMs >= PlatformConstants.MAX_RELIABLE_PAUSE_DURATION_MS) {
+            PluginErrorHelper.invalidArgument(
+                result,
+                FEATURE,
+                MethodNames.START_SESSION,
+                "Session duration must be less than 24 hours on Android",
+            )
+            return null
+        }
+        return durationMs
     }
 
     private fun noContext(result: Result, action: String) {

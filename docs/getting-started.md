@@ -76,8 +76,12 @@ await restrictions.startSession(
     modeId: 'focus-mode',
     blockedAppIds: blocked,
   ),
+  duration: const Duration(minutes: 30), // optional
 );
 ```
+
+`startSession(...)` rejects with `INVALID_ARGUMENT` if any session is already active.
+Call `endSession()` first, then start a new one.
 
 4. Inspect session:
 
@@ -137,6 +141,7 @@ await restrictions.resumeEnforcement();
 ```
 
 Pause duration must be strictly less than 24 hours on both Android and iOS.
+Manual `startSession(..., duration: ...)` follows the same `< 24h` upper bound.
 
 ## Next
 

@@ -52,7 +52,9 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
   }
 
   /// Starts a restriction session for [mode].
-  Future<void> startSession(RestrictionMode mode) {
+  ///
+  /// If [duration] is provided, the manual session auto-ends when it elapses.
+  Future<void> startSession(RestrictionMode mode, {Duration? duration}) {
     throw UnimplementedError('startSession() has not been implemented.');
   }
 

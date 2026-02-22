@@ -52,6 +52,11 @@ For restrictions, enforcement mutation APIs preflight permissions and fail fast:
 - `pauseEnforcement(...)`
 - `resumeEnforcement()`
 
+Common `INVALID_ARGUMENT` reasons for restrictions:
+- `startSession(...)` called while another session is already active
+- `startSession(..., duration: ...)` duration is missing/invalid (`<= 0` or `>= 24h`)
+- `pauseEnforcement(...)` duration is missing/invalid (`<= 0` or `>= 24h`)
+
 Read/inspection APIs do not preflight-fail and continue returning session/config
 state payloads.
 

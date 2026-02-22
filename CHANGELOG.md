@@ -1,3 +1,9 @@
+## 0.6.1
+
+* Added optional `duration` to manual `startSession(...)` so sessions can auto-end after elapsed time.
+* `startSession(...)` now rejects with `INVALID_ARGUMENT` when any restriction session is already active.
+* Added `< 24h` validation for `startSession` duration on Android/iOS.
+
 ## 0.6.0
 
 * Added durable restriction lifecycle queue APIs:

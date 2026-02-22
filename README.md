@@ -78,7 +78,10 @@ await restrictions.startSession(
     modeId: 'focus-mode',
     blockedAppIds: blocked,
   ),
+  duration: const Duration(minutes: 30),
 );
+
+// startSession(...) fails with INVALID_ARGUMENT if any session is already active.
 
 final session = await restrictions.getRestrictionSession();
 // RestrictionState:
@@ -96,7 +99,7 @@ final session = await restrictions.getRestrictionSession();
 
 - `restrictApps` / `restrictApp` / `unrestrictApp` / `clearAllRestrictions` -> `upsertMode` + `removeMode`
 - `upsertScheduledMode` / `removeScheduledMode` / `setScheduledModesEnabled` / `getScheduledModesConfig` -> `upsertMode` / `removeMode` / `setModesEnabled` / `getModesConfig`
-- `startRestrictionSession` / `endRestrictionSession` -> `startSession(mode)` / `endSession()`
+- `startRestrictionSession` / `endRestrictionSession` -> `startSession(mode, {duration})` / `endSession()`
 
 ## Session payload
 

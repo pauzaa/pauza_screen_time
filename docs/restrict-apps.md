@@ -58,13 +58,17 @@ await restrictions.startSession(
       AppIdentifier.android('com.instagram.android'),
     ],
   ),
+  duration: const Duration(minutes: 30), // optional
 );
 await restrictions.endSession();
 ```
 
 Manual session rules:
-- `startSession(mode)` always requires and uses the full mode DTO (`modeId` + non-empty `blockedAppIds`).
-- `startSession(mode)` writes the active session snapshot separately from recurring scheduled modes.
+- `startSession(mode, {duration})` always requires and uses the full mode DTO (`modeId` + non-empty `blockedAppIds`).
+- `duration` is optional and only applies to manual starts.
+- If provided, `duration` must be `> 0` and `< 24h`.
+- `startSession(...)` fails with `INVALID_ARGUMENT` when any restriction session is already active (`manual` or `schedule`).
+- `startSession(...)` writes the active session snapshot separately from recurring scheduled modes.
 - Manual session overrides scheduled activation until `endSession()`.
 
 ## 4) Pause / resume

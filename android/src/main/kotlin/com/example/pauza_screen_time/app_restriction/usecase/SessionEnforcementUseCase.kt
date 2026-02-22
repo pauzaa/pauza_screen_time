@@ -46,7 +46,17 @@ internal class SessionEnforcementUseCase(private val context: Context) {
         )
     }
 
-    fun startSession(modeId: String, blockedAppIds: List<String>) {
+    fun hasActiveSession(): Boolean {
+        return RestrictionSessionController(context).resolveSessionState().activeModeSource != RestrictionModeSource.NONE
+    }
+
+    fun startSession(modeId: String, blockedAppIds: List<String>, durationMs: Long? = null) {
+        val restrictionManager = RestrictionManager.getInstance(context)
+        if (durationMs != null) {
+            restrictionManager.setManualSessionEndEpochMs(System.currentTimeMillis() + durationMs)
+        } else {
+            restrictionManager.clearManualSessionEndEpochMs()
+        }
         RestrictionSessionController(context).startSession(
             modeId = modeId,
             blockedAppIds = blockedAppIds,
@@ -56,6 +66,7 @@ internal class SessionEnforcementUseCase(private val context: Context) {
     }
 
     fun endSession() {
+        RestrictionManager.getInstance(context).clearManualSessionEndEpochMs()
         RestrictionSessionController(context).endSession(
             source = RestrictionModeSource.MANUAL,
             trigger = "end_session_manual",

@@ -28,6 +28,7 @@ internal class RestrictionAlarmOrchestrator(
     fun onAlarmFired(alarmType: RestrictionAlarmType) {
         when (alarmType) {
             RestrictionAlarmType.PAUSE_END -> onPauseEndFired()
+            RestrictionAlarmType.MANUAL_SESSION_END -> onManualSessionEndFired()
             RestrictionAlarmType.SCHEDULE_SESSION_START,
             RestrictionAlarmType.SCHEDULE_SESSION_END,
             -> onScheduleBoundaryFired(alarmType)
@@ -61,6 +62,7 @@ internal class RestrictionAlarmOrchestrator(
         when (alarmType) {
             RestrictionAlarmType.SCHEDULE_SESSION_START -> applyScheduleStart()
             RestrictionAlarmType.SCHEDULE_SESSION_END -> applyScheduleEnd()
+            RestrictionAlarmType.MANUAL_SESSION_END -> Unit
             RestrictionAlarmType.PAUSE_END -> Unit
         }
         rescheduleScheduleBoundary()
@@ -74,7 +76,35 @@ internal class RestrictionAlarmOrchestrator(
         } else {
             scheduler.cancel(RestrictionAlarmType.PAUSE_END)
         }
+        val manualSessionEndMs = restrictionManager.getManualSessionEndEpochMs(nowMs)
+        if (manualSessionEndMs > 0L) {
+            scheduleManualSessionEnd(manualSessionEndMs, nowMs)
+        } else {
+            scheduler.cancel(RestrictionAlarmType.MANUAL_SESSION_END)
+        }
 
+        rescheduleScheduleBoundary()
+    }
+
+    fun onManualSessionEndFired() {
+        val nowMs = System.currentTimeMillis()
+        val manualSessionEndMs = restrictionManager.getManualSessionEndEpochMs(nowMs, clearExpired = false)
+        if (manualSessionEndMs > nowMs) {
+            scheduleManualSessionEnd(manualSessionEndMs, nowMs)
+            return
+        }
+
+        val activeSession = restrictionManager.getActiveSession()
+        restrictionManager.clearManualSessionEndEpochMs()
+        if (activeSession?.source == RestrictionModeSource.MANUAL) {
+            sessionController.endSession(
+                source = RestrictionModeSource.MANUAL,
+                trigger = "manual_session_duration_elapsed",
+                rescheduleAlarms = false,
+            )
+        } else {
+            sessionController.applyCurrentEnforcementState(trigger = "manual_session_duration_elapsed_noop")
+        }
         rescheduleScheduleBoundary()
     }
 
@@ -83,6 +113,15 @@ internal class RestrictionAlarmOrchestrator(
         val triggerElapsedMs = SystemClock.elapsedRealtime() + remainingMs
         scheduler.schedule(
             type = RestrictionAlarmType.PAUSE_END,
+            timebase = RestrictionAlarmTimebase.ElapsedRealtime(triggerElapsedMs),
+        )
+    }
+
+    private fun scheduleManualSessionEnd(manualSessionEndMs: Long, nowMs: Long) {
+        val remainingMs = (manualSessionEndMs - nowMs).coerceAtLeast(0L)
+        val triggerElapsedMs = SystemClock.elapsedRealtime() + remainingMs
+        scheduler.schedule(
+            type = RestrictionAlarmType.MANUAL_SESSION_END,
             timebase = RestrictionAlarmTimebase.ElapsedRealtime(triggerElapsedMs),
         )
     }

@@ -19,6 +19,7 @@ class RestrictionStorageRepository private constructor(context: Context) {
         private const val PREFS_NAME = "app_restriction_prefs"
         private const val KEY_BLOCKED_APPS = "blocked_apps"
         private const val KEY_PAUSED_UNTIL_EPOCH_MS = "paused_until_epoch_ms"
+        private const val KEY_MANUAL_SESSION_END_EPOCH_MS = "manual_session_end_epoch_ms"
         private const val KEY_ACTIVE_SESSION = "active_session"
         private const val KEY_SESSION_ID_SEQ = "session_id_seq"
 
@@ -94,6 +95,31 @@ class RestrictionStorageRepository private constructor(context: Context) {
     fun clearPause() {
         preferences.edit().putLong(KEY_PAUSED_UNTIL_EPOCH_MS, 0L).apply()
         Log.d(TAG, "Restriction pause cleared")
+    }
+
+    @Synchronized
+    fun getManualSessionEndEpochMs(
+        nowMs: Long = System.currentTimeMillis(),
+        clearExpired: Boolean = true,
+    ): Long {
+        val sessionEnd = preferences.getLong(KEY_MANUAL_SESSION_END_EPOCH_MS, 0L)
+        if (sessionEnd <= nowMs) {
+            if (clearExpired && sessionEnd != 0L) {
+                preferences.edit().putLong(KEY_MANUAL_SESSION_END_EPOCH_MS, 0L).apply()
+            }
+            return 0L
+        }
+        return sessionEnd
+    }
+
+    @Synchronized
+    fun setManualSessionEndEpochMs(manualSessionEndEpochMs: Long) {
+        preferences.edit().putLong(KEY_MANUAL_SESSION_END_EPOCH_MS, manualSessionEndEpochMs).apply()
+    }
+
+    @Synchronized
+    fun clearManualSessionEndEpochMs() {
+        preferences.edit().putLong(KEY_MANUAL_SESSION_END_EPOCH_MS, 0L).apply()
     }
 
     @Synchronized
@@ -173,7 +199,9 @@ class RestrictionStorageRepository private constructor(context: Context) {
             blockedAppIds = normalizedBlockedIds,
             source = source,
         )
-        
+        if (source != RestrictionModeSource.MANUAL) {
+            clearManualSessionEndEpochMs()
+        }
         persistActiveSession(nextSession)
         Log.d(TAG, "Active session set to: $normalizedModeId [${source.wireValue}] sessionId=${nextSession.sessionId}")
         return nextSession

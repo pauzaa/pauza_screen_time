@@ -104,7 +104,7 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> startSession(RestrictionMode mode) async {
+  Future<void> startSession(RestrictionMode mode, {Duration? duration}) async {
     throw PlatformException(code: 'MISSING_PERMISSION', message: 'missing');
   }
 

@@ -200,6 +200,18 @@ One or more tokens you passed to restrictions could not be decoded as iOS `Appli
 - Pass a positive duration (for example `Duration(minutes: 5)`)
 - Check `getRestrictionSession().isPausedNow` (or `pausedUntil != null`) before re-pausing
 
+### `startSession(...)` fails with `INVALID_ARGUMENT`
+
+**Likely causes**:
+- another restriction session is already active (`manual` or `schedule`)
+- mode payload is invalid (`modeId` empty or `blockedAppIds` empty)
+- `duration` is invalid when provided (`<= 0` or `>= 24h`)
+
+**Fix**:
+- Call `getRestrictionSession()` and verify no active session (`activeMode == null`)
+- Call `endSession()` before starting a new manual session
+- Pass valid mode payload and optional duration under 24 hours
+
 ## Next
 
 - [Docs index](README.md)
