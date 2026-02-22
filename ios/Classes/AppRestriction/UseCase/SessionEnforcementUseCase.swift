@@ -9,6 +9,7 @@ struct SessionState {
     let blockedAppIds: [String]
     let activeModeId: String?
     let activeModeSource: RestrictionModeSource
+    let activeScheduleBoundaryEndEpochMs: Int64?
 }
 
 @available(iOS 16.0, *)
@@ -153,12 +154,37 @@ struct SessionEnforcementUseCase {
     }
 
     static func endSession() -> FlutterError? {
+        let state = resolveSessionState()
+        guard state.activeModeSource != .none, let activeModeId = state.activeModeId else {
+            return PluginErrors.invalidArguments(
+                feature: featureRestrictions,
+                action: MethodNames.endSession,
+                message: "No active restriction session to end"
+            )
+        }
         let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         _ = RestrictionStateStore.storeManualSessionEndEpochMs(0)
         ManualSessionAutoEndMonitor.stopMonitoring()
 
+        if state.activeModeSource == .schedule,
+           let suppressionUntilEpochMs = state.activeScheduleBoundaryEndEpochMs,
+           suppressionUntilEpochMs > RestrictionStateStore.currentEpochMs() {
+            let suppressionStoreResult = RestrictionStateStore.storeScheduleSuppression(
+                modeId: activeModeId,
+                untilEpochMs: suppressionUntilEpochMs
+            )
+            if case .appGroupUnavailable(let resolvedGroupId) = suppressionStoreResult {
+                return PluginErrors.internalFailure(
+                    feature: featureRestrictions,
+                    action: MethodNames.endSession,
+                    message: PluginErrorMessage.appGroupUnavailable,
+                    diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                )
+            }
+        }
+
         let storeResult: RestrictionStateStore.StoreResult
-        if let activeSession = try? RestrictionStateStore.loadActiveSession(), activeSession.source == .manual {
+        if (try? RestrictionStateStore.loadActiveSession()) != nil {
             storeResult = RestrictionStateStore.clearActiveSession()
         } else {
             storeResult = .success
@@ -257,6 +283,13 @@ struct SessionEnforcementUseCase {
             modes: modes
         )
         let resolution = RestrictionScheduledModeEvaluator.resolveNow(config: config)
+        let suppression = RestrictionStateStore.loadScheduleSuppression(nowEpochMs: RestrictionStateStore.currentEpochMs())
+        let shouldSuppressCurrentMode = suppression != nil &&
+            resolution.isInScheduleNow &&
+            resolution.activeModeId == suppression?.modeId
+        if suppression != nil && !shouldSuppressCurrentMode {
+            _ = RestrictionStateStore.clearScheduleSuppression()
+        }
         let activeSession = try? RestrictionStateStore.loadActiveSession()
         let manualSessionEndEpochMs = RestrictionStateStore.loadManualSessionEndEpochMs(clearExpired: false)
         let nowEpochMs = RestrictionStateStore.currentEpochMs()
@@ -280,7 +313,8 @@ struct SessionEnforcementUseCase {
                         isInScheduleNow: resolution.isInScheduleNow,
                         blockedAppIds: activeSession.blockedAppIds,
                         activeModeId: activeSession.modeId,
-                        activeModeSource: .manual
+                        activeModeSource: .manual,
+                        activeScheduleBoundaryEndEpochMs: nil
                     )
                 }
             } else if manualSessionEndEpochMs > 0 {
@@ -288,20 +322,24 @@ struct SessionEnforcementUseCase {
                 ManualSessionAutoEndMonitor.stopMonitoring()
             }
 
-            if resolution.isInScheduleNow, activeSession.modeId == resolution.activeModeId {
+            if !shouldSuppressCurrentMode,
+               resolution.isInScheduleNow,
+               activeSession.modeId == resolution.activeModeId {
                 return SessionState(
                     isScheduleEnabled: modesEnabled,
                     isInScheduleNow: true,
                     blockedAppIds: activeSession.blockedAppIds,
                     activeModeId: activeSession.modeId,
-                    activeModeSource: .schedule
+                    activeModeSource: .schedule,
+                    activeScheduleBoundaryEndEpochMs: resolution.activeIntervalEndEpochMs
                 )
             }
 
             _ = RestrictionStateStore.clearActiveSession()
         }
 
-        if resolution.isInScheduleNow,
+        if !shouldSuppressCurrentMode,
+           resolution.isInScheduleNow,
            let activeModeId = resolution.activeModeId,
            !resolution.blockedAppIds.isEmpty {
             _ = RestrictionStateStore.storeActiveSession(
@@ -317,7 +355,19 @@ struct SessionEnforcementUseCase {
                 isInScheduleNow: true,
                 blockedAppIds: resolution.blockedAppIds,
                 activeModeId: activeModeId,
-                activeModeSource: .schedule
+                activeModeSource: .schedule,
+                activeScheduleBoundaryEndEpochMs: resolution.activeIntervalEndEpochMs
+            )
+        }
+
+        if shouldSuppressCurrentMode, resolution.isInScheduleNow {
+            return SessionState(
+                isScheduleEnabled: modesEnabled,
+                isInScheduleNow: true,
+                blockedAppIds: [],
+                activeModeId: nil,
+                activeModeSource: .none,
+                activeScheduleBoundaryEndEpochMs: nil
             )
         }
 
@@ -326,7 +376,8 @@ struct SessionEnforcementUseCase {
             isInScheduleNow: false,
             blockedAppIds: [],
             activeModeId: nil,
-            activeModeSource: .none
+            activeModeSource: .none,
+            activeScheduleBoundaryEndEpochMs: nil
         )
     }
 }

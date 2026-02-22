@@ -12,6 +12,8 @@ enum RestrictionStateStore {
     static let activeSessionLifecycleEventsKey = "activeSessionLifecycleEvents"
     static let lifecycleEventSeqKey = "lifecycleEventSeq"
     static let sessionIdSeqKey = "sessionIdSeq"
+    static let suppressedScheduleModeIdKey = "suppressedScheduleModeId"
+    static let suppressedScheduleUntilEpochMsKey = "suppressedScheduleUntilEpochMs"
 
     private static let lifecycleLock = NSLock()
 
@@ -74,6 +76,11 @@ enum RestrictionStateStore {
                 source: source
             )
         }
+    }
+
+    struct ScheduleSuppression {
+        let modeId: String
+        let untilEpochMs: Int64
     }
 
     static func loadPausedUntilEpochMs(
@@ -389,6 +396,51 @@ enum RestrictionStateStore {
         Int64(Date().timeIntervalSince1970 * 1000)
     }
 
+    static func loadScheduleSuppression(
+        nowEpochMs: Int64 = currentEpochMs(),
+        clearExpired: Bool = true
+    ) -> ScheduleSuppression? {
+        guard let defaults = AppGroupStore.sharedDefaults() else {
+            return nil
+        }
+        let modeId = (defaults.string(forKey: suppressedScheduleModeIdKey) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let untilEpochMs = suppressionUntilValue(defaults)
+        if modeId.isEmpty || untilEpochMs <= 0 || untilEpochMs <= nowEpochMs {
+            if clearExpired, !modeId.isEmpty || untilEpochMs > 0 {
+                _ = clearScheduleSuppression()
+            }
+            return nil
+        }
+        return ScheduleSuppression(modeId: modeId, untilEpochMs: untilEpochMs)
+    }
+
+    @discardableResult
+    static func storeScheduleSuppression(modeId: String, untilEpochMs: Int64) -> StoreResult {
+        let normalizedModeId = modeId.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedModeId.isEmpty || untilEpochMs <= 0 {
+            return clearScheduleSuppression()
+        }
+        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
+        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
+            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
+        }
+        defaults.set(normalizedModeId, forKey: suppressedScheduleModeIdKey)
+        defaults.set(untilEpochMs, forKey: suppressedScheduleUntilEpochMsKey)
+        return .success
+    }
+
+    @discardableResult
+    static func clearScheduleSuppression() -> StoreResult {
+        let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
+        guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
+            return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
+        }
+        defaults.removeObject(forKey: suppressedScheduleModeIdKey)
+        defaults.removeObject(forKey: suppressedScheduleUntilEpochMsKey)
+        return .success
+    }
+
     static func loadModesEnabled() -> Bool {
         guard let defaults = AppGroupStore.sharedDefaults() else {
             return false
@@ -470,6 +522,19 @@ enum RestrictionStateStore {
             return raw
         }
         if let raw = defaults.object(forKey: key) as? Int {
+            return Int64(raw)
+        }
+        return 0
+    }
+
+    private static func suppressionUntilValue(_ defaults: UserDefaults) -> Int64 {
+        if let number = defaults.object(forKey: suppressedScheduleUntilEpochMsKey) as? NSNumber {
+            return number.int64Value
+        }
+        if let raw = defaults.object(forKey: suppressedScheduleUntilEpochMsKey) as? Int64 {
+            return raw
+        }
+        if let raw = defaults.object(forKey: suppressedScheduleUntilEpochMsKey) as? Int {
             return Int64(raw)
         }
         return 0

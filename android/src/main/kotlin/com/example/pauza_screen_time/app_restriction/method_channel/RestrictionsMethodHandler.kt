@@ -232,6 +232,8 @@ class RestrictionsMethodHandler(
         try {
             SessionEnforcementUseCase(context).endSession()
             result.success(null)
+        } catch (e: IllegalStateException) {
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.END_SESSION, e.message ?: "No active restriction session to end")
         } catch (e: Exception) {
             internalFailure(result, MethodNames.END_SESSION, "Failed to end session", e)
         }

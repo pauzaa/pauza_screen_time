@@ -70,6 +70,9 @@ Manual session rules:
 - `startSession(...)` fails with `INVALID_ARGUMENT` when any restriction session is already active (`manual` or `schedule`).
 - `startSession(...)` writes the active session snapshot separately from recurring scheduled modes.
 - Manual session overrides scheduled activation until `endSession()`.
+- `endSession()` requires an active session and returns `INVALID_ARGUMENT` if none is active.
+- `endSession()` always clears the active session regardless of source (`manual` or `schedule`).
+- If `endSession()` ends a schedule session during its active interval, reactivation is suppressed until that interval ends.
 
 ## 4) Pause / resume
 
@@ -99,7 +102,7 @@ Methods that do not preflight-fail and still return state/cleanup behavior:
 - `isRestrictionSessionActiveNow()`
 - `getModesConfig()`
 - `removeMode(...)`
-- `endSession()`
+- `endSession()` (still returns `INVALID_ARGUMENT` when no active session exists)
 - `configureShield(...)`
 
 ## 5) Restriction session snapshot

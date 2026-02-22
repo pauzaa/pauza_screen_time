@@ -83,6 +83,7 @@ internal class RestrictionSessionControllerMonitoringPolicyTest {
             blockedAppIds = blockedAppIds,
             activeModeId = if (activeModeSource == RestrictionModeSource.NONE) null else "focus",
             activeModeSource = activeModeSource,
+            activeScheduleBoundaryEndEpochMs = null,
         )
     }
 }

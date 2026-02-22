@@ -82,6 +82,10 @@ await restrictions.startSession(
 
 `startSession(...)` rejects with `INVALID_ARGUMENT` if any session is already active.
 Call `endSession()` first, then start a new one.
+`endSession()` requires an active session and returns `INVALID_ARGUMENT` when there is none.
+`endSession()` clears both manual and schedule sessions.
+If a schedule session is ended during its active interval, schedule reactivation is suppressed
+until the interval boundary, then normal schedule behavior resumes.
 
 4. Inspect session:
 

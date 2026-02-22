@@ -264,6 +264,7 @@ enum RestrictionScheduledModeEvaluator {
         let isInScheduleNow: Bool
         let activeModeId: String?
         let blockedAppIds: [String]
+        let activeIntervalEndEpochMs: Int64?
     }
 
     static func resolveNow(
@@ -272,26 +273,95 @@ enum RestrictionScheduledModeEvaluator {
         calendar: Calendar = .current
     ) -> Resolution {
         guard config.enabled else {
-            return Resolution(isInScheduleNow: false, activeModeId: nil, blockedAppIds: [])
+            return Resolution(
+                isInScheduleNow: false,
+                activeModeId: nil,
+                blockedAppIds: [],
+                activeIntervalEndEpochMs: nil
+            )
         }
-        let activeModes = config.modes.filter { mode in
+        var matchedMode: RestrictionScheduledMode?
+        var matchedEndEpochMs: Int64?
+        for mode in config.modes {
             guard let schedule = mode.schedule else {
-                return false
+                continue
             }
-            return RestrictionScheduleEvaluator.isInScheduleNow(
+            let isInScheduleNow = RestrictionScheduleEvaluator.isInScheduleNow(
                 enabled: true,
                 schedules: [schedule],
                 now: now,
                 calendar: calendar
             )
+            if !isInScheduleNow {
+                continue
+            }
+            if matchedMode != nil {
+                return Resolution(
+                    isInScheduleNow: false,
+                    activeModeId: nil,
+                    blockedAppIds: [],
+                    activeIntervalEndEpochMs: nil
+                )
+            }
+            matchedMode = mode
+            matchedEndEpochMs = activeIntervalEndEpochMs(for: schedule, now: now, calendar: calendar)
         }
-        guard activeModes.count == 1 else {
-            return Resolution(isInScheduleNow: false, activeModeId: nil, blockedAppIds: [])
+        guard let matchedMode else {
+            return Resolution(
+                isInScheduleNow: false,
+                activeModeId: nil,
+                blockedAppIds: [],
+                activeIntervalEndEpochMs: nil
+            )
         }
         return Resolution(
             isInScheduleNow: true,
-            activeModeId: activeModes[0].modeId,
-            blockedAppIds: activeModes[0].blockedAppIds
+            activeModeId: matchedMode.modeId,
+            blockedAppIds: matchedMode.blockedAppIds,
+            activeIntervalEndEpochMs: matchedEndEpochMs
         )
+    }
+
+    private static func activeIntervalEndEpochMs(
+        for schedule: RestrictionSchedule,
+        now: Date,
+        calendar: Calendar
+    ) -> Int64? {
+        let weekday = RestrictionScheduleEvaluator.isoWeekday(for: now, calendar: calendar)
+        let previousDay = weekday == 1 ? 7 : weekday - 1
+        let components = calendar.dateComponents([.hour, .minute], from: now)
+        let minutesFromMidnight = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+        let startOfToday = calendar.startOfDay(for: now)
+
+        if schedule.endMinutes > schedule.startMinutes {
+            guard schedule.daysOfWeekIso.contains(weekday),
+                  minutesFromMidnight >= schedule.startMinutes,
+                  minutesFromMidnight < schedule.endMinutes else {
+                return nil
+            }
+            guard let endDate = calendar.date(byAdding: .minute, value: schedule.endMinutes, to: startOfToday) else {
+                return nil
+            }
+            return Int64(endDate.timeIntervalSince1970 * 1000)
+        }
+
+        if schedule.daysOfWeekIso.contains(weekday),
+           minutesFromMidnight >= schedule.startMinutes {
+            guard let endBaseDate = calendar.date(byAdding: .day, value: 1, to: startOfToday),
+                  let endDate = calendar.date(byAdding: .minute, value: schedule.endMinutes, to: endBaseDate) else {
+                return nil
+            }
+            return Int64(endDate.timeIntervalSince1970 * 1000)
+        }
+
+        if schedule.daysOfWeekIso.contains(previousDay),
+           minutesFromMidnight < schedule.endMinutes {
+            guard let endDate = calendar.date(byAdding: .minute, value: schedule.endMinutes, to: startOfToday) else {
+                return nil
+            }
+            return Int64(endDate.timeIntervalSince1970 * 1000)
+        }
+
+        return nil
     }
 }

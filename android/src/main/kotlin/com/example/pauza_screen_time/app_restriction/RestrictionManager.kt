@@ -7,6 +7,7 @@ import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecy
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleSnapshot
 import com.example.pauza_screen_time.app_restriction.model.ActiveSession
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
+import com.example.pauza_screen_time.app_restriction.storage.RestrictionStorageRepository.ScheduleSuppression
 import com.example.pauza_screen_time.app_restriction.storage.RestrictionStorageRepository
 
 /**
@@ -93,6 +94,20 @@ class RestrictionManager private constructor(context: Context) {
         storage.clearActiveSession()
         storage.clearManualSessionEndEpochMs()
     }
+
+    @Synchronized
+    fun setScheduleSuppression(modeId: String, untilEpochMs: Long) {
+        storage.setScheduleSuppression(modeId, untilEpochMs)
+    }
+
+    @Synchronized
+    fun getScheduleSuppression(
+        nowMs: Long = System.currentTimeMillis(),
+        clearExpired: Boolean = true,
+    ): ScheduleSuppression? = storage.getScheduleSuppression(nowMs, clearExpired)
+
+    @Synchronized
+    fun clearScheduleSuppression() = storage.clearScheduleSuppression()
 
     @Synchronized
     internal fun snapshotLifecycleState(): RestrictionLifecycleSnapshot {

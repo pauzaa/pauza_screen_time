@@ -201,6 +201,25 @@ internal class RestrictionsMethodHandlerLifecycleAsyncTest {
     }
 
     @Test
+    fun endSession_withoutActiveSession_returnsInvalidArgument() {
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.END_SESSION, null),
+            result,
+        )
+
+        assertTrue(result.await())
+        assertEquals("INVALID_ARGUMENT", result.errorCode)
+        assertEquals("No active restriction session to end", result.errorMessage)
+        handler.dispose()
+    }
+
+    @Test
     fun asyncFailure_mapsToInternalFailure() {
         val badContext = Mockito.mock(Context::class.java)
         Mockito.`when`(badContext.getSharedPreferences(Mockito.anyString(), Mockito.anyInt()))

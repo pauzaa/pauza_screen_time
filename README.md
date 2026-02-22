@@ -82,6 +82,10 @@ await restrictions.startSession(
 );
 
 // startSession(...) fails with INVALID_ARGUMENT if any session is already active.
+// endSession() fails with INVALID_ARGUMENT when no session is active.
+// endSession() clears both manual and schedule sessions.
+// If a schedule session is ended inside an active interval, schedule reactivation is suppressed
+// until that interval boundary, then normal schedule behavior resumes.
 
 final session = await restrictions.getRestrictionSession();
 // RestrictionState:

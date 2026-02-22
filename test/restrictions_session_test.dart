@@ -194,6 +194,24 @@ void main() {
       expect(capturedDurationMs, isNull);
     });
 
+    test('endSession surfaces INVALID_ARGUMENT when no active session exists', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.endSession) {
+          throw PlatformException(code: 'INVALID_ARGUMENT', message: 'No active restriction session to end');
+        }
+        return null;
+      });
+
+      await expectLater(
+        methodChannel.endSession(),
+        throwsA(
+          isA<PlatformException>()
+              .having((error) => error.code, 'code', 'INVALID_ARGUMENT')
+              .having((error) => error.message, 'message', 'No active restriction session to end'),
+        ),
+      );
+    });
+
     test('startSession passes optional durationMs', () async {
       Object? capturedDurationMs;
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
@@ -349,6 +367,27 @@ void main() {
       });
 
       await expectLater(manager.getModesConfig(), throwsA(isA<PauzaInternalFailureError>()));
+    });
+
+    test('endSession surfaces INVALID_ARGUMENT as typed PauzaError', () async {
+      final manager = AppRestrictionManager(platform: RestrictionsMethodChannel(channel: channel));
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.endSession) {
+          throw PlatformException(code: 'INVALID_ARGUMENT', message: 'No active restriction session to end');
+        }
+        return null;
+      });
+
+      await expectLater(
+        manager.endSession(),
+        throwsA(
+          isA<PauzaInvalidArgumentError>().having(
+            (error) => error.message,
+            'message',
+            'No active restriction session to end',
+          ),
+        ),
+      );
     });
   });
 }

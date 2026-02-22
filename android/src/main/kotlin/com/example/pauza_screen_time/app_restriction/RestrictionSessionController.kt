@@ -53,17 +53,8 @@ internal class RestrictionSessionController(
         rescheduleAlarms: Boolean = true,
     ) {
         val previousSnapshot = captureLifecycleSnapshot()
-        val activeSession = restrictionManager.getActiveSession()
-        if (activeSession != null) {
-            val shouldClear = when (source) {
-                RestrictionModeSource.SCHEDULE -> activeSession.source == RestrictionModeSource.SCHEDULE
-                RestrictionModeSource.MANUAL,
-                RestrictionModeSource.NONE,
-                -> true
-            }
-            if (shouldClear) {
-                restrictionManager.clearActiveSession()
-            }
+        if (restrictionManager.getActiveSession() != null) {
+            restrictionManager.clearActiveSession()
         }
 
         if (rescheduleAlarms) {
@@ -106,10 +97,18 @@ internal class RestrictionSessionController(
 
     fun resolveSessionState(): SessionState {
         val modesConfig = modesStore.getConfig()
+        val nowMs = System.currentTimeMillis()
         val scheduleResolution = RestrictionScheduledModeResolver.resolveNow(
             config = modesConfig,
             scheduleCalculator = scheduleCalculator,
         )
+        val suppression = restrictionManager.getScheduleSuppression(nowMs = nowMs)
+        val shouldSuppressCurrentMode = suppression != null &&
+            scheduleResolution.isInScheduleNow &&
+            scheduleResolution.activeModeId == suppression.modeId
+        if (suppression != null && !shouldSuppressCurrentMode) {
+            restrictionManager.clearScheduleSuppression()
+        }
 
         val activeSession = restrictionManager.getActiveSession()
         if (activeSession != null) {
@@ -120,21 +119,26 @@ internal class RestrictionSessionController(
                     blockedAppIds = activeSession.blockedAppIds,
                     activeModeId = activeSession.modeId,
                     activeModeSource = RestrictionModeSource.MANUAL,
+                    activeScheduleBoundaryEndEpochMs = null,
                 )
             }
-            if (scheduleResolution.isInScheduleNow && activeSession.modeId == scheduleResolution.activeModeId) {
+            if (!shouldSuppressCurrentMode &&
+                scheduleResolution.isInScheduleNow &&
+                activeSession.modeId == scheduleResolution.activeModeId
+            ) {
                 return SessionState(
                     isScheduleEnabled = modesConfig.enabled,
                     isInScheduleNow = true,
                     blockedAppIds = activeSession.blockedAppIds,
                     activeModeId = activeSession.modeId,
                     activeModeSource = RestrictionModeSource.SCHEDULE,
+                    activeScheduleBoundaryEndEpochMs = scheduleResolution.activeIntervalEndEpochMs,
                 )
             }
             restrictionManager.clearActiveSession()
         }
 
-        if (scheduleResolution.isInScheduleNow) {
+        if (scheduleResolution.isInScheduleNow && !shouldSuppressCurrentMode) {
             val modeId = scheduleResolution.activeModeId
             if (modeId != null) {
                 restrictionManager.setActiveSession(
@@ -149,6 +153,18 @@ internal class RestrictionSessionController(
                 blockedAppIds = scheduleResolution.blockedAppIds,
                 activeModeId = scheduleResolution.activeModeId,
                 activeModeSource = RestrictionModeSource.SCHEDULE,
+                activeScheduleBoundaryEndEpochMs = scheduleResolution.activeIntervalEndEpochMs,
+            )
+        }
+
+        if (scheduleResolution.isInScheduleNow && shouldSuppressCurrentMode) {
+            return SessionState(
+                isScheduleEnabled = modesConfig.enabled,
+                isInScheduleNow = true,
+                blockedAppIds = emptyList(),
+                activeModeId = null,
+                activeModeSource = RestrictionModeSource.NONE,
+                activeScheduleBoundaryEndEpochMs = null,
             )
         }
 
@@ -158,6 +174,7 @@ internal class RestrictionSessionController(
             blockedAppIds = emptyList(),
             activeModeId = null,
             activeModeSource = RestrictionModeSource.NONE,
+            activeScheduleBoundaryEndEpochMs = null,
         )
     }
 
@@ -167,5 +184,6 @@ internal class RestrictionSessionController(
         val blockedAppIds: List<String>,
         val activeModeId: String?,
         val activeModeSource: RestrictionModeSource,
+        val activeScheduleBoundaryEndEpochMs: Long?,
     )
 }

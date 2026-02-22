@@ -66,8 +66,23 @@ internal class SessionEnforcementUseCase(private val context: Context) {
     }
 
     fun endSession() {
-        RestrictionManager.getInstance(context).clearManualSessionEndEpochMs()
-        RestrictionSessionController(context).endSession(
+        val restrictionManager = RestrictionManager.getInstance(context)
+        val sessionController = RestrictionSessionController(context)
+        val state = sessionController.resolveSessionState()
+        if (state.activeModeSource == RestrictionModeSource.NONE || state.activeModeId == null) {
+            throw IllegalStateException("No active restriction session to end")
+        }
+        if (state.activeModeSource == RestrictionModeSource.SCHEDULE) {
+            val suppressionUntilMs = state.activeScheduleBoundaryEndEpochMs
+            if (suppressionUntilMs != null && suppressionUntilMs > System.currentTimeMillis()) {
+                restrictionManager.setScheduleSuppression(
+                    modeId = state.activeModeId,
+                    untilEpochMs = suppressionUntilMs,
+                )
+            }
+        }
+        restrictionManager.clearManualSessionEndEpochMs()
+        sessionController.endSession(
             source = RestrictionModeSource.MANUAL,
             trigger = "end_session_manual",
         )

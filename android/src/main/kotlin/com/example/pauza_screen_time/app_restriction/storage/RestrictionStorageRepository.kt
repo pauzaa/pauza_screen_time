@@ -22,6 +22,8 @@ class RestrictionStorageRepository private constructor(context: Context) {
         private const val KEY_MANUAL_SESSION_END_EPOCH_MS = "manual_session_end_epoch_ms"
         private const val KEY_ACTIVE_SESSION = "active_session"
         private const val KEY_SESSION_ID_SEQ = "session_id_seq"
+        private const val KEY_SUPPRESSED_SCHEDULE_MODE_ID = "suppressed_schedule_mode_id"
+        private const val KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS = "suppressed_schedule_until_epoch_ms"
 
         @Volatile
         private var instance: RestrictionStorageRepository? = null
@@ -215,6 +217,43 @@ class RestrictionStorageRepository private constructor(context: Context) {
         Log.d(TAG, "Active session cleared")
     }
 
+    @Synchronized
+    fun setScheduleSuppression(modeId: String, untilEpochMs: Long) {
+        val normalizedModeId = modeId.trim()
+        if (normalizedModeId.isEmpty() || untilEpochMs <= 0L) {
+            clearScheduleSuppression()
+            return
+        }
+        preferences.edit()
+            .putString(KEY_SUPPRESSED_SCHEDULE_MODE_ID, normalizedModeId)
+            .putLong(KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS, untilEpochMs)
+            .apply()
+    }
+
+    @Synchronized
+    fun getScheduleSuppression(
+        nowMs: Long = System.currentTimeMillis(),
+        clearExpired: Boolean = true,
+    ): ScheduleSuppression? {
+        val modeId = preferences.getString(KEY_SUPPRESSED_SCHEDULE_MODE_ID, null)?.trim().orEmpty()
+        val untilEpochMs = preferences.getLong(KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS, 0L)
+        if (modeId.isEmpty() || untilEpochMs <= 0L || untilEpochMs <= nowMs) {
+            if (clearExpired && (modeId.isNotEmpty() || untilEpochMs > 0L)) {
+                clearScheduleSuppression()
+            }
+            return null
+        }
+        return ScheduleSuppression(modeId = modeId, untilEpochMs = untilEpochMs)
+    }
+
+    @Synchronized
+    fun clearScheduleSuppression() {
+        preferences.edit()
+            .remove(KEY_SUPPRESSED_SCHEDULE_MODE_ID)
+            .remove(KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS)
+            .apply()
+    }
+
     private fun loadBlockedApps() {
         val storedApps = preferences.getString(KEY_BLOCKED_APPS, null)
         if (storedApps.isNullOrEmpty()) return
@@ -258,4 +297,9 @@ class RestrictionStorageRepository private constructor(context: Context) {
     private fun formatEpochMs(value: Long): String {
         return value.coerceAtLeast(0L).toString().padStart(13, '0')
     }
+
+    data class ScheduleSuppression(
+        val modeId: String,
+        val untilEpochMs: Long,
+    )
 }
