@@ -20,10 +20,14 @@ internal class SessionEnforcementUseCase(private val context: Context) {
     fun pauseEnforcement(durationMs: Long) {
         val restrictionManager = RestrictionManager.getInstance(context)
         val sessionController = RestrictionSessionController(context)
+        val state = sessionController.resolveSessionState()
         val previousSnapshot = sessionController.captureLifecycleSnapshot()
-        
+
+        if (state.activeModeSource == RestrictionModeSource.NONE) {
+            throw IllegalStateException("No active restriction session to pause.")
+        }
         if (restrictionManager.isPausedNow()) {
-            throw IllegalStateException("Restriction enforcement is already paused")
+            throw IllegalStateException("Restriction enforcement is already paused.")
         }
 
         restrictionManager.pauseFor(durationMs)
@@ -36,9 +40,19 @@ internal class SessionEnforcementUseCase(private val context: Context) {
     }
 
     fun resumeEnforcement() {
+        val restrictionManager = RestrictionManager.getInstance(context)
         val sessionController = RestrictionSessionController(context)
+        val state = sessionController.resolveSessionState()
         val previousSnapshot = sessionController.captureLifecycleSnapshot()
-        RestrictionManager.getInstance(context).clearPause()
+
+        if (state.activeModeSource == RestrictionModeSource.NONE) {
+            throw IllegalStateException("No active restriction session to resume.")
+        }
+        if (!restrictionManager.isPausedNow()) {
+            throw IllegalStateException("Restriction enforcement is not paused.")
+        }
+
+        restrictionManager.clearPause()
         RestrictionAlarmOrchestrator(context).rescheduleAll()
         sessionController.applyCurrentEnforcementState(
             trigger = "resume_enforcement",

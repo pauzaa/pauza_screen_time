@@ -108,14 +108,6 @@ final class RestrictionsMethodHandler {
             ))
             return
         }
-        if RestrictionStateStore.loadPausedUntilEpochMs() > 0 {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.pauseEnforcement,
-                message: "Restriction enforcement is already paused"
-            ))
-            return
-        }
         if let error = SessionEnforcementUseCase.pauseEnforcement(durationMs: durationMs) {
             result(error)
         } else {

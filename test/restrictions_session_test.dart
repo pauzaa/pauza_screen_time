@@ -389,6 +389,90 @@ void main() {
         ),
       );
     });
+
+    test('pauseEnforcement surfaces no active session as typed PauzaError', () async {
+      final manager = AppRestrictionManager(platform: RestrictionsMethodChannel(channel: channel));
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.pauseEnforcement) {
+          throw PlatformException(code: 'INVALID_ARGUMENT', message: 'No active restriction session to pause.');
+        }
+        return null;
+      });
+
+      await expectLater(
+        manager.pauseEnforcement(const Duration(minutes: 1)),
+        throwsA(
+          isA<PauzaInvalidArgumentError>().having(
+            (error) => error.message,
+            'message',
+            'No active restriction session to pause.',
+          ),
+        ),
+      );
+    });
+
+    test('pauseEnforcement surfaces already paused as typed PauzaError', () async {
+      final manager = AppRestrictionManager(platform: RestrictionsMethodChannel(channel: channel));
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.pauseEnforcement) {
+          throw PlatformException(code: 'INVALID_ARGUMENT', message: 'Restriction enforcement is already paused.');
+        }
+        return null;
+      });
+
+      await expectLater(
+        manager.pauseEnforcement(const Duration(minutes: 1)),
+        throwsA(
+          isA<PauzaInvalidArgumentError>().having(
+            (error) => error.message,
+            'message',
+            'Restriction enforcement is already paused.',
+          ),
+        ),
+      );
+    });
+
+    test('resumeEnforcement surfaces no active session as typed PauzaError', () async {
+      final manager = AppRestrictionManager(platform: RestrictionsMethodChannel(channel: channel));
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.resumeEnforcement) {
+          throw PlatformException(code: 'INVALID_ARGUMENT', message: 'No active restriction session to resume.');
+        }
+        return null;
+      });
+
+      await expectLater(
+        manager.resumeEnforcement(),
+        throwsA(
+          isA<PauzaInvalidArgumentError>().having(
+            (error) => error.message,
+            'message',
+            'No active restriction session to resume.',
+          ),
+        ),
+      );
+    });
+
+    test('resumeEnforcement surfaces not paused as typed PauzaError', () async {
+      final manager = AppRestrictionManager(platform: RestrictionsMethodChannel(channel: channel));
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
+        if (call.method == RestrictionsMethodNames.resumeEnforcement) {
+          throw PlatformException(code: 'INVALID_ARGUMENT', message: 'Restriction enforcement is not paused.');
+        }
+        return null;
+      });
+
+      await expectLater(
+        manager.resumeEnforcement(),
+        throwsA(
+          isA<PauzaInvalidArgumentError>().having(
+            (error) => error.message,
+            'message',
+            'Restriction enforcement is not paused.',
+          ),
+        ),
+      );
+    });
   });
 }
 

@@ -8,6 +8,7 @@ import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecy
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleSource
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
 import com.example.pauza_screen_time.core.MethodNames
+import com.example.pauza_screen_time.permissions.PermissionHandler
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import org.mockito.Mockito
@@ -17,6 +18,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -216,6 +218,138 @@ internal class RestrictionsMethodHandlerLifecycleAsyncTest {
         assertTrue(result.await())
         assertEquals("INVALID_ARGUMENT", result.errorCode)
         assertEquals("No active restriction session to end", result.errorMessage)
+        handler.dispose()
+    }
+
+    @Test
+    fun pauseEnforcement_withoutActiveSession_returnsInvalidArgument() {
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            accessibilityStatusProvider = { PermissionHandler.STATUS_GRANTED },
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.PAUSE_ENFORCEMENT, mapOf("durationMs" to 1_000L)),
+            result,
+        )
+
+        assertTrue(result.await())
+        assertEquals("INVALID_ARGUMENT", result.errorCode)
+        assertEquals("No active restriction session to pause.", result.errorMessage)
+        handler.dispose()
+    }
+
+    @Test
+    fun pauseEnforcement_whenAlreadyPaused_returnsInvalidArgument() {
+        val manager = RestrictionManager.getInstance(context)
+        manager.setActiveSession(
+            modeId = "focus",
+            blockedAppIds = listOf("com.example.app"),
+            source = RestrictionModeSource.MANUAL,
+        )
+        manager.pauseFor(5_000L)
+
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            accessibilityStatusProvider = { PermissionHandler.STATUS_GRANTED },
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.PAUSE_ENFORCEMENT, mapOf("durationMs" to 1_000L)),
+            result,
+        )
+
+        assertTrue(result.await())
+        assertEquals("INVALID_ARGUMENT", result.errorCode)
+        assertEquals("Restriction enforcement is already paused.", result.errorMessage)
+        handler.dispose()
+    }
+
+    @Test
+    fun resumeEnforcement_withoutActiveSession_returnsInvalidArgument() {
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            accessibilityStatusProvider = { PermissionHandler.STATUS_GRANTED },
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.RESUME_ENFORCEMENT, null),
+            result,
+        )
+
+        assertTrue(result.await())
+        assertEquals("INVALID_ARGUMENT", result.errorCode)
+        assertEquals("No active restriction session to resume.", result.errorMessage)
+        handler.dispose()
+    }
+
+    @Test
+    fun resumeEnforcement_whenNotPaused_returnsInvalidArgument() {
+        val manager = RestrictionManager.getInstance(context)
+        manager.setActiveSession(
+            modeId = "focus",
+            blockedAppIds = listOf("com.example.app"),
+            source = RestrictionModeSource.MANUAL,
+        )
+
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            accessibilityStatusProvider = { PermissionHandler.STATUS_GRANTED },
+            resultPoster = { action -> action() },
+        )
+        val result = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.RESUME_ENFORCEMENT, null),
+            result,
+        )
+
+        assertTrue(result.await())
+        assertEquals("INVALID_ARGUMENT", result.errorCode)
+        assertEquals("Restriction enforcement is not paused.", result.errorMessage)
+        handler.dispose()
+    }
+
+    @Test
+    fun pauseAndResume_withValidSessionAndPauseState_succeeds() {
+        val manager = RestrictionManager.getInstance(context)
+        manager.setActiveSession(
+            modeId = "focus",
+            blockedAppIds = listOf("com.example.app"),
+            source = RestrictionModeSource.MANUAL,
+        )
+
+        val handler = RestrictionsMethodHandler(
+            contextProvider = { context },
+            accessibilityStatusProvider = { PermissionHandler.STATUS_GRANTED },
+            resultPoster = { action -> action() },
+        )
+        val pauseResult = LatchingResult()
+
+        handler.onMethodCall(
+            MethodCall(MethodNames.PAUSE_ENFORCEMENT, mapOf("durationMs" to 3_000L)),
+            pauseResult,
+        )
+
+        assertTrue(pauseResult.await())
+        assertNull(pauseResult.errorCode)
+        assertTrue(manager.isPausedNow())
+
+        val resumeResult = LatchingResult()
+        handler.onMethodCall(
+            MethodCall(MethodNames.RESUME_ENFORCEMENT, null),
+            resumeResult,
+        )
+
+        assertTrue(resumeResult.await())
+        assertNull(resumeResult.errorCode)
+        assertFalse(manager.isPausedNow())
         handler.dispose()
     }
 

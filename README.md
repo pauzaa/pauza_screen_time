@@ -86,6 +86,12 @@ await restrictions.startSession(
 // endSession() clears both manual and schedule sessions.
 // If a schedule session is ended inside an active interval, schedule reactivation is suppressed
 // until that interval boundary, then normal schedule behavior resumes.
+// pauseEnforcement(duration) requires an active session and fails with INVALID_ARGUMENT:
+// - "No active restriction session to pause."
+// - "Restriction enforcement is already paused."
+// resumeEnforcement() requires an active session and an active pause, and fails with INVALID_ARGUMENT:
+// - "No active restriction session to resume."
+// - "Restriction enforcement is not paused."
 
 final session = await restrictions.getRestrictionSession();
 // RestrictionState:

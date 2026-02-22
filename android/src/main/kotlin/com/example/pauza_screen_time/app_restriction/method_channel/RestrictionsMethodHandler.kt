@@ -192,6 +192,8 @@ class RestrictionsMethodHandler(
         try {
             SessionEnforcementUseCase(context).resumeEnforcement()
             result.success(null)
+        } catch (e: IllegalStateException) {
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.RESUME_ENFORCEMENT, e.message ?: "Invalid state for resume")
         } catch (e: Exception) {
             internalFailure(result, MethodNames.RESUME_ENFORCEMENT, "Failed to resume restriction enforcement", e)
         }

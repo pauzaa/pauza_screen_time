@@ -194,11 +194,23 @@ One or more tokens you passed to restrictions could not be decoded as iOS `Appli
 **Likely causes**:
 - duration is missing/zero/negative
 - duration is `>= 24h` (both Android and iOS)
+- no active restriction session when calling `pauseEnforcement(...)`
 - enforcement is already paused
+- no active restriction session when calling `resumeEnforcement()`
+- `resumeEnforcement()` called while not paused
 
 **Fix**:
 - Pass a positive duration (for example `Duration(minutes: 5)`)
-- Check `getRestrictionSession().isPausedNow` (or `pausedUntil != null`) before re-pausing
+- Call `getRestrictionSession()` before pause/resume and verify:
+  - `activeMode != null` before `pauseEnforcement(...)` or `resumeEnforcement()`
+  - `isPausedNow == false` before `pauseEnforcement(...)`
+  - `isPausedNow == true` before `resumeEnforcement()`
+
+**Expected `INVALID_ARGUMENT` messages**:
+- `No active restriction session to pause.`
+- `Restriction enforcement is already paused.`
+- `No active restriction session to resume.`
+- `Restriction enforcement is not paused.`
 
 ### `startSession(...)` fails with `INVALID_ARGUMENT`
 

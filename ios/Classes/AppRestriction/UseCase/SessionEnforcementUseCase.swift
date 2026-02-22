@@ -25,6 +25,22 @@ struct SessionEnforcementUseCase {
     }
 
     static func pauseEnforcement(durationMs: Int64) -> FlutterError? {
+        let state = resolveSessionState()
+        if state.activeModeSource == .none {
+            return PluginErrors.invalidArguments(
+                feature: featureRestrictions,
+                action: MethodNames.pauseEnforcement,
+                message: "No active restriction session to pause."
+            )
+        }
+        if RestrictionStateStore.loadPausedUntilEpochMs() > 0 {
+            return PluginErrors.invalidArguments(
+                feature: featureRestrictions,
+                action: MethodNames.pauseEnforcement,
+                message: "Restriction enforcement is already paused."
+            )
+        }
+
         let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         let pausedUntilEpochMs = RestrictionStateStore.currentEpochMs() + durationMs
         switch RestrictionStateStore.storePausedUntilEpochMs(pausedUntilEpochMs) {
@@ -61,6 +77,22 @@ struct SessionEnforcementUseCase {
     }
 
     static func resumeEnforcement() -> FlutterError? {
+        let state = resolveSessionState()
+        if state.activeModeSource == .none {
+            return PluginErrors.invalidArguments(
+                feature: featureRestrictions,
+                action: MethodNames.resumeEnforcement,
+                message: "No active restriction session to resume."
+            )
+        }
+        if RestrictionStateStore.loadPausedUntilEpochMs() <= 0 {
+            return PluginErrors.invalidArguments(
+                feature: featureRestrictions,
+                action: MethodNames.resumeEnforcement,
+                message: "Restriction enforcement is not paused."
+            )
+        }
+
         let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         switch RestrictionStateStore.storePausedUntilEpochMs(0) {
         case .success:

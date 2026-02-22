@@ -81,6 +81,18 @@ await restrictions.pauseEnforcement(const Duration(minutes: 5));
 await restrictions.resumeEnforcement();
 ```
 
+Pause/resume validation rules:
+- `pauseEnforcement(duration)` requires an active restriction session.
+- `pauseEnforcement(duration)` requires that enforcement is not currently paused.
+- `pauseEnforcement(duration)` duration must be `> 0` and `< 24h`.
+- `resumeEnforcement()` requires an active restriction session.
+- `resumeEnforcement()` requires that enforcement is currently paused.
+- Validation failures return `INVALID_ARGUMENT` with clear messages:
+  - `No active restriction session to pause.`
+  - `Restriction enforcement is already paused.`
+  - `No active restriction session to resume.`
+  - `Restriction enforcement is not paused.`
+
 ## Permission fast-failure coverage
 
 Restriction mutation methods that can enable or apply enforcement fail fast when
