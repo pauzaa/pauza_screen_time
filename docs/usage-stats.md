@@ -38,6 +38,64 @@ final app = await usage.getAppUsageStats(
 );
 ```
 
+### Read raw usage events
+
+```dart
+final usage = UsageStatsManager();
+final now = DateTime.now();
+
+final events = await usage.getUsageEvents(
+  startDate: now.subtract(const Duration(days: 2)),
+  endDate: now,
+  eventTypes: const [
+    UsageEventType.activityResumed,
+    UsageEventType.activityPaused,
+  ],
+);
+```
+
+`UsageEvent` includes:
+- `timestamp`
+- `packageName`
+- `className` (nullable for system events)
+- `eventType`
+
+### Read aggregated device event stats (API 28+)
+
+```dart
+final usage = UsageStatsManager();
+final now = DateTime.now();
+
+final stats = await usage.getEventStats(
+  startDate: now.subtract(const Duration(days: 7)),
+  endDate: now,
+  intervalType: UsageStatsInterval.daily,
+);
+```
+
+This API requires Android 9+ (API 28). On lower Android versions, it throws a
+typed `PauzaError` with taxonomy code `UNSUPPORTED`.
+
+### Check app inactivity state
+
+```dart
+final usage = UsageStatsManager();
+
+final inactive = await usage.isAppInactive(
+  packageId: 'com.whatsapp',
+);
+```
+
+### Read standby bucket (calling app, API 28+)
+
+```dart
+final usage = UsageStatsManager();
+final bucket = await usage.getAppStandbyBucket();
+```
+
+Returns `AppStandbyBucket` (`active`, `workingSet`, `frequent`, `rare`,
+`restricted`, `unknown`).
+
 ### Missing permission behavior
 
 If Usage Access is not granted, Android usage stats calls fail with taxonomy code
@@ -48,6 +106,23 @@ Use the permissions API to request and re-check access before retrying:
 ```dart
 final permissions = PermissionManager();
 await permissions.requestAndroidPermission(AndroidPermission.usageStats);
+```
+
+### Typed error behavior
+
+```dart
+try {
+  final usage = UsageStatsManager();
+  final now = DateTime.now();
+  await usage.getUsageStats(
+    startDate: now.subtract(const Duration(days: 1)),
+    endDate: now,
+  );
+} on PauzaMissingPermissionError {
+  // Usage Access missing on Android.
+} on PauzaUnsupportedError {
+  // Called on unsupported platform/API level.
+}
 ```
 
 ### Android schema semantics
@@ -73,10 +148,14 @@ Notes:
 
 ### Important limitation
 
-On iOS, Apple does **not** let you read Screen Time usage stats as data. The plugin exposes a native UI report you embed in Flutter:
+On iOS, Apple does **not** let you read Screen Time usage stats as Dart data.
+The plugin exposes a native UI report you embed in Flutter:
 
 - Widget: `UsageReportView` / `IOSUsageReportView`
 - Native view type: `pauza_screen_time/usage_report`
+
+All `UsageStatsManager` methods are Android-only and throw
+`PauzaUnsupportedError` on iOS.
 
 ### Setup requirement
 

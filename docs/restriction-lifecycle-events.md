@@ -163,5 +163,4 @@ If queue hits capacity:
 ## Versioning and upgrade notes
 
 - Feature is additive and backward compatible.
-- Requires plugin version `0.6.0` or later.
 - Ship ingestion before relying on lifecycle analytics/history.

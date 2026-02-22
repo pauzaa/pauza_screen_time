@@ -12,8 +12,11 @@ specific area, jump to:
 
 ## 0) Install
 
-```bash
-flutter pub add pauza_screen_time
+```yaml
+dependencies:
+  pauza_screen_time:
+    git:
+      url: https://github.com/IsroilovA/pauza_screen_time
 ```
 
 ```dart
@@ -53,7 +56,7 @@ await permissions.requestAndroidPermission(AndroidPermission.exactAlarm);
 final apps = await installedApps.getAndroidInstalledApps(includeSystemApps: false);
 final blocked = apps
     .take(3)
-    .map((a) => AppIdentifier.android(a.packageId))
+    .map((a) => a.packageId)
     .toList();
 
 await restrictions.upsertMode(
@@ -98,7 +101,7 @@ if (!granted) return;
 ```dart
 final picked = await installedApps.selectIOSApps();
 final blocked = picked
-    .map((a) => AppIdentifier.ios(a.applicationToken))
+    .map((a) => a.applicationToken)
     .toList();
 
 await restrictions.upsertMode(

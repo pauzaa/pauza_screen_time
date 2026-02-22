@@ -28,13 +28,16 @@ Built for apps that need Screen Time authorization, app blocking, and usage insi
 | Restrict / block apps | ✅ (Accessibility + overlay) | ✅ (Screen Time, iOS 16+) |
 | Restriction session snapshot | ✅ | ✅ |
 | Pause enforcement API | ✅ | ✅ (reliable resume requires monitor extension) |
-| Usage stats as data (`UsageStatsManager`) | ✅ | ❌ (throws `UnsupportedError`) |
+| Usage stats as data (`UsageStatsManager`) | ✅ | ❌ (throws `PauzaUnsupportedError`) |
 | Usage stats as UI (`UsageReportView`) | ❌ | ✅ (iOS 16+, requires report extension) |
 
 ## Installation
 
-```bash
-flutter pub add pauza_screen_time
+```yaml
+dependencies:
+  pauza_screen_time:
+    git:
+      url: https://github.com/IsroilovA/pauza_screen_time
 ```
 
 ```dart
@@ -60,7 +63,7 @@ await permissions.requestAndroidPermission(AndroidPermission.exactAlarm);
 final androidApps = await installedApps.getAndroidInstalledApps(includeSystemApps: false);
 final blocked = androidApps
     .take(3)
-    .map((a) => AppIdentifier.android(a.packageId))
+    .map((a) => a.packageId)
     .toList();
 
 await restrictions.upsertMode(
@@ -78,7 +81,8 @@ await restrictions.startSession(
 );
 
 final session = await restrictions.getRestrictionSession();
-// session.activeModeId / session.activeModeSource
+// RestrictionState:
+// session.activeMode / session.activeModeSource / session.isActiveNow
 ```
 
 `getModesConfig()` returns only persisted scheduled modes that are needed for background enforcement.
@@ -94,11 +98,13 @@ final session = await restrictions.getRestrictionSession();
 - `upsertScheduledMode` / `removeScheduledMode` / `setScheduledModesEnabled` / `getScheduledModesConfig` -> `upsertMode` / `removeMode` / `setModesEnabled` / `getModesConfig`
 - `startRestrictionSession` / `endRestrictionSession` -> `startSession(mode)` / `endSession()`
 
-## Session payload additions
+## Session payload
 
-`RestrictionSession` now includes:
-- `activeModeId`
+`getRestrictionSession()` returns `RestrictionState`:
+- `activeMode` (`RestrictionMode?`)
 - `activeModeSource` (`none`, `manual`, `schedule`)
+- `isActiveNow` (derived from `activeMode != null`)
+- `isPausedNow` (derived from `pausedUntil != null`)
 
 ## Error handling
 

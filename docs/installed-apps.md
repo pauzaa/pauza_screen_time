@@ -27,7 +27,9 @@ Each entry is an `AndroidAppInfo`:
 
 ```dart
 final installed = InstalledAppsManager();
-final app = await installed.getAndroidAppInfo('com.whatsapp');
+final app = await installed.getAndroidAppInfo(
+  AppIdentifier.android('com.whatsapp'),
+);
 ```
 
 ## iOS: show the Family Activity Picker
@@ -55,7 +57,9 @@ final picked = await installed.selectIOSApps();
 final installed = InstalledAppsManager();
 
 final previouslyPicked = <IOSAppInfo>[
-  const IOSAppInfo(applicationToken: '...'),
+  const IOSAppInfo(
+    applicationToken: AppIdentifier.ios('...'),
+  ),
 ];
 
 final picked = await installed.selectIOSApps(preSelectedApps: previouslyPicked);
