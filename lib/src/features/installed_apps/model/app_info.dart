@@ -1,5 +1,38 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:pauza_screen_time/src/core/core.dart';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Extracts a required [String] field from a raw channel map.
+///
+/// Throws [PauzaInternalFailureError] if the field is absent or not a [String].
+String _requireString(Map<String, dynamic> map, String key, String context) {
+  final value = map[key];
+  if (value is String) return value;
+  throw PauzaError.fromPlatformException(
+        PlatformException(
+          code: 'INTERNAL_FAILURE',
+          message: '$context: field "$key" must be a non-null String, got ${value?.runtimeType}',
+          details: <String, Object?>{'feature': 'installed_apps', 'platform': 'dart', 'field': key},
+        ),
+      )
+      as PauzaInternalFailureError;
+}
+
+/// Extracts an optional [bool] field from a raw channel map, defaulting to [fallback].
+bool _optionalBool(Map<String, dynamic> map, String key, {required bool fallback}) {
+  final value = map[key];
+  if (value == null) return fallback;
+  if (value is bool) return value;
+  return fallback;
+}
+
+// ---------------------------------------------------------------------------
+// AppInfo sealed class
+// ---------------------------------------------------------------------------
 
 /// Information about an installed application on the device.
 ///
@@ -14,15 +47,35 @@ sealed class AppInfo {
   const AppInfo();
 
   /// Creates an AppInfo from a map (platform channel deserialization).
+  ///
+  /// Throws [PauzaInternalFailureError] when `platform` is absent, not a
+  /// [String], or contains an unrecognised value.
   factory AppInfo.fromMap(Map<String, dynamic> map) {
-    final platform = map['platform'] as String;
+    final platform = map['platform'];
+    if (platform is! String) {
+      throw PauzaError.fromPlatformException(
+            PlatformException(
+              code: 'INTERNAL_FAILURE',
+              message: 'AppInfo.fromMap: "platform" must be a non-null String, got ${platform?.runtimeType}',
+              details: <String, Object?>{'feature': 'installed_apps', 'platform': 'dart'},
+            ),
+          )
+          as PauzaInternalFailureError;
+    }
 
     if (platform == 'android') {
       return AndroidAppInfo.fromMap(map);
     } else if (platform == 'ios') {
       return IOSAppInfo.fromMap(map);
     } else {
-      throw ArgumentError('Unknown platform: $platform');
+      throw PauzaError.fromPlatformException(
+            PlatformException(
+              code: 'INTERNAL_FAILURE',
+              message: 'AppInfo.fromMap: unknown platform "$platform"',
+              details: <String, Object?>{'feature': 'installed_apps', 'platform': 'dart', 'received': platform},
+            ),
+          )
+          as PauzaInternalFailureError;
     }
   }
 
@@ -34,6 +87,10 @@ sealed class AppInfo {
   /// - iOS: Returns base64-encoded token
   AppIdentifier get identifier;
 }
+
+// ---------------------------------------------------------------------------
+// AndroidAppInfo
+// ---------------------------------------------------------------------------
 
 /// Android app information with full metadata from PackageManager.
 @immutable
@@ -62,13 +119,16 @@ class AndroidAppInfo extends AppInfo {
   });
 
   /// Creates an AndroidAppInfo from a map (platform channel deserialization).
+  ///
+  /// Throws [PauzaInternalFailureError] on missing or wrong-typed required fields.
   factory AndroidAppInfo.fromMap(Map<String, dynamic> map) {
+    const ctx = 'AndroidAppInfo.fromMap';
     return AndroidAppInfo(
-      packageId: AppIdentifier.android(map['packageId'] as String),
-      name: map['name'] as String,
+      packageId: AppIdentifier.android(_requireString(map, 'packageId', ctx)),
+      name: _requireString(map, 'name', ctx),
       icon: map['icon'] as Uint8List?,
       category: map['category'] as String?,
-      isSystemApp: map['isSystemApp'] as bool? ?? false,
+      isSystemApp: _optionalBool(map, 'isSystemApp', fallback: false),
     );
   }
 
@@ -100,6 +160,10 @@ class AndroidAppInfo extends AppInfo {
   String toString() => 'AndroidAppInfo(packageId: $packageId, name: $name)';
 }
 
+// ---------------------------------------------------------------------------
+// IOSAppInfo
+// ---------------------------------------------------------------------------
+
 /// iOS app information with opaque application token.
 ///
 /// Due to iOS privacy restrictions, only the token is available.
@@ -117,8 +181,11 @@ class IOSAppInfo extends AppInfo {
   const IOSAppInfo({required this.applicationToken});
 
   /// Creates an IOSAppInfo from a map (platform channel deserialization).
+  ///
+  /// Throws [PauzaInternalFailureError] on missing or wrong-typed required fields.
   factory IOSAppInfo.fromMap(Map<String, dynamic> map) {
-    return IOSAppInfo(applicationToken: AppIdentifier.ios(map['applicationToken'] as String));
+    const ctx = 'IOSAppInfo.fromMap';
+    return IOSAppInfo(applicationToken: AppIdentifier.ios(_requireString(map, 'applicationToken', ctx)));
   }
 
   @override

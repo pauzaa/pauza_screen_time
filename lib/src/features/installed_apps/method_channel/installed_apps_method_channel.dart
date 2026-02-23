@@ -2,9 +2,8 @@ import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-
 import 'package:pauza_screen_time/src/core/background_channel_runner.dart';
-import 'package:pauza_screen_time/src/core/cancel_token.dart';
+import 'package:pauza_screen_time/src/core/core.dart';
 import 'package:pauza_screen_time/src/features/installed_apps/installed_apps_platform.dart';
 import 'package:pauza_screen_time/src/features/installed_apps/method_channel/channel_name.dart';
 import 'package:pauza_screen_time/src/features/installed_apps/method_channel/method_names.dart';
@@ -105,14 +104,14 @@ class InstalledAppsMethodChannel extends InstalledAppsPlatform {
     }
   }
 
-  PlatformException _decodeFailure({
+  PauzaInternalFailureError _decodeFailure({
     required String action,
     required String message,
     Object? payload,
     Object? error,
     StackTrace? stackTrace,
   }) {
-    return PlatformException(
+    final exception = PlatformException(
       code: 'INTERNAL_FAILURE',
       message: message,
       details: <String, Object?>{
@@ -125,5 +124,6 @@ class InstalledAppsMethodChannel extends InstalledAppsPlatform {
           'diagnostic': [if (error != null) error.toString(), if (stackTrace != null) stackTrace.toString()].join('\n'),
       },
     );
+    return PauzaError.fromPlatformException(exception) as PauzaInternalFailureError;
   }
 }

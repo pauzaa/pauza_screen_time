@@ -15,11 +15,12 @@ final class InstalledAppsMethodHandler {
 
     private func handleShowFamilyActivityPicker(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
-            result(PluginErrors.unsupported(
+            // Propagate a typed UNSUPPORTED error rather than a silent empty list.
+            LegacyFamilyActivityPickerHandler.shared.showPicker(
                 feature: feature,
                 action: MethodNames.showFamilyActivityPicker,
-                message: "FamilyActivityPicker requires iOS 16.0 or later"
-            ))
+                flutterResult: result
+            )
             return
         }
 
@@ -41,8 +42,18 @@ final class InstalledAppsMethodHandler {
         FamilyActivityPickerHandler.shared.showPicker(
             from: viewController,
             preSelectedTokens: preSelectedTokens
-        ) { selectedApps in
-            result(selectedApps)
+        ) { [feature = self.feature] pickerResult in
+            switch pickerResult {
+            case .success(let selectedApps):
+                result(selectedApps)
+            case .failure(let error):
+                result(PluginErrors.internalFailure(
+                    feature: feature,
+                    action: MethodNames.showFamilyActivityPicker,
+                    message: "Failed to process app selection: \(error.localizedDescription)",
+                    diagnostic: String(describing: error)
+                ))
+            }
         }
     }
 

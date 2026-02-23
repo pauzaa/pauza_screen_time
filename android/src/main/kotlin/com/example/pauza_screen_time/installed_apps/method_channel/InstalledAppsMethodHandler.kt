@@ -23,20 +23,13 @@ class InstalledAppsMethodHandler(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onMethodCall(call: MethodCall, result: Result) {
-        try {
-            when (call.method) {
-                MethodNames.GET_INSTALLED_APPS -> handleGetInstalledApps(call, result)
-                MethodNames.GET_APP_INFO -> handleGetAppInfo(call, result)
-                else -> result.notImplemented()
-            }
-        } catch (e: Exception) {
-            PluginErrorHelper.internalFailure(
-                result = result,
-                feature = FEATURE,
-                action = call.method,
-                message = "Unexpected installed apps error: ${e.message}",
-                error = e,
-            )
+        // Do NOT add a top-level try/catch here.
+        // Argument errors are handled per-method before the coroutine launches.
+        // Runtime errors are caught inside each coroutine and reported precisely.
+        when (call.method) {
+            MethodNames.GET_INSTALLED_APPS -> handleGetInstalledApps(call, result)
+            MethodNames.GET_APP_INFO -> handleGetAppInfo(call, result)
+            else -> result.notImplemented()
         }
     }
 
@@ -45,6 +38,9 @@ class InstalledAppsMethodHandler(
     }
 
     private fun handleGetInstalledApps(call: MethodCall, result: Result) {
+        // Validate arguments synchronously before launching the coroutine so
+        // that INVALID_ARGUMENT errors are reported with the correct error code
+        // instead of being swallowed by a generic INTERNAL_FAILURE catch.
         val includeSystemApps = call.argument<Boolean>("includeSystemApps") ?: false
         val includeIcons = call.argument<Boolean>("includeIcons") ?: true
 
@@ -69,18 +65,18 @@ class InstalledAppsMethodHandler(
     }
 
     private fun handleGetAppInfo(call: MethodCall, result: Result) {
+        // Validate required argument before launching the coroutine.
         val packageId = call.argument<String>("packageId")
-        val includeIcons = call.argument<Boolean>("includeIcons") ?: true
-
-        if (packageId == null) {
+        if (packageId.isNullOrBlank()) {
             PluginErrorHelper.invalidArgument(
                 result = result,
                 feature = FEATURE,
                 action = MethodNames.GET_APP_INFO,
-                message = "Package ID is required",
+                message = "packageId must be a non-blank String",
             )
             return
         }
+        val includeIcons = call.argument<Boolean>("includeIcons") ?: true
 
         scope.launch {
             try {
