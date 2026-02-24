@@ -58,9 +58,9 @@ class ShieldConfiguration {
     required this.title,
     this.appGroupId,
     this.subtitle,
-    this.backgroundColor = const Color(0xFF1A1A2E),
+    this.backgroundColor = const Color(0xFF000000),
     this.titleColor = const Color(0xFFFFFFFF),
-    this.subtitleColor = const Color(0xFFB0B0B0),
+    this.subtitleColor = const Color(0xFFFFFFFF),
     this.backgroundBlurStyle,
     this.iconBytes,
     this.primaryButtonLabel,
@@ -93,7 +93,7 @@ class ShieldConfiguration {
     final argb = switch (value) {
       final int v => v,
       final num v => v.toInt(),
-      _ => 0xFF1A1A2E,
+      _ => 0xFF000000,
     };
     return Color(argb);
   }

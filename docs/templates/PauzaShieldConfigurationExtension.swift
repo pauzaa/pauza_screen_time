@@ -13,7 +13,7 @@ final class PauzaShieldConfigurationExtension: ShieldConfigurationDataSource {
         let payload = loadConfigurationPayload()
         return ShieldConfiguration(
             backgroundBlurStyle: blurStyle(from: payload["backgroundBlurStyle"]),
-            backgroundColor: color(from: payload["backgroundColor"], fallback: UIColor(red: 0.10, green: 0.10, blue: 0.18, alpha: 1.0)),
+            backgroundColor: color(from: payload["backgroundColor"], fallback: UIColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)),
             icon: icon(from: payload["iconBytes"]),
             title: ShieldConfiguration.Label(
                 text: text(from: payload["title"], fallback: "Restricted"),
@@ -21,7 +21,7 @@ final class PauzaShieldConfigurationExtension: ShieldConfigurationDataSource {
             ),
             subtitle: optionalLabel(
                 text: payload["subtitle"],
-                color: color(from: payload["subtitleColor"], fallback: UIColor(white: 0.7, alpha: 1.0))
+                color: color(from: payload["subtitleColor"], fallback: .white)
             ),
             primaryButtonLabel: optionalLabel(
                 text: payload["primaryButtonLabel"],
@@ -79,7 +79,7 @@ final class PauzaShieldConfigurationExtension: ShieldConfigurationDataSource {
 
     private func color(from value: Any?, fallback: UIColor?) -> UIColor {
         guard let intValue = intValue(from: value) else {
-            return fallback ?? UIColor(red: 0.10, green: 0.10, blue: 0.18, alpha: 1.0)
+            return fallback ?? UIColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 1.0)
         }
 
         let argb = UInt32(bitPattern: Int32(truncatingIfNeeded: intValue))

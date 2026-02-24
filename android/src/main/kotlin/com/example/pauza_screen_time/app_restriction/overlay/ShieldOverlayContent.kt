@@ -88,7 +88,7 @@ fun ShieldOverlayContent(
             Text(
                 text = config.title,
                 color = titleColor,
-                fontSize = 28.sp,
+                fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
@@ -99,7 +99,7 @@ fun ShieldOverlayContent(
                 Text(
                     text = subtitle,
                     color = subtitleColor,
-                    fontSize = 16.sp,
+                    fontSize = 22.sp,
                     textAlign = TextAlign.Center
                 )
             }

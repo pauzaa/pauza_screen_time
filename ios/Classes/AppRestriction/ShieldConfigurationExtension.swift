@@ -147,9 +147,9 @@ private struct ShieldConfigurationPayload {
     }
 
     private static let defaultTitle = "Restricted"
-    private static let defaultBackgroundColor = colorFromARGB(0xFF1A1A2E)
+    private static let defaultBackgroundColor = colorFromARGB(0xFF000000)
     private static let defaultTitleColor = colorFromARGB(0xFFFFFFFF)
-    private static let defaultSubtitleColor = colorFromARGB(0xFFB0B0B0)
+    private static let defaultSubtitleColor = colorFromARGB(0xFFFFFFFF)
     private static let defaultPrimaryTextColor = colorFromARGB(0xFFFFFFFF)
     private static let defaultSecondaryTextColor = colorFromARGB(0xFFFFFFFF)
 }
