@@ -14,6 +14,18 @@
   <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
   
   <application>
+    <!-- Lock screen activity for blocked app enforcement -->
+    <activity
+        android:name=".app_restriction.LockActivity"
+        android:exported="false"
+        android:excludeFromRecents="true"
+        android:launchMode="singleInstance"
+        android:taskAffinity=":pauza_lock"
+        android:theme="@style/Theme.PauzaLock"
+        android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+        android:screenOrientation="unspecified"
+        android:noHistory="false" />
+
     <!-- Accessibility service for monitoring foreground apps -->
     <service
         android:name=".app_restriction.AppMonitoringService"

@@ -34,8 +34,8 @@ void main() {
     test('fromMap falls back to default color on null backgroundColor', () {
       final map = <String, dynamic>{'title': 'Test'};
       final config = ShieldConfiguration.fromMap(map);
-      // Default is 0xFF1A1A2E
-      expect(config.backgroundColor, const Color(0xFF1A1A2E));
+      // Default is black
+      expect(config.backgroundColor, const Color(0xFF000000));
     });
 
     test('fromMap parses backgroundBlurStyle', () {
