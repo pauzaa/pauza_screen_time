@@ -8,20 +8,18 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 
 /**
+ * @deprecated No longer needed. LockActivity (ComponentActivity) provides its own
+ * lifecycle and saved-state registry. Retained for one release cycle alongside
+ * ShieldOverlayManager for rollback safety.
+ *
  * Contains LifecycleOwner and SavedStateRegistryOwner implementations for
  * hosting a ComposeView in a WindowManager overlay context.
- *
- * These classes are required because ComposeView needs access to the view tree
- * lifecycle and saved state registry, which are not automatically available
- * when attaching views directly to WindowManager.
  */
 
 /**
- * LifecycleOwner implementation for overlay ComposeViews.
- *
- * Immediately moves to RESUMED state on creation since overlays
- * are always visible when added to WindowManager.
+ * @deprecated See [OverlayViewTreeOwners] file-level deprecation note.
  */
+@Deprecated("No longer needed; LockActivity provides lifecycle.", level = DeprecationLevel.WARNING)
 class OverlayLifecycleOwner : LifecycleOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
 
@@ -34,11 +32,9 @@ class OverlayLifecycleOwner : LifecycleOwner {
 }
 
 /**
- * SavedStateRegistryOwner implementation for overlay ComposeViews.
- *
- * Provides both lifecycle and saved state registry needed by Compose components
- * that might use rememberSaveable or other state restoration APIs.
+ * @deprecated See [OverlayViewTreeOwners] file-level deprecation note.
  */
+@Deprecated("No longer needed; LockActivity provides saved-state.", level = DeprecationLevel.WARNING)
 class OverlaySavedStateRegistryOwner : SavedStateRegistryOwner {
     private val lifecycleRegistry = LifecycleRegistry(this)
     private val savedStateRegistryController = SavedStateRegistryController.create(this)

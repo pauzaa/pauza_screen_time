@@ -18,17 +18,19 @@ import com.example.pauza_screen_time.app_restriction.overlay.OverlaySavedStateRe
 import com.example.pauza_screen_time.app_restriction.overlay.ShieldOverlayContent
 
 /**
- * Manages the shield overlay display on Android using Jetpack Compose.
+ * @deprecated Replaced by [LockActivity] + [LockVisibilityState] + [storage.ShieldConfigStore].
  *
- * This singleton class handles the overlay lifecycle including:
- * - Storing shield configuration from Flutter
- * - Displaying shield overlay using WindowManager with Compose UI
- * - Hiding overlay and navigating to home screen
- * - Handling button taps and navigating to home
+ * This class previously managed the shield overlay display using
+ * [WindowManager] with [TYPE_ACCESSIBILITY_OVERLAY]. The new approach
+ * launches a fullscreen [LockActivity] instead.
  *
- * Uses TYPE_ACCESSIBILITY_OVERLAY for the overlay window type, which requires
- * the AccessibilityService to be enabled.
+ * Retained for one release cycle to allow rollback if needed.
+ * Will be removed in a future version.
  */
+@Deprecated(
+    message = "Replaced by LockActivity-based enforcement. See LockActivity.kt.",
+    level = DeprecationLevel.WARNING,
+)
 class ShieldOverlayManager private constructor(context: Context) {
 
     companion object {

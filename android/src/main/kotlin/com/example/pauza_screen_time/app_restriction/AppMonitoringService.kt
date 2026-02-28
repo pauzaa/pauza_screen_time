@@ -2,8 +2,10 @@ package com.example.pauza_screen_time.app_restriction
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.app.KeyguardManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -15,6 +17,7 @@ class AppMonitoringService : AccessibilityService() {
     companion object {
         private const val TAG = "AppMonitoringService"
         private const val EVENT_DEBOUNCE_MS = 500L
+        private const val LOCK_LAUNCH_THROTTLE_MS = 800L
         private const val MONITORING_EVENT_TYPES =
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOWS_CHANGED
         private const val MONITORING_FLAGS =
@@ -70,6 +73,9 @@ class AppMonitoringService : AccessibilityService() {
             event.eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED
         ) return
 
+        // Skip enforcement while screen is locked
+        if (isKeyguardLocked()) return
+
         val packageName = getFocusedApplicationPackageName()
             ?: event.packageName?.toString()
             ?: return
@@ -85,13 +91,13 @@ class AppMonitoringService : AccessibilityService() {
 
     override fun onInterrupt() {
         Log.d(TAG, "AppMonitoringService interrupted")
-        ShieldOverlayManager.getInstanceOrNull()?.hideShield()
+        dismissLockIfVisible()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         instance = null
-        ShieldOverlayManager.getInstanceOrNull()?.hideShield()
+        dismissLockIfVisible()
         Log.d(TAG, "AppMonitoringService destroyed")
     }
 
@@ -111,6 +117,8 @@ class AppMonitoringService : AccessibilityService() {
         val packageName = getFocusedApplicationPackageName() ?: return
         evaluateForegroundPackage(packageName, trigger)
     }
+
+    // ---- Package classification helpers ----
 
     private fun isLauncherPackage(packageName: String): Boolean {
         val knownLaunchers = listOf(
@@ -164,38 +172,89 @@ class AppMonitoringService : AccessibilityService() {
         }
     }
 
-    private fun handleRestrictedAppDetected(packageName: String) {
-        Log.d(TAG, "Handling restricted app detection: $packageName")
+    private fun isKeyguardLocked(): Boolean {
+        val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        return keyguardManager?.isKeyguardLocked == true
+    }
 
-        ShieldOverlayManager.getInstance(applicationContext).showShield(
-            packageName,
-            contextOverride = this,
-        )
+    // ---- Enforcement via LockActivity ----
+
+    private fun handleRestrictedAppDetected(packageName: String) {
+        Log.d(TAG, "Restricted app detected: $packageName")
+
+        // Guard: lock already visible for this package
+        if (LockVisibilityState.isLockVisible &&
+            LockVisibilityState.currentBlockedPackage == packageName) {
+            Log.d(TAG, "Lock already visible for $packageName; skipping")
+            return
+        }
+
+        // Guard: throttle rapid launches
+        val now = System.currentTimeMillis()
+        if (LockVisibilityState.shouldSuppressLaunch(packageName, now, LOCK_LAUNCH_THROTTLE_MS)) {
+            Log.d(TAG, "Lock launch throttled for $packageName")
+            return
+        }
+
+        // Step 1: Send user HOME
+        val homeSuccess = performGlobalAction(GLOBAL_ACTION_HOME)
+        Log.d(TAG, "GLOBAL_ACTION_HOME result=$homeSuccess")
+
+        // Step 2: Launch LockActivity immediately (don't wait for HOME)
+        launchLockActivity(packageName)
+
+        // Step 3: Fallback BACK action if HOME failed
+        if (!homeSuccess) {
+            performGlobalAction(GLOBAL_ACTION_BACK)
+        }
+    }
+
+    private fun launchLockActivity(packageId: String) {
+        val intent = Intent(applicationContext, LockActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_NO_ANIMATION
+            putExtra(LockActivity.EXTRA_BLOCKED_PACKAGE, packageId)
+        }
+        try {
+            applicationContext.startActivity(intent)
+            LockVisibilityState.markLaunched(packageId)
+            Log.d(TAG, "LockActivity launched for $packageId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch LockActivity", e)
+            // Ultimate fallback: try BACK to at least leave the blocked app
+            performGlobalAction(GLOBAL_ACTION_BACK)
+        }
     }
 
     private fun evaluateForegroundPackage(packageName: String, trigger: String) {
         lastForegroundPackage = packageName
         Log.d(TAG, "Evaluating foreground package=$packageName trigger=$trigger")
 
-        val overlayManager = ShieldOverlayManager.getInstanceOrNull()
+        // Self-detection guard: skip our own package (Flutter host or LockActivity)
+        if (packageName == applicationContext.packageName) {
+            return
+        }
 
-        if (packageName == applicationContext.packageName || isLauncherPackage(packageName)) {
-            overlayManager?.hideShield()
+        if (isLauncherPackage(packageName)) {
+            // User is on home screen -- dismiss lock if visible
+            dismissLockIfVisible()
             return
         }
 
         if (isSystemUiOrImePackage(packageName)) return
 
-        if (overlayManager?.isShowing() == true) {
-            val blocked = overlayManager.getCurrentBlockedPackage()
+        // If lock is visible for a different package, dismiss it first
+        if (LockVisibilityState.isLockVisible) {
+            val blocked = LockVisibilityState.currentBlockedPackage
             if (blocked != null && blocked != packageName) {
-                overlayManager.hideShield()
+                dismissLockIfVisible()
             }
         }
 
         val restrictionManager = RestrictionManager.getInstance(applicationContext)
         if (restrictionManager.isPausedNow()) {
-            overlayManager?.hideShield()
+            dismissLockIfVisible()
             return
         }
 
@@ -206,13 +265,26 @@ class AppMonitoringService : AccessibilityService() {
             isPausedNow = false,
         )
         if (!shouldEnforce) {
-            overlayManager?.hideShield()
+            dismissLockIfVisible()
             return
         }
 
         if (isAppRestricted(packageName)) {
             Log.d(TAG, "Restricted app detected: $packageName")
             handleRestrictedAppDetected(packageName)
+        }
+    }
+
+    /**
+     * Sends a dismiss broadcast to [LockActivity] if the lock is currently visible.
+     */
+    private fun dismissLockIfVisible() {
+        if (LockVisibilityState.isLockVisible) {
+            val intent = Intent(LockActivity.ACTION_DISMISS).apply {
+                setPackage(applicationContext.packageName)
+            }
+            applicationContext.sendBroadcast(intent)
+            Log.d(TAG, "Dismiss broadcast sent to LockActivity")
         }
     }
 
@@ -225,5 +297,4 @@ class AppMonitoringService : AccessibilityService() {
         info.flags = MONITORING_FLAGS
         serviceInfo = info
     }
-
 }
