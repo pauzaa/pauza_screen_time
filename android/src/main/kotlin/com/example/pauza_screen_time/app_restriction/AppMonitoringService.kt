@@ -276,15 +276,12 @@ class AppMonitoringService : AccessibilityService() {
     }
 
     /**
-     * Sends a dismiss broadcast to [LockActivity] if the lock is currently visible.
+     * Dismisses [LockActivity] via in-process callback if the lock is currently visible.
      */
     private fun dismissLockIfVisible() {
         if (LockVisibilityState.isLockVisible) {
-            val intent = Intent(LockActivity.ACTION_DISMISS).apply {
-                setPackage(applicationContext.packageName)
-            }
-            applicationContext.sendBroadcast(intent)
-            Log.d(TAG, "Dismiss broadcast sent to LockActivity")
+            LockVisibilityState.requestDismiss()
+            Log.d(TAG, "Dismiss requested for LockActivity")
         }
     }
 

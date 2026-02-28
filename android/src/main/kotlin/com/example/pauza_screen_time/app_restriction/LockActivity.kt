@@ -1,9 +1,6 @@
 package com.example.pauza_screen_time.app_restriction
 
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
@@ -29,7 +26,8 @@ import com.example.pauza_screen_time.app_restriction.storage.ShieldConfigStore
  *   the Flutter host activity.
  * - Excluded from recents.
  * - Back press is intercepted (no-op).
- * - Dismissable via [ACTION_DISMISS] broadcast or button tap (navigates HOME).
+ * - Dismissable via in-process callback on [LockVisibilityState] or button tap
+ *   (navigates HOME).
  * - Tracks visibility through [LockVisibilityState] singleton.
  */
 class LockActivity : ComponentActivity() {
@@ -37,17 +35,9 @@ class LockActivity : ComponentActivity() {
     companion object {
         private const val TAG = "LockActivity"
         const val EXTRA_BLOCKED_PACKAGE = "blocked_package_id"
-        const val ACTION_DISMISS = "com.example.pauza_screen_time.DISMISS_LOCK"
     }
 
     private var blockedPackageId: String? = null
-
-    private val dismissReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            Log.d(TAG, "Dismiss broadcast received")
-            finishAndGoHome()
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,13 +73,8 @@ class LockActivity : ComponentActivity() {
             )
         }
 
-        // Register dismiss broadcast receiver
-        val filter = IntentFilter(ACTION_DISMISS)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(dismissReceiver, filter, RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(dismissReceiver, filter)
-        }
+        // Register in-process dismiss callback
+        LockVisibilityState.onDismissRequest = { finishAndGoHome() }
 
         // Block back press
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -136,11 +121,7 @@ class LockActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        try {
-            unregisterReceiver(dismissReceiver)
-        } catch (_: Exception) {
-            // Receiver may already be unregistered
-        }
+        LockVisibilityState.onDismissRequest = null
         LockVisibilityState.markHidden()
         Log.d(TAG, "onDestroy: visibility cleared")
     }

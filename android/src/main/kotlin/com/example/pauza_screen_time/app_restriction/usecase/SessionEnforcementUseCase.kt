@@ -1,8 +1,6 @@
 package com.example.pauza_screen_time.app_restriction.usecase
 
 import android.content.Context
-import android.content.Intent
-import com.example.pauza_screen_time.app_restriction.LockActivity
 import com.example.pauza_screen_time.app_restriction.LockVisibilityState
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
 import com.example.pauza_screen_time.app_restriction.RestrictionSessionController
@@ -36,10 +34,7 @@ internal class SessionEnforcementUseCase(private val context: Context) {
         restrictionManager.pauseFor(durationMs)
         RestrictionAlarmOrchestrator(context).rescheduleAll()
         if (LockVisibilityState.isLockVisible) {
-            val dismissIntent = Intent(LockActivity.ACTION_DISMISS).apply {
-                setPackage(context.packageName)
-            }
-            context.sendBroadcast(dismissIntent)
+            LockVisibilityState.requestDismiss()
         }
         sessionController.applyCurrentEnforcementState(
             trigger = "pause_enforcement",
