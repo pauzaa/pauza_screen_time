@@ -19,7 +19,7 @@
         android:name=".app_restriction.LockActivity"
         android:exported="false"
         android:excludeFromRecents="true"
-        android:launchMode="singleInstance"
+        android:launchMode="singleTask"
         android:taskAffinity=":pauza_lock"
         android:theme="@style/Theme.PauzaLock"
         android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"

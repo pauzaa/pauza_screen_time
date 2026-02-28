@@ -1,7 +1,6 @@
 package com.example.pauza_screen_time.app_restriction
 
 import android.content.Context
-import android.content.Intent
 import com.example.pauza_screen_time.app_restriction.alarm.RestrictionAlarmOrchestrator
 import com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleSnapshot
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
@@ -81,10 +80,7 @@ internal class RestrictionSessionController(
             monitoringService?.enforceCurrentForegroundNow(trigger = trigger)
         } else {
             if (LockVisibilityState.isLockVisible) {
-                val dismissIntent = Intent(LockActivity.ACTION_DISMISS).apply {
-                    setPackage(appContext.packageName)
-                }
-                appContext.sendBroadcast(dismissIntent)
+                LockVisibilityState.requestDismiss()
             }
         }
         val nextSnapshot = captureLifecycleSnapshot()
