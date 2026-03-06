@@ -4,10 +4,11 @@ import android.util.Base64
 import org.json.JSONObject
 
 /**
- * Data class representing shield overlay configuration from Flutter.
+ * Data class representing shield screen configuration from Flutter.
  *
  * This model holds all visual and behavioral configuration for the blocking
- * shield overlay, including colors, text, button labels, and icon data.
+ * shield UI shown by [LockActivity], including colors, text, button labels,
+ * and icon data.
  */
 data class ShieldConfig(
     val title: String,
@@ -152,7 +153,7 @@ data class ShieldConfig(
             titleColor == other.titleColor &&
             subtitleColor == other.subtitleColor &&
             backgroundBlurStyle == other.backgroundBlurStyle &&
-            iconBytes?.contentEquals(other.iconBytes) ?: (other.iconBytes == null) &&
+            (iconBytes?.contentEquals(other.iconBytes) ?: (other.iconBytes == null)) &&
             primaryButtonLabel == other.primaryButtonLabel &&
             primaryButtonBackgroundColor == other.primaryButtonBackgroundColor &&
             primaryButtonTextColor == other.primaryButtonTextColor &&

@@ -1,13 +1,17 @@
 package com.example.pauza_screen_time.app_restriction
 
+import android.os.Handler
+import android.os.Looper
+import java.util.concurrent.atomic.AtomicReference
+
 /**
  * Process-wide singleton tracking [LockActivity] visibility.
  *
  * Used by [AppMonitoringService] to guard against duplicate launches and by
  * session controllers to dismiss the lock when enforcement ends.
  *
- * All fields are @Volatile for safe cross-thread reads from the accessibility
- * service main thread and any background callers.
+ * Thread-safety is achieved via an [AtomicReference] wrapping an immutable
+ * [Snapshot] data class, ensuring compound reads are always consistent.
  *
  * Dismiss communication uses an in-process callback ([onDismissRequest]) instead
  * of a system broadcast, eliminating the risk of third-party apps sending a
@@ -15,16 +19,21 @@ package com.example.pauza_screen_time.app_restriction
  */
 object LockVisibilityState {
 
-    @Volatile
-    var isLockVisible: Boolean = false
-        private set
+    /**
+     * Immutable snapshot of the lock visibility state.
+     * All state reads/writes go through [AtomicReference] to avoid
+     * non-atomic volatile compound reads.
+     */
+    data class Snapshot(
+        val isLockVisible: Boolean = false,
+        val currentBlockedPackage: String? = null,
+        val lastLaunchTimestamp: Long = 0L,
+    )
 
-    @Volatile
-    var currentBlockedPackage: String? = null
-        private set
+    private val state = AtomicReference(Snapshot())
 
-    @Volatile
-    private var lastLaunchTimestamp: Long = 0L
+    /** Lazy to avoid [Looper] initialization in pure-JVM unit tests. */
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
     /**
      * Callback invoked when an in-process caller requests the lock to dismiss.
@@ -33,30 +42,47 @@ object LockVisibilityState {
     @Volatile
     var onDismissRequest: (() -> Unit)? = null
 
+    /** Convenience accessor: whether the lock is currently visible. */
+    val isLockVisible: Boolean
+        get() = state.get().isLockVisible
+
+    /** Convenience accessor: the package the lock is currently blocking. */
+    val currentBlockedPackage: String?
+        get() = state.get().currentBlockedPackage
+
+    /** Returns an atomic snapshot of the current state. */
+    fun snapshot(): Snapshot = state.get()
+
     /** Called from [LockActivity.onCreate] / [LockActivity.onResume]. */
     fun markVisible(packageId: String) {
-        isLockVisible = true
-        currentBlockedPackage = packageId
+        state.updateAndGet { it.copy(isLockVisible = true, currentBlockedPackage = packageId) }
     }
 
     /** Called from [LockActivity.onDestroy] and [LockActivity.finishAndGoHome]. */
     fun markHidden() {
-        isLockVisible = false
-        currentBlockedPackage = null
+        state.updateAndGet { it.copy(isLockVisible = false, currentBlockedPackage = null) }
     }
 
     /** Called immediately after [startActivity] for the lock intent. */
     fun markLaunched(packageId: String) {
-        lastLaunchTimestamp = System.currentTimeMillis()
-        currentBlockedPackage = packageId
+        state.updateAndGet {
+            it.copy(lastLaunchTimestamp = System.currentTimeMillis(), currentBlockedPackage = packageId)
+        }
     }
 
     /**
      * Requests the currently visible [LockActivity] to dismiss itself.
-     * Safe to call from any thread; the callback is executed on the caller's thread.
+     * Safe to call from any thread; the callback is always dispatched on the
+     * main thread so that [Activity.finish] / [Activity.startActivity] run on
+     * the UI thread.
      */
     fun requestDismiss() {
-        onDismissRequest?.invoke()
+        val callback = onDismissRequest ?: return
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            callback.invoke()
+        } else {
+            mainHandler.post { callback.invoke() }
+        }
     }
 
     /**
@@ -65,8 +91,17 @@ object LockVisibilityState {
      * - a launch for the same [packageId] was attempted less than [throttleMs] ago.
      */
     fun shouldSuppressLaunch(packageId: String, now: Long, throttleMs: Long): Boolean {
-        if (isLockVisible && currentBlockedPackage == packageId) return true
-        if (now - lastLaunchTimestamp < throttleMs && currentBlockedPackage == packageId) return true
+        val snap = state.get()
+        if (snap.isLockVisible && snap.currentBlockedPackage == packageId) return true
+        if (now - snap.lastLaunchTimestamp < throttleMs && snap.currentBlockedPackage == packageId) return true
         return false
+    }
+
+    /**
+     * Resets all state. Intended for testing only.
+     */
+    internal fun reset() {
+        state.set(Snapshot())
+        onDismissRequest = null
     }
 }

@@ -6,7 +6,7 @@ This project is a dedicated plugin designed specifically for the **Pauza** digit
 ## Core Concepts
 
 *   **Application Blocked**: A state where a "shield" is displayed over a specific application when a user attempts to open it, effectively preventing interaction with that application.
-*   **Shield**: A native screen overlay that appears on top of a blocked application, making it inaccessible.
+*   **Shield**: A native full-screen blocking UI that appears when a blocked application is launched, making it inaccessible.
 *   **Mode**: An object that defines the rules for blocking (what, when, and how).
 *   **Schedule**: An optional component of a Mode (0 or 1 per Mode). A schedule defines the active times for a Mode, including:
     *   Days of the week
