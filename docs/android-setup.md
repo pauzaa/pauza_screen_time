@@ -68,7 +68,7 @@ This call opens the Accessibility Settings screen. Re-check permission status af
 
 1) Open **Settings** → **Accessibility**
 2) Find your app’s service and enable it
-3) Re-open your app and try launching a restricted app — the shield should appear
+3) Re-open your app and try launching a restricted app — the lock screen should appear
 
 ## 4) Exact alarms for precise schedule timing (Android 12+)
 

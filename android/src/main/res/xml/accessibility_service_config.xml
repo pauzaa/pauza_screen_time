@@ -3,7 +3,7 @@
   Configuration for AppMonitoringService (AccessibilityService).
   
   This service monitors foreground app changes to detect when a restricted
-  app is launched, enabling the plugin to show a blocking shield overlay.
+  app is launched, enabling the plugin to show a blocking lock screen.
 -->
 <accessibility-service
     xmlns:android="http://schemas.android.com/apk/res/android"
