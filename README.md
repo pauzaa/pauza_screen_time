@@ -25,7 +25,7 @@ Built for apps that need Screen Time authorization, app blocking, and usage insi
 |---|---:|---:|
 | Permissions helpers | ✅ | ✅ (iOS 16+) |
 | Installed apps | ✅ enumerate | ✅ picker tokens only |
-| Restrict / block apps | ✅ (Accessibility + overlay) | ✅ (Screen Time, iOS 16+) |
+| Restrict / block apps | ✅ (Accessibility + LockActivity shield) | ✅ (Screen Time, iOS 16+) |
 | Restriction session snapshot | ✅ | ✅ |
 | Pause enforcement API | ✅ | ✅ (reliable resume requires monitor extension) |
 | Usage stats as data (`UsageStatsManager`) | ✅ | ❌ (throws `PauzaUnsupportedError`) |

@@ -13,7 +13,7 @@ This page lists common setup issues and how to fix them.
 - Enable your app’s accessibility service
 
 **Verify**:
-- Restrict a well-known app (e.g. a browser) and open it — the overlay should appear within ~500ms.
+- Restrict a well-known app (e.g. a browser) and open it — the lock screen should appear quickly.
 
 ### Restriction mutation methods fail with `MISSING_PERMISSION` on Android
 
@@ -33,14 +33,13 @@ Affected methods:
 - Enable your app’s accessibility service
 - Retry the restriction call
 
-### Blocking triggers, but shield overlay is not visible
-
-**Likely cause**: Accessibility service is enabled, but the plugin’s overlay failed to render due to OEM restrictions or the service not being fully active yet.
+### Blocking triggers, but lock screen is not visible
 
 **Fix**:
 - Confirm your app’s accessibility service is enabled (see above)
 - Re-open your app, then try again
-- Try on a different device/OEM to rule out vendor-specific overlay restrictions
+- Verify the app can launch activities from the current device state (OEM battery/background policies can interfere)
+- Try on a different device/OEM to rule out vendor-specific behavior
 
 ### Usage stats are empty
 
@@ -63,7 +62,7 @@ Affected methods:
 **Verify**:
 - `getRestrictionSession().pausedUntil` becomes `null` after pause end
 - `getRestrictionSession().isPausedNow` becomes `false` (derived from `pausedUntil`)
-- Opening a restricted app shows the shield again
+- Opening a restricted app shows the lock screen again
 
 ### Lifecycle queue keeps redelivering same events
 

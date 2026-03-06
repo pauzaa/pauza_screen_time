@@ -2,6 +2,15 @@
 
 This guide covers `AppRestrictionManager` with the mode-centric API.
 
+## Android enforcement behavior
+
+On Android, enforcement is implemented using `AccessibilityService` foreground detection plus a fullscreen `LockActivity`:
+- Detects blocked app foreground transitions via window-change accessibility events
+- Immediately performs HOME action to leave the blocked app
+- Immediately launches the plugin lock screen UI (`LockActivity`)
+
+This is foreground-enforcement behavior, not a system-level OS app disable.
+
 ## Core model
 
 Restrictions are defined by `RestrictionMode`:
