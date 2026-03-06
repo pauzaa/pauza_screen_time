@@ -7,8 +7,8 @@ import com.example.pauza_screen_time.app_restriction.model.ShieldConfig
 /**
  * Standalone persistence store for [ShieldConfig].
  *
- * Extracted from ShieldOverlayManager so that both LockActivity and
- * ConfigureShieldUseCase can reference it without depending on the overlay manager.
+ * Used by [LockActivity] and [ConfigureShieldUseCase] to read and write the
+ * shield configuration independently of the UI layer.
  */
 class ShieldConfigStore private constructor(context: Context) {
 

@@ -1,7 +1,7 @@
 // Android-specific permissions required by the plugin.
 //
 // This enum represents permissions specific to the Android platform
-// for app restriction, usage tracking, and overlay functionality.
+// for app restriction and usage tracking functionality.
 
 /// Android platform permissions.
 enum AndroidPermission {

@@ -67,12 +67,15 @@ android {
         implementation("androidx.compose.foundation:foundation")
         implementation("androidx.compose.material3:material3")
         
-        // Compose runtime for overlay
+        // Compose runtime for LockActivity shield UI
         implementation("androidx.compose.runtime:runtime")
         
-        // For ComposeView in WindowManager overlay
+        // For ComposeView in LockActivity shield screen
         implementation("androidx.activity:activity-compose:1.9.3")
         implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+
+        // Material Components theme (required for ComponentActivity + Compose)
+        implementation("com.google.android.material:material:1.12.0")
 
         // Coroutines for background method handlers
         implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")

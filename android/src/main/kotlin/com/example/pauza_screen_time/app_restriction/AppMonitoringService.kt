@@ -48,10 +48,14 @@ class AppMonitoringService : AccessibilityService() {
     private var lastEventTimestamp: Long = 0L
     private var isMonitoring = true
 
+    /** Cached controller to avoid re-creation on every [evaluateForegroundPackage] call. */
+    private val sessionController: RestrictionSessionController by lazy(LazyThreadSafetyMode.NONE) {
+        RestrictionSessionController(applicationContext)
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
-        val sessionController = RestrictionSessionController(applicationContext)
         val state = sessionController.resolveSessionState()
         val isPausedNow = RestrictionManager.getInstance(applicationContext).isPausedNow()
         val shouldMonitor = RestrictionSessionController.shouldMonitorForegroundEvents(
@@ -182,14 +186,16 @@ class AppMonitoringService : AccessibilityService() {
     private fun handleRestrictedAppDetected(packageName: String) {
         Log.d(TAG, "Restricted app detected: $packageName")
 
-        // Guard: lock already visible for this package
-        if (LockVisibilityState.isLockVisible &&
-            LockVisibilityState.currentBlockedPackage == packageName) {
+        // Atomic snapshot avoids TOCTOU between isLockVisible and currentBlockedPackage reads.
+        val snap = LockVisibilityState.snapshot()
+
+        // Fast-path: lock is already visible for this exact package — nothing to do.
+        if (snap.isLockVisible && snap.currentBlockedPackage == packageName) {
             Log.d(TAG, "Lock already visible for $packageName; skipping")
             return
         }
 
-        // Guard: throttle rapid launches
+        // Guard: throttle rapid launches (also uses snapshot internally)
         val now = System.currentTimeMillis()
         if (LockVisibilityState.shouldSuppressLaunch(packageName, now, LOCK_LAUNCH_THROTTLE_MS)) {
             Log.d(TAG, "Lock launch throttled for $packageName")
@@ -245,11 +251,9 @@ class AppMonitoringService : AccessibilityService() {
         if (isSystemUiOrImePackage(packageName)) return
 
         // If lock is visible for a different package, dismiss it first
-        if (LockVisibilityState.isLockVisible) {
-            val blocked = LockVisibilityState.currentBlockedPackage
-            if (blocked != null && blocked != packageName) {
-                dismissLockIfVisible()
-            }
+        val snap = LockVisibilityState.snapshot()
+        if (snap.isLockVisible && snap.currentBlockedPackage != null && snap.currentBlockedPackage != packageName) {
+            dismissLockIfVisible()
         }
 
         val restrictionManager = RestrictionManager.getInstance(applicationContext)
@@ -258,7 +262,7 @@ class AppMonitoringService : AccessibilityService() {
             return
         }
 
-        val sessionState = RestrictionSessionController(applicationContext).resolveSessionState()
+        val sessionState = sessionController.resolveSessionState()
         restrictionManager.setRestrictedApps(sessionState.blockedAppIds)
         val shouldEnforce = RestrictionSessionController.shouldEnforceNow(
             state = sessionState,
@@ -270,7 +274,6 @@ class AppMonitoringService : AccessibilityService() {
         }
 
         if (isAppRestricted(packageName)) {
-            Log.d(TAG, "Restricted app detected: $packageName")
             handleRestrictedAppDetected(packageName)
         }
     }
@@ -279,7 +282,8 @@ class AppMonitoringService : AccessibilityService() {
      * Dismisses [LockActivity] via in-process callback if the lock is currently visible.
      */
     private fun dismissLockIfVisible() {
-        if (LockVisibilityState.isLockVisible) {
+        val snap = LockVisibilityState.snapshot()
+        if (snap.isLockVisible) {
             LockVisibilityState.requestDismiss()
             Log.d(TAG, "Dismiss requested for LockActivity")
         }

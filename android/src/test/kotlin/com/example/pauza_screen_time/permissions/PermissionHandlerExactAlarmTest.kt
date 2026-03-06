@@ -66,7 +66,7 @@ internal class PermissionHandlerExactAlarmTest {
             listOf(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM),
             handler.launchedActions,
         )
-        assertEquals(listOf("package:com.example.test"), handler.launchedData)
+        assertEquals(listOf<String?>("package:com.example.test"), handler.launchedData)
     }
 
     @Test

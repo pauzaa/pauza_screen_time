@@ -30,14 +30,16 @@ import androidx.compose.ui.unit.sp
 import com.example.pauza_screen_time.app_restriction.model.ShieldConfig
 
 /**
- * Composable UI for the shield overlay that blocks restricted applications.
+ * Composable UI for the shield screen that blocks restricted applications.
  *
- * This component renders a full-screen overlay with configurable title, subtitle,
- * icon, and action buttons based on the provided ShieldConfig.
+ * This component renders a full-screen shield with configurable title, subtitle,
+ * icon, and action buttons based on the provided [ShieldConfig].
+ *
+ * Used by [LockActivity] to display the blocking UI.
  */
 
 /**
- * Main composable content for the shield overlay.
+ * Main composable content for the shield screen.
  *
  * @param config The shield configuration containing visual properties
  * @param onPrimaryClick Callback when primary button is tapped

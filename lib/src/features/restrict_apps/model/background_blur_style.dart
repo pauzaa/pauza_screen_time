@@ -1,11 +1,11 @@
 /// Background blur effect styles for the shield.
 ///
-/// Defines blur effect intensities for the shield overlay
+/// Defines blur effect intensities for the shield screen
 /// displayed when a restricted app is launched. Maps to
 /// UIBlurEffect.Style on iOS and RenderEffect.createBlurEffect on Android.
 library;
 
-/// Background blur effect style applied behind the shield overlay.
+/// Background blur effect style applied behind the shield screen.
 enum BackgroundBlurStyle {
   /// Extra light blur (light content on dark background).
   /// iOS: .extraLight
