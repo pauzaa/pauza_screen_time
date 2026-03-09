@@ -37,7 +37,7 @@ Built for apps that need Screen Time authorization, app blocking, and usage insi
 dependencies:
   pauza_screen_time:
     git:
-      url: https://github.com/IsroilovA/pauza_screen_time
+      url: https://github.com/pauzaa/pauza_screen_time
 ```
 
 ```dart

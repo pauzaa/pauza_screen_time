@@ -16,7 +16,7 @@ specific area, jump to:
 dependencies:
   pauza_screen_time:
     git:
-      url: https://github.com/IsroilovA/pauza_screen_time
+      url: https://github.com/pauzaa/pauza_screen_time
 ```
 
 ```dart
