@@ -6,16 +6,18 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.util.Log
 import java.io.ByteArrayOutputStream
 
 /**
  * Extracts application icons as PNG byte arrays.
  *
- * Unlike the old [AppInfoUtils.extractAppIcon], this object **throws** on
- * failure rather than returning null. The call-site decides whether to treat
- * the error as fatal or downgrade to a null icon.
+ * [extract] throws on failure so callers can decide how to handle it.
+ * [extractOrNull] catches exceptions and returns null instead.
  */
 object AppIconExtractor {
+
+    private const val TAG = "AppIconExtractor"
 
     /**
      * Extracts the icon of [appInfo] as a PNG-encoded [ByteArray].
@@ -28,6 +30,18 @@ object AppIconExtractor {
         val outputStream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
         return outputStream.toByteArray()
+    }
+
+    /**
+     * Like [extract], but returns null on failure instead of throwing.
+     */
+    fun extractOrNull(appInfo: ApplicationInfo, packageManager: PackageManager): ByteArray? {
+        return try {
+            extract(appInfo, packageManager)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to extract icon for ${appInfo.packageName}: ${e.message}")
+            null
+        }
     }
 
     private fun drawableToBitmap(drawable: Drawable): Bitmap {

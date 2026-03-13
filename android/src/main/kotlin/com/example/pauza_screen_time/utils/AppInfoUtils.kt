@@ -1,69 +1,14 @@
 package com.example.pauza_screen_time.utils
 
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
-import android.graphics.drawable.Drawable
 import android.os.Build
-import java.io.ByteArrayOutputStream
 
 /**
- * Utility object for common application information operations.
+ * Utility object for common application metadata (category, system-app flag).
+ *
+ * Icon extraction has been consolidated into [AppIconExtractor].
  */
 object AppInfoUtils {
-
-    /**
-     * Extracts the app icon as a byte array (PNG format).
-     *
-     * @param appInfo ApplicationInfo object
-     * @param packageManager PackageManager instance
-     * @return ByteArray of the PNG icon, or null if extraction fails
-     */
-    fun extractAppIcon(appInfo: ApplicationInfo, packageManager: PackageManager): ByteArray? {
-        return try {
-            val icon = appInfo.loadIcon(packageManager)
-            val bitmap = drawableToBitmap(icon)
-
-            val outputStream = ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-            outputStream.toByteArray()
-        } catch (e: Exception) {
-            android.util.Log.e("AppInfoUtils", "Error extracting icon for ${appInfo.packageName}", e)
-            null
-        }
-    }
-
-    /**
-     * Converts a Drawable to a Bitmap.
-     *
-     * @param drawable The drawable to convert
-     * @return Bitmap representation of the drawable
-     */
-    fun drawableToBitmap(drawable: Drawable): Bitmap {
-        if (drawable is BitmapDrawable) {
-            if (drawable.bitmap != null) {
-                return drawable.bitmap
-            }
-        }
-
-        val bitmap = if (drawable.intrinsicWidth <= 0 || drawable.intrinsicHeight <= 0) {
-            // Create 1x1 pixel bitmap for drawables with no size
-            Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
-        } else {
-            Bitmap.createBitmap(
-                drawable.intrinsicWidth,
-                drawable.intrinsicHeight,
-                Bitmap.Config.ARGB_8888
-            )
-        }
-
-        val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, canvas.width, canvas.height)
-        drawable.draw(canvas)
-        return bitmap
-    }
 
     /**
      * Gets the app category as a string.

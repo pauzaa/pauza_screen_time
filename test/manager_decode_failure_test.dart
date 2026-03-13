@@ -27,7 +27,7 @@ void main() {
   group('UsageStatsManager decode failures', () {
     test('getUsageStats throws typed internal failure on malformed item', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-        const MethodChannel('pauza_screen_time_usage_stats'),
+        const MethodChannel('pauza_screen_time/usage_stats'),
         (call) async => [
           {'malformed': 'data'},
         ],

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:pauza_screen_time/src/core/background_channel_runner.dart';
+import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/core/platform_constants.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/app_restriction_platform.dart';
 import 'package:pauza_screen_time/src/features/restrict_apps/method_channel/channel_name.dart';
@@ -163,16 +164,16 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
     }
   }
 
-  PlatformException _decodeFailure({
+  PauzaInternalFailureError _decodeFailure({
     required String action,
     required String message,
     Object? payload,
     Object? error,
     StackTrace? stackTrace,
   }) {
-    return PlatformException(
-      code: 'INTERNAL_FAILURE',
+    return PauzaInternalFailureError(
       message: message,
+      rawCode: 'INTERNAL_FAILURE',
       details: <String, Object?>{
         'feature': 'restrictions',
         'action': action,

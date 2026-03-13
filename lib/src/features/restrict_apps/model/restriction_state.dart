@@ -65,7 +65,13 @@ class RestrictionState {
     final startEventsCount = currentSessionEvents
         .where((event) => event.action == RestrictionLifecycleAction.start)
         .length;
-    assert(startEventsCount <= 1, 'currentSessionEvents must contain at most one START event');
+    if (startEventsCount > 1) {
+      throw ArgumentError.value(
+        startEventsCount,
+        'currentSessionEvents',
+        'Must contain at most one START event',
+      );
+    }
 
     final sourceRaw = map['activeModeSource'] as String? ?? 'none';
     final activeModeSource = RestrictionModeSource.fromWire(sourceRaw);

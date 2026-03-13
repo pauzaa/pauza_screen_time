@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:pauza_screen_time/src/core/background_channel_runner.dart';
 import 'package:pauza_screen_time/src/core/cancel_token.dart';
+import 'package:pauza_screen_time/src/core/pauza_error.dart';
 import 'package:pauza_screen_time/src/features/usage_stats/method_channel/channel_name.dart';
 import 'package:pauza_screen_time/src/features/usage_stats/method_channel/method_names.dart';
 import 'package:pauza_screen_time/src/features/usage_stats/model/app_standby_bucket.dart';
@@ -221,15 +222,15 @@ class UsageStatsMethodChannel extends UsageStatsPlatform {
     }
   }
 
-  PlatformException _decodeFailure({
+  PauzaInternalFailureError _decodeFailure({
     required String action,
     required String message,
     Object? error,
     StackTrace? stackTrace,
   }) {
-    return PlatformException(
-      code: 'INTERNAL_FAILURE',
+    return PauzaInternalFailureError(
       message: message,
+      rawCode: 'INTERNAL_FAILURE',
       details: <String, Object?>{
         'feature': 'usage_stats',
         'action': action,

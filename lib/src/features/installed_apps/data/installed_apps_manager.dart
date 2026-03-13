@@ -1,9 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/services.dart';
-import 'package:pauza_screen_time/pauza_screen_time.dart';
-
+import 'package:pauza_screen_time/src/core/core.dart';
+import 'package:pauza_screen_time/src/features/installed_apps/installed_apps_platform.dart';
 import 'package:pauza_screen_time/src/features/installed_apps/method_channel/installed_apps_method_channel.dart';
+import 'package:pauza_screen_time/src/features/installed_apps/model/app_info.dart';
 
 /// Manages installed applications enumeration.
 class InstalledAppsManager {

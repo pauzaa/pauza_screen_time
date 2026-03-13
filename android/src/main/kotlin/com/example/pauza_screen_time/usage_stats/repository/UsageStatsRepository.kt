@@ -8,6 +8,7 @@ import android.app.usage.UsageEvents
 import android.os.Build
 import com.example.pauza_screen_time.permissions.PermissionHandler
 import com.example.pauza_screen_time.usage_stats.model.UsageStatsDto
+import com.example.pauza_screen_time.utils.AppIconExtractor
 import com.example.pauza_screen_time.utils.AppInfoUtils
 
 /**
@@ -182,7 +183,7 @@ class UsageStatsRepository(private val context: Context) {
         return UsageStatsDto(
             packageId = packageId,
             appName = appInfo.loadLabel(packageManager).toString(),
-            appIcon = if (includeIcons) AppInfoUtils.extractAppIcon(appInfo, packageManager) else null,
+            appIcon = if (includeIcons) AppIconExtractor.extractOrNull(appInfo, packageManager) else null,
             category = AppInfoUtils.getAppCategory(appInfo),
             isSystemApp = AppInfoUtils.isSystemApp(appInfo),
             totalDurationMs = usageStats.totalTimeInForeground,

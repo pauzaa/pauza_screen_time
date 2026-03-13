@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
-import 'package:pauza_screen_time/pauza_screen_time.dart';
+import 'package:pauza_screen_time/src/core/app_identifier.dart';
+import 'package:pauza_screen_time/src/features/installed_apps/model/app_info.dart';
 
 /// Usage statistics for an application over a time period.
 ///

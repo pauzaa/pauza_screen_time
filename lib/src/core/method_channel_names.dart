@@ -1,11 +1,7 @@
+/// Core-only channel name. Feature-specific channel names live in each
+/// feature's `channel_name.dart` to avoid a single stale registry.
 class MethodChannelNames {
   const MethodChannelNames._();
 
-  static const String _base = 'pauza_screen_time';
-
-  static const String core = '$_base/core';
-  static const String permissions = '$_base/permissions';
-  static const String installedApps = '$_base/installed_apps';
-  static const String usageStats = '$_base/usage_stats';
-  static const String restrictions = '$_base/restrictions';
+  static const String core = 'pauza_screen_time/core';
 }

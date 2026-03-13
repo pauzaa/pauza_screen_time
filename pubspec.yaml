@@ -1,6 +1,6 @@
 name: pauza_screen_time
 description: "Flutter plugin for app usage monitoring, restriction, and parental controls."
-version: 0.3.0
+version: 0.6.1
 homepage:
 
 environment:
