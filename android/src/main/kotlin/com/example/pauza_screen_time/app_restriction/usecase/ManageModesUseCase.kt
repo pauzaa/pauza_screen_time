@@ -18,8 +18,8 @@ internal class ManageModesUseCase(private val context: Context) {
         blockedAppIds: List<String>,
         schedule: RestrictionScheduleEntry?
     ) {
+        val scheduleCalculator = RestrictionScheduleCalculator()
         if (schedule != null) {
-            val scheduleCalculator = RestrictionScheduleCalculator()
             if (!scheduleCalculator.isScheduleShapeValid(RestrictionScheduleConfig(enabled = true, schedules = listOf(schedule)))) {
                 throw IllegalArgumentException("Mode schedule payload is invalid")
             }
@@ -37,7 +37,6 @@ internal class ManageModesUseCase(private val context: Context) {
         if (mode.schedule != null && mode.blockedAppIds.isNotEmpty()) {
             nextModes += mode
         }
-        val scheduleCalculator = RestrictionScheduleCalculator()
         val shapeIsValid = scheduleCalculator.isScheduleShapeValid(
             RestrictionScheduleConfig(
                 enabled = true,

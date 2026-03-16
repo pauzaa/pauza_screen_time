@@ -1,7 +1,6 @@
-import 'dart:io' show Platform;
-
 import 'package:pauza_screen_time/src/core/cancel_token.dart';
 import 'package:pauza_screen_time/src/core/pauza_error.dart';
+import 'package:pauza_screen_time/src/core/platform_assert.dart';
 import 'package:pauza_screen_time/src/features/usage_stats/method_channel/usage_stats_method_channel.dart';
 import 'package:pauza_screen_time/src/features/usage_stats/model/app_standby_bucket.dart';
 import 'package:pauza_screen_time/src/features/usage_stats/model/app_usage_stats.dart';
@@ -33,7 +32,7 @@ class UsageStatsManager {
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    _assertAndroid('getUsageStats');
+    assertAndroid('getUsageStats');
 
     return _platform
         .queryUsageStats(
@@ -59,7 +58,7 @@ class UsageStatsManager {
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    _assertAndroid('getAppUsageStats');
+    assertAndroid('getAppUsageStats');
 
     return _platform
         .queryAppUsageStats(
@@ -90,7 +89,7 @@ class UsageStatsManager {
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 60),
   }) async {
-    _assertAndroid('getUsageEvents');
+    assertAndroid('getUsageEvents');
 
     return _platform
         .queryUsageEvents(
@@ -119,7 +118,7 @@ class UsageStatsManager {
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    _assertAndroid('getEventStats');
+    assertAndroid('getEventStats');
 
     return _platform
         .queryEventStats(
@@ -144,7 +143,7 @@ class UsageStatsManager {
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 10),
   }) async {
-    _assertAndroid('isAppInactive');
+    assertAndroid('isAppInactive');
 
     return _platform
         .isAppInactive(packageId: packageId, cancelToken: cancelToken, timeout: timeout)
@@ -164,23 +163,9 @@ class UsageStatsManager {
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 10),
   }) async {
-    _assertAndroid('getAppStandbyBucket');
+    assertAndroid('getAppStandbyBucket');
 
     return _platform.getAppStandbyBucket(cancelToken: cancelToken, timeout: timeout).throwTypedPauzaError();
   }
 
-  // ============================================================
-  // Private helpers
-  // ============================================================
-
-  void _assertAndroid(String methodName) {
-    if (!Platform.isAndroid) {
-      throw const PauzaUnsupportedError(
-        message:
-            'This method is only supported on Android. '
-            'On iOS, use the DeviceActivityReport platform view.',
-        rawCode: 'UNSUPPORTED',
-      );
-    }
-  }
 }

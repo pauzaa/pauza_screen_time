@@ -9,12 +9,12 @@ void main() {
       expect(RestrictionModeSource.fromWire('schedule'), RestrictionModeSource.schedule);
     });
 
-    test('fromWire throws ArgumentError on unknown value', () {
-      expect(() => RestrictionModeSource.fromWire('unknown'), throwsArgumentError);
+    test('fromWire returns unknown for unrecognized value', () {
+      expect(RestrictionModeSource.fromWire('future_value'), RestrictionModeSource.unknown);
     });
 
-    test('fromWire throws ArgumentError on empty string', () {
-      expect(() => RestrictionModeSource.fromWire(''), throwsArgumentError);
+    test('fromWire returns unknown for empty string', () {
+      expect(RestrictionModeSource.fromWire(''), RestrictionModeSource.unknown);
     });
 
     test('wireValue round-trips for all values', () {

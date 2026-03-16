@@ -32,6 +32,7 @@ internal class RestrictionSessionController(
     private val modesStore = RestrictionScheduledModesStore(appContext)
     private val scheduleCalculator = RestrictionScheduleCalculator()
 
+    @Synchronized
     fun startSession(
         modeId: String,
         blockedAppIds: List<String>,
@@ -47,6 +48,7 @@ internal class RestrictionSessionController(
         applyCurrentEnforcementState(trigger = trigger, previousLifecycleSnapshot = previousSnapshot)
     }
 
+    @Synchronized
     fun endSession(
         source: RestrictionModeSource,
         trigger: String,
@@ -63,6 +65,7 @@ internal class RestrictionSessionController(
         applyCurrentEnforcementState(trigger = trigger, previousLifecycleSnapshot = previousSnapshot)
     }
 
+    @Synchronized
     fun applyCurrentEnforcementState(
         trigger: String,
         previousLifecycleSnapshot: RestrictionLifecycleSnapshot? = null,

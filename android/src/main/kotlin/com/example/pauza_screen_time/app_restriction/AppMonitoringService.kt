@@ -44,8 +44,11 @@ class AppMonitoringService : AccessibilityService() {
         fun getInstance(): AppMonitoringService? = instance
     }
 
+    @Volatile
     private var lastForegroundPackage: String? = null
+    @Volatile
     private var lastEventTimestamp: Long = 0L
+    @Volatile
     private var isMonitoring = true
 
     /** Cached controller to avoid re-creation on every [evaluateForegroundPackage] call. */

@@ -129,6 +129,13 @@ internal class RestrictionScheduleCalculator {
         return windows.sortedBy { it.first.toInstant() }
     }
 
+    /**
+     * Validates a single schedule entry.
+     *
+     * `startMinutes != endMinutes` rejects zero-length intervals, but
+     * `endMinutes < startMinutes` is intentionally allowed — it represents a
+     * midnight-wrapping window (e.g. 23:00–01:00).
+     */
     private fun isEntryValid(schedule: RestrictionScheduleEntry): Boolean {
         return schedule.daysOfWeekIso.isNotEmpty() &&
             schedule.daysOfWeekIso.all { it in 1..7 } &&

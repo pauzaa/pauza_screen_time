@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.example.pauza_screen_time.app_restriction.schedule.StorageDecodeException
+import com.example.pauza_screen_time.app_restriction.storage.RestrictionStorageKeys
 import com.example.pauza_screen_time.core.PlatformConstants
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -12,10 +13,6 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
 
     companion object {
         private const val TAG = "RestrictionLifecycleLog"
-        private const val PREFS_NAME = "app_restriction_prefs"
-        private const val KEY_LIFECYCLE_EVENTS = "lifecycle_events"
-        private const val KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS = "active_session_lifecycle_events"
-        private const val KEY_LIFECYCLE_EVENT_SEQ = "lifecycle_event_seq"
 
         @Volatile
         private var instance: RestrictionLifecycleLogger? = null
@@ -30,14 +27,14 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
     }
 
     private val preferences: SharedPreferences =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        context.getSharedPreferences(RestrictionStorageKeys.RESTRICTION_PREFS_NAME, Context.MODE_PRIVATE)
 
     private val json = Json { ignoreUnknownKeys = true }
 
     @Synchronized
     fun clearActiveSessionLifecycleEvents() {
         preferences.edit()
-            .remove(KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS)
+            .remove(RestrictionStorageKeys.KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS)
             .apply()
     }
 
@@ -65,7 +62,7 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
         return try {
             val persisted = loadLifecycleEvents().toMutableList()
             val activeSessionPersisted = loadActiveSessionLifecycleEvents().toMutableList()
-            var nextSeq = preferences.getLong(KEY_LIFECYCLE_EVENT_SEQ, 0L)
+            var nextSeq = preferences.getLong(RestrictionStorageKeys.KEY_LIFECYCLE_EVENT_SEQ, 0L)
 
             events.forEach { draft ->
                 val normalized = normalizeLifecycleDraft(draft) ?: return@forEach
@@ -104,8 +101,8 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
         } catch (e: StorageDecodeException) {
             Log.w(TAG, "Corrupt lifecycle events storage; resetting before append", e)
             preferences.edit()
-                .remove(KEY_LIFECYCLE_EVENTS)
-                .remove(KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS)
+                .remove(RestrictionStorageKeys.KEY_LIFECYCLE_EVENTS)
+                .remove(RestrictionStorageKeys.KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS)
                 .apply()
             false
         }
@@ -118,14 +115,14 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
             loadLifecycleEvents().take(normalizedLimit)
         } catch (e: StorageDecodeException) {
             Log.w(TAG, "Corrupt lifecycle events storage; resetting", e)
-            preferences.edit().remove(KEY_LIFECYCLE_EVENTS).apply()
+            preferences.edit().remove(RestrictionStorageKeys.KEY_LIFECYCLE_EVENTS).apply()
             emptyList()
         }
     }
 
     @Synchronized
     internal fun loadActiveSessionLifecycleEvents(): List<RestrictionLifecycleEvent> {
-        val serialized = preferences.getString(KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS, null)?.trim().orEmpty()
+        val serialized = preferences.getString(RestrictionStorageKeys.KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS, null)?.trim().orEmpty()
         if (serialized.isEmpty()) return emptyList()
 
         // ignoreUnknownKeys = true handles old JSON fields; a real parse failure is propagated.
@@ -145,18 +142,18 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
             val events = loadLifecycleEvents()
             val next = events.filter { it.id > normalizedId }
             if (events.size != next.size) {
-                persistLifecycleEvents(next, preferences.getLong(KEY_LIFECYCLE_EVENT_SEQ, 0L))
+                persistLifecycleEvents(next, preferences.getLong(RestrictionStorageKeys.KEY_LIFECYCLE_EVENT_SEQ, 0L))
             }
             true
         } catch (e: StorageDecodeException) {
             Log.w(TAG, "Corrupt lifecycle events storage during ack; resetting. id=$normalizedId", e)
-            preferences.edit().remove(KEY_LIFECYCLE_EVENTS).apply()
+            preferences.edit().remove(RestrictionStorageKeys.KEY_LIFECYCLE_EVENTS).apply()
             false
         }
     }
 
     private fun loadLifecycleEvents(): List<RestrictionLifecycleEvent> {
-        val serialized = preferences.getString(KEY_LIFECYCLE_EVENTS, null)?.trim().orEmpty()
+        val serialized = preferences.getString(RestrictionStorageKeys.KEY_LIFECYCLE_EVENTS, null)?.trim().orEmpty()
         if (serialized.isEmpty()) return emptyList()
 
         return try {
@@ -169,15 +166,15 @@ class RestrictionLifecycleLogger private constructor(context: Context) {
     private fun persistLifecycleEvents(events: List<RestrictionLifecycleEvent>, seq: Long) {
         val serialized = json.encodeToString(events)
         preferences.edit()
-            .putString(KEY_LIFECYCLE_EVENTS, serialized)
-            .putLong(KEY_LIFECYCLE_EVENT_SEQ, seq.coerceAtLeast(0L))
+            .putString(RestrictionStorageKeys.KEY_LIFECYCLE_EVENTS, serialized)
+            .putLong(RestrictionStorageKeys.KEY_LIFECYCLE_EVENT_SEQ, seq.coerceAtLeast(0L))
             .apply()
     }
 
     private fun persistActiveSessionLifecycleEvents(events: List<RestrictionLifecycleEvent>) {
         val serialized = json.encodeToString(events)
         preferences.edit()
-            .putString(KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS, serialized)
+            .putString(RestrictionStorageKeys.KEY_ACTIVE_SESSION_LIFECYCLE_EVENTS, serialized)
             .apply()
     }
 

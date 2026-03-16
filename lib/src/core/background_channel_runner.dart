@@ -192,7 +192,7 @@ class BackgroundChannelRunner {
 
   static void _handleCancellation(_PendingRequest request, String? reason) {
     if (_inFlight == request) {
-      _restartWorker();
+      unawaited(_restartWorker()); // Fire-and-forget: old worker cleanup is non-critical
       request.completeError(CancelledException(reason));
       _inFlight = null;
       _dispatchNext();
@@ -207,7 +207,7 @@ class BackgroundChannelRunner {
   static void _handleTimeout(_PendingRequest request) {
     if (_inFlight != request) return;
 
-    _restartWorker();
+    unawaited(_restartWorker()); // Fire-and-forget: old worker cleanup is non-critical
     request.completeError(TimeoutException('Background call timed out'));
     _inFlight = null;
     _dispatchNext();
@@ -219,7 +219,7 @@ class BackgroundChannelRunner {
 
     request.completeError(error);
     _inFlight = null;
-    _restartWorker();
+    unawaited(_restartWorker()); // Fire-and-forget: old worker cleanup is non-critical
     _dispatchNext();
   }
 

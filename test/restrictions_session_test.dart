@@ -132,7 +132,7 @@ void main() {
       expect(session.currentSessionEvents, isEmpty);
     });
 
-    test('getRestrictionSession throws on malformed activeModeSource', () async {
+    test('getRestrictionSession returns unknown for unrecognized activeModeSource', () async {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
         if (call.method == RestrictionsMethodNames.getRestrictionSession) {
           return {'activeModeSource': 'invalid'};
@@ -140,10 +140,8 @@ void main() {
         return null;
       });
 
-      await expectLater(
-        methodChannel.getRestrictionSession(),
-        throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'INTERNAL_FAILURE')),
-      );
+      final session = await methodChannel.getRestrictionSession();
+      expect(session.activeModeSource, RestrictionModeSource.unknown);
     });
 
     test('getModesConfig throws on malformed payload', () async {
@@ -161,7 +159,7 @@ void main() {
 
       await expectLater(
         methodChannel.getModesConfig(),
-        throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'INTERNAL_FAILURE')),
+        throwsA(isA<PauzaInternalFailureError>()),
       );
     });
 
@@ -292,7 +290,7 @@ void main() {
 
       await expectLater(
         methodChannel.getPendingLifecycleEvents(),
-        throwsA(isA<PlatformException>().having((error) => error.code, 'code', 'INTERNAL_FAILURE')),
+        throwsA(isA<PauzaInternalFailureError>()),
       );
     });
   });
@@ -358,7 +356,7 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, null);
     });
 
-    test('getRestrictionSession surfaces malformed payload as typed PauzaError', () async {
+    test('getRestrictionSession returns unknown source for unrecognized activeModeSource', () async {
       final manager = AppRestrictionManager(platform: RestrictionsMethodChannel(channel: channel));
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
         if (call.method == RestrictionsMethodNames.getRestrictionSession) {
@@ -367,7 +365,8 @@ void main() {
         return null;
       });
 
-      await expectLater(manager.getRestrictionSession(), throwsA(isA<PauzaInternalFailureError>()));
+      final session = await manager.getRestrictionSession();
+      expect(session.activeModeSource, RestrictionModeSource.unknown);
     });
 
     test('getModesConfig surfaces malformed payload as typed PauzaError', () async {

@@ -16,15 +16,6 @@ class RestrictionStorageRepository private constructor(context: Context) {
 
     companion object {
         private const val TAG = "RestrictionStorageRepository"
-        private const val PREFS_NAME = "app_restriction_prefs"
-        private const val KEY_BLOCKED_APPS = "blocked_apps"
-        private const val KEY_PAUSED_UNTIL_EPOCH_MS = "paused_until_epoch_ms"
-        private const val KEY_MANUAL_SESSION_END_EPOCH_MS = "manual_session_end_epoch_ms"
-        private const val KEY_PENDING_END_SESSION_EPOCH_MS = "pending_end_session_epoch_ms"
-        private const val KEY_ACTIVE_SESSION = "active_session"
-        private const val KEY_SESSION_ID_SEQ = "session_id_seq"
-        private const val KEY_SUPPRESSED_SCHEDULE_MODE_ID = "suppressed_schedule_mode_id"
-        private const val KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS = "suppressed_schedule_until_epoch_ms"
 
         @Volatile
         private var instance: RestrictionStorageRepository? = null
@@ -39,7 +30,7 @@ class RestrictionStorageRepository private constructor(context: Context) {
     }
 
     private val preferences: SharedPreferences =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        context.getSharedPreferences(RestrictionStorageKeys.RESTRICTION_PREFS_NAME, Context.MODE_PRIVATE)
 
     private val blockedApps: MutableSet<String> = mutableSetOf()
     private val json = Json { ignoreUnknownKeys = true }
@@ -67,10 +58,10 @@ class RestrictionStorageRepository private constructor(context: Context) {
         nowMs: Long = System.currentTimeMillis(),
         clearExpired: Boolean = true,
     ): Long {
-        val pausedUntil = preferences.getLong(KEY_PAUSED_UNTIL_EPOCH_MS, 0L)
+        val pausedUntil = preferences.getLong(RestrictionStorageKeys.KEY_PAUSED_UNTIL_EPOCH_MS, 0L)
         if (pausedUntil <= nowMs) {
             if (clearExpired && pausedUntil != 0L) {
-                preferences.edit().putLong(KEY_PAUSED_UNTIL_EPOCH_MS, 0L).apply()
+                preferences.edit().putLong(RestrictionStorageKeys.KEY_PAUSED_UNTIL_EPOCH_MS, 0L).apply()
             }
             return 0L
         }
@@ -84,19 +75,19 @@ class RestrictionStorageRepository private constructor(context: Context) {
 
     @Synchronized
     fun hasPauseMarker(): Boolean {
-        return preferences.getLong(KEY_PAUSED_UNTIL_EPOCH_MS, 0L) > 0L
+        return preferences.getLong(RestrictionStorageKeys.KEY_PAUSED_UNTIL_EPOCH_MS, 0L) > 0L
     }
 
     @Synchronized
     fun pauseFor(durationMs: Long, nowMs: Long = System.currentTimeMillis()) {
         val pausedUntil = nowMs + durationMs
-        preferences.edit().putLong(KEY_PAUSED_UNTIL_EPOCH_MS, pausedUntil).apply()
+        preferences.edit().putLong(RestrictionStorageKeys.KEY_PAUSED_UNTIL_EPOCH_MS, pausedUntil).apply()
         Log.d(TAG, "Restriction enforcement paused until: $pausedUntil")
     }
 
     @Synchronized
     fun clearPause() {
-        preferences.edit().putLong(KEY_PAUSED_UNTIL_EPOCH_MS, 0L).apply()
+        preferences.edit().putLong(RestrictionStorageKeys.KEY_PAUSED_UNTIL_EPOCH_MS, 0L).apply()
         Log.d(TAG, "Restriction pause cleared")
     }
 
@@ -105,10 +96,10 @@ class RestrictionStorageRepository private constructor(context: Context) {
         nowMs: Long = System.currentTimeMillis(),
         clearExpired: Boolean = true,
     ): Long {
-        val sessionEnd = preferences.getLong(KEY_MANUAL_SESSION_END_EPOCH_MS, 0L)
+        val sessionEnd = preferences.getLong(RestrictionStorageKeys.KEY_MANUAL_SESSION_END_EPOCH_MS, 0L)
         if (sessionEnd <= nowMs) {
             if (clearExpired && sessionEnd != 0L) {
-                preferences.edit().putLong(KEY_MANUAL_SESSION_END_EPOCH_MS, 0L).apply()
+                preferences.edit().putLong(RestrictionStorageKeys.KEY_MANUAL_SESSION_END_EPOCH_MS, 0L).apply()
             }
             return 0L
         }
@@ -117,12 +108,12 @@ class RestrictionStorageRepository private constructor(context: Context) {
 
     @Synchronized
     fun setManualSessionEndEpochMs(manualSessionEndEpochMs: Long) {
-        preferences.edit().putLong(KEY_MANUAL_SESSION_END_EPOCH_MS, manualSessionEndEpochMs).apply()
+        preferences.edit().putLong(RestrictionStorageKeys.KEY_MANUAL_SESSION_END_EPOCH_MS, manualSessionEndEpochMs).apply()
     }
 
     @Synchronized
     fun clearManualSessionEndEpochMs() {
-        preferences.edit().putLong(KEY_MANUAL_SESSION_END_EPOCH_MS, 0L).apply()
+        preferences.edit().putLong(RestrictionStorageKeys.KEY_MANUAL_SESSION_END_EPOCH_MS, 0L).apply()
     }
 
     @Synchronized
@@ -130,10 +121,10 @@ class RestrictionStorageRepository private constructor(context: Context) {
         nowMs: Long = System.currentTimeMillis(),
         clearExpired: Boolean = true,
     ): Long {
-        val pendingEnd = preferences.getLong(KEY_PENDING_END_SESSION_EPOCH_MS, 0L)
+        val pendingEnd = preferences.getLong(RestrictionStorageKeys.KEY_PENDING_END_SESSION_EPOCH_MS, 0L)
         if (pendingEnd <= nowMs) {
             if (clearExpired && pendingEnd != 0L) {
-                preferences.edit().putLong(KEY_PENDING_END_SESSION_EPOCH_MS, 0L).apply()
+                preferences.edit().putLong(RestrictionStorageKeys.KEY_PENDING_END_SESSION_EPOCH_MS, 0L).apply()
             }
             return 0L
         }
@@ -142,17 +133,17 @@ class RestrictionStorageRepository private constructor(context: Context) {
 
     @Synchronized
     fun setPendingEndSessionEpochMs(pendingEndSessionEpochMs: Long) {
-        preferences.edit().putLong(KEY_PENDING_END_SESSION_EPOCH_MS, pendingEndSessionEpochMs).apply()
+        preferences.edit().putLong(RestrictionStorageKeys.KEY_PENDING_END_SESSION_EPOCH_MS, pendingEndSessionEpochMs).apply()
     }
 
     @Synchronized
     fun clearPendingEndSessionEpochMs() {
-        preferences.edit().putLong(KEY_PENDING_END_SESSION_EPOCH_MS, 0L).apply()
+        preferences.edit().putLong(RestrictionStorageKeys.KEY_PENDING_END_SESSION_EPOCH_MS, 0L).apply()
     }
 
     @Synchronized
     fun getActiveSession(): ActiveSession? {
-        val serialized = preferences.getString(KEY_ACTIVE_SESSION, null)?.trim().orEmpty()
+        val serialized = preferences.getString(RestrictionStorageKeys.KEY_ACTIVE_SESSION, null)?.trim().orEmpty()
         if (serialized.isEmpty()) return null
 
         return try {
@@ -192,7 +183,7 @@ class RestrictionStorageRepository private constructor(context: Context) {
                     null
                 }
             } catch (fallbackEx: Exception) {
-                Log.w(TAG, "Failed to parse active session payload", e)
+                Log.w(TAG, "Failed to parse active session payload", fallbackEx)
                 clearActiveSession()
                 null
             }
@@ -239,8 +230,8 @@ class RestrictionStorageRepository private constructor(context: Context) {
     @Synchronized
     fun clearActiveSession() {
         preferences.edit()
-            .remove(KEY_ACTIVE_SESSION)
-            .putLong(KEY_PENDING_END_SESSION_EPOCH_MS, 0L)
+            .remove(RestrictionStorageKeys.KEY_ACTIVE_SESSION)
+            .putLong(RestrictionStorageKeys.KEY_PENDING_END_SESSION_EPOCH_MS, 0L)
             .apply()
         Log.d(TAG, "Active session cleared")
     }
@@ -253,8 +244,8 @@ class RestrictionStorageRepository private constructor(context: Context) {
             return
         }
         preferences.edit()
-            .putString(KEY_SUPPRESSED_SCHEDULE_MODE_ID, normalizedModeId)
-            .putLong(KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS, untilEpochMs)
+            .putString(RestrictionStorageKeys.KEY_SUPPRESSED_SCHEDULE_MODE_ID, normalizedModeId)
+            .putLong(RestrictionStorageKeys.KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS, untilEpochMs)
             .apply()
     }
 
@@ -263,8 +254,8 @@ class RestrictionStorageRepository private constructor(context: Context) {
         nowMs: Long = System.currentTimeMillis(),
         clearExpired: Boolean = true,
     ): ScheduleSuppression? {
-        val modeId = preferences.getString(KEY_SUPPRESSED_SCHEDULE_MODE_ID, null)?.trim().orEmpty()
-        val untilEpochMs = preferences.getLong(KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS, 0L)
+        val modeId = preferences.getString(RestrictionStorageKeys.KEY_SUPPRESSED_SCHEDULE_MODE_ID, null)?.trim().orEmpty()
+        val untilEpochMs = preferences.getLong(RestrictionStorageKeys.KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS, 0L)
         if (modeId.isEmpty() || untilEpochMs <= 0L || untilEpochMs <= nowMs) {
             if (clearExpired && (modeId.isNotEmpty() || untilEpochMs > 0L)) {
                 clearScheduleSuppression()
@@ -277,13 +268,13 @@ class RestrictionStorageRepository private constructor(context: Context) {
     @Synchronized
     fun clearScheduleSuppression() {
         preferences.edit()
-            .remove(KEY_SUPPRESSED_SCHEDULE_MODE_ID)
-            .remove(KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS)
+            .remove(RestrictionStorageKeys.KEY_SUPPRESSED_SCHEDULE_MODE_ID)
+            .remove(RestrictionStorageKeys.KEY_SUPPRESSED_SCHEDULE_UNTIL_EPOCH_MS)
             .apply()
     }
 
     private fun loadBlockedApps() {
-        val storedApps = preferences.getString(KEY_BLOCKED_APPS, null)
+        val storedApps = preferences.getString(RestrictionStorageKeys.KEY_BLOCKED_APPS, null)
         if (storedApps.isNullOrEmpty()) return
 
         try {
@@ -303,18 +294,18 @@ class RestrictionStorageRepository private constructor(context: Context) {
 
     private fun persistBlockedApps() {
         val serialized = json.encodeToString(blockedApps.toList())
-        preferences.edit().putString(KEY_BLOCKED_APPS, serialized).apply()
+        preferences.edit().putString(RestrictionStorageKeys.KEY_BLOCKED_APPS, serialized).apply()
         Log.d(TAG, "Persisted ${blockedApps.size} blocked apps to storage")
     }
 
     private fun persistActiveSession(session: ActiveSession) {
         val serialized = json.encodeToString(session)
-        preferences.edit().putString(KEY_ACTIVE_SESSION, serialized).apply()
+        preferences.edit().putString(RestrictionStorageKeys.KEY_ACTIVE_SESSION, serialized).apply()
     }
 
     private fun nextSessionId(nowMs: Long = System.currentTimeMillis()): String {
-        val nextSeq = preferences.getLong(KEY_SESSION_ID_SEQ, 0L) + 1L
-        preferences.edit().putLong(KEY_SESSION_ID_SEQ, nextSeq).apply()
+        val nextSeq = preferences.getLong(RestrictionStorageKeys.KEY_SESSION_ID_SEQ, 0L) + 1L
+        preferences.edit().putLong(RestrictionStorageKeys.KEY_SESSION_ID_SEQ, nextSeq).apply()
         return "s-${formatCounter(nextSeq, 12)}-${formatEpochMs(nowMs)}"
     }
 

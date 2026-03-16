@@ -8,18 +8,6 @@ final class ShieldManager {
     static let shared = ShieldManager()
     private let store = ManagedSettingsStore()
 
-    enum TokenCodecError: Error, LocalizedError {
-        case decodeFailed(Error)
-        case encodeFailed(Error)
-
-        var errorDescription: String? {
-            switch self {
-            case .decodeFailed(let err): return "Failed to decode application token: \(err.localizedDescription)"
-            case .encodeFailed(let err): return "Failed to encode application token: \(err.localizedDescription)"
-            }
-        }
-    }
-
     private init() {}
 
     func setRestrictedApps(_ tokens: Set<ApplicationToken>) {
@@ -48,11 +36,8 @@ final class ShieldManager {
 
         for tokenValue in uniqueBase64Tokens {
             do {
-                if let token = try decodeToken(tokenValue) {
-                    tokens.insert(token)
-                } else {
-                    invalidTokens.append(tokenValue)
-                }
+                let token = try decodeToken(tokenValue)
+                tokens.insert(token)
             } catch {
                 print("⚠️ [ShieldManager] Error decoding token: \(error)")
                 invalidTokens.append(tokenValue)
@@ -69,7 +54,7 @@ final class ShieldManager {
     @discardableResult
     func addRestrictedApp(base64Token: String) -> Bool? {
         do {
-            guard let token = try decodeToken(base64Token) else { return nil }
+            let token = try decodeToken(base64Token)
             var current = store.shield.applications ?? Set<ApplicationToken>()
             let inserted = current.insert(token).inserted
             store.shield.applications = current
@@ -83,7 +68,7 @@ final class ShieldManager {
     @discardableResult
     func removeRestrictedApp(base64Token: String) -> Bool? {
         do {
-            guard let token = try decodeToken(base64Token) else { return nil }
+            let token = try decodeToken(base64Token)
             var current = store.shield.applications ?? Set<ApplicationToken>()
             let removed = current.remove(token) != nil
             store.shield.applications = current
@@ -96,7 +81,7 @@ final class ShieldManager {
 
     func isRestricted(base64Token: String) -> Bool? {
         do {
-            guard let token = try decodeToken(base64Token) else { return nil }
+            let token = try decodeToken(base64Token)
             let current = store.shield.applications ?? Set<ApplicationToken>()
             return current.contains(token)
         } catch {
@@ -134,14 +119,14 @@ final class ShieldManager {
         let invalidTokens: [String]
     }
 
-    private func decodeToken(_ base64Token: String) throws -> ApplicationToken? {
+    private func decodeToken(_ base64Token: String) throws -> ApplicationToken {
         guard let data = Data(base64Encoded: base64Token) else {
-            return nil
+            throw TokenCodecError.invalidBase64(base64Token)
         }
         do {
             return try JSONDecoder().decode(ApplicationToken.self, from: data)
         } catch {
-            throw TokenCodecError.decodeFailed(error)
+            throw TokenCodecError.decodeFailed(underlying: error)
         }
     }
 
@@ -150,7 +135,7 @@ final class ShieldManager {
             let data = try JSONEncoder().encode(token)
             return data.base64EncodedString()
         } catch {
-            throw TokenCodecError.encodeFailed(error)
+            throw TokenCodecError.encodeFailed(underlying: error)
         }
     }
 }

@@ -2,18 +2,13 @@ package com.example.pauza_screen_time.app_restriction.schedule
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.pauza_screen_time.app_restriction.storage.RestrictionStorageKeys
 
 internal class RestrictionScheduledModesStore(
     context: Context,
 ) {
-    companion object {
-        private const val PREFS_NAME = "app_restriction_schedule_prefs"
-        private const val KEY_SCHEDULED_MODES_ENABLED = "modes_enabled"
-        private const val KEY_SCHEDULED_MODES = "modes"
-    }
-
     private val preferences: SharedPreferences =
-        context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        context.applicationContext.getSharedPreferences(RestrictionStorageKeys.SCHEDULE_PREFS_NAME, Context.MODE_PRIVATE)
 
     fun getConfig(): RestrictionScheduledModesConfig {
         val persistedModes = loadModes()
@@ -22,14 +17,14 @@ internal class RestrictionScheduledModesStore(
             storeModes(filteredModes)
         }
         return RestrictionScheduledModesConfig(
-            enabled = preferences.getBoolean(KEY_SCHEDULED_MODES_ENABLED, false),
+            enabled = preferences.getBoolean(RestrictionStorageKeys.KEY_SCHEDULED_MODES_ENABLED, false),
             modes = filteredModes,
         )
     }
 
     fun setEnabled(enabled: Boolean) {
         preferences.edit()
-            .putBoolean(KEY_SCHEDULED_MODES_ENABLED, enabled)
+            .putBoolean(RestrictionStorageKeys.KEY_SCHEDULED_MODES_ENABLED, enabled)
             .apply()
     }
 
@@ -61,7 +56,7 @@ internal class RestrictionScheduledModesStore(
     private fun storeModes(modes: List<RestrictionScheduledModeEntry>) {
         preferences.edit()
             .putString(
-                KEY_SCHEDULED_MODES,
+                RestrictionStorageKeys.KEY_SCHEDULED_MODES,
                 RestrictionScheduledModesStorageCodec.toStorageJson(
                     modes.filter(RestrictionScheduledModeEntry::isEnforceableScheduled),
                 ),
@@ -70,7 +65,7 @@ internal class RestrictionScheduledModesStore(
     }
 
     private fun loadModes(): List<RestrictionScheduledModeEntry> {
-        val serialized = preferences.getString(KEY_SCHEDULED_MODES, null)
+        val serialized = preferences.getString(RestrictionStorageKeys.KEY_SCHEDULED_MODES, null)
         if (serialized.isNullOrBlank()) {
             return emptyList()
         }
@@ -78,7 +73,7 @@ internal class RestrictionScheduledModesStore(
             RestrictionScheduledModesStorageCodec.fromStorageJson(serialized)
         } catch (e: StorageDecodeException) {
             android.util.Log.w("RestrictionScheduledModesStore", "Corrupt scheduled modes storage; resetting", e)
-            preferences.edit().remove(KEY_SCHEDULED_MODES).apply()
+            preferences.edit().remove(RestrictionStorageKeys.KEY_SCHEDULED_MODES).apply()
             emptyList()
         }
     }

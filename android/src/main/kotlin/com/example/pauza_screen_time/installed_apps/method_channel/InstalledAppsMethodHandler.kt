@@ -12,6 +12,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 class InstalledAppsMethodHandler(
     private val installedAppsHandler: InstalledAppsHandler
@@ -19,6 +20,9 @@ class InstalledAppsMethodHandler(
     companion object {
         private const val FEATURE = "installed_apps"
     }
+
+    /** Wrapper to distinguish a genuine `null` result from a timeout `null`. */
+    private data class Optional<T>(val value: T)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -46,7 +50,20 @@ class InstalledAppsMethodHandler(
 
         scope.launch {
             try {
-                val apps = installedAppsHandler.getInstalledApps(includeSystemApps, includeIcons)
+                val apps = withTimeoutOrNull(30_000L) {
+                    installedAppsHandler.getInstalledApps(includeSystemApps, includeIcons)
+                }
+                if (apps == null) {
+                    withContext(Dispatchers.Main) {
+                        PluginErrorHelper.internalFailure(
+                            result = result,
+                            feature = FEATURE,
+                            action = MethodNames.GET_INSTALLED_APPS,
+                            message = "Operation timed out",
+                        )
+                    }
+                    return@launch
+                }
                 withContext(Dispatchers.Main) {
                     result.success(apps.map { it.toChannelMap() })
                 }
@@ -80,9 +97,22 @@ class InstalledAppsMethodHandler(
 
         scope.launch {
             try {
-                val appInfo = installedAppsHandler.getAppInfo(packageId, includeIcons)
+                val wrapped = withTimeoutOrNull(30_000L) {
+                    installedAppsHandler.getAppInfo(packageId, includeIcons).let { Optional(it) }
+                }
+                if (wrapped == null) {
+                    withContext(Dispatchers.Main) {
+                        PluginErrorHelper.internalFailure(
+                            result = result,
+                            feature = FEATURE,
+                            action = MethodNames.GET_APP_INFO,
+                            message = "Operation timed out",
+                        )
+                    }
+                    return@launch
+                }
                 withContext(Dispatchers.Main) {
-                    result.success(appInfo?.toChannelMap())
+                    result.success(wrapped.value?.toChannelMap())
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {

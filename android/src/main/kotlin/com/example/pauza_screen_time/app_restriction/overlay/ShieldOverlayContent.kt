@@ -131,16 +131,30 @@ fun ShieldOverlayContent(
  */
 @Composable
 private fun ShieldIcon(iconBytes: ByteArray?) {
-    iconBytes?.let { bytes ->
-        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-        bitmap?.let {
+    if (iconBytes != null) {
+        val bitmap = BitmapFactory.decodeByteArray(iconBytes, 0, iconBytes.size)
+        if (bitmap != null) {
             Image(
-                bitmap = it.asImageBitmap(),
+                bitmap = bitmap.asImageBitmap(),
                 contentDescription = "Shield icon",
                 modifier = Modifier.size(80.dp)
             )
-            Spacer(modifier = Modifier.height(24.dp))
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .background(Color.White.copy(alpha = 0.15f), RoundedCornerShape(16.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "?",
+                    color = Color.White,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 

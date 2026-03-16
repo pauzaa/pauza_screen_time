@@ -16,6 +16,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Method-call handler for the Usage Stats feature.
@@ -85,7 +86,20 @@ class UsageStatsMethodHandler(
 
         scope.launch {
             try {
-                val stats = usageStatsRepository.queryUsageStats(startTimeMs, endTimeMs, includeIcons)
+                val stats = withTimeoutOrNull(30_000L) {
+                    usageStatsRepository.queryUsageStats(startTimeMs, endTimeMs, includeIcons)
+                }
+                if (stats == null) {
+                    withContext(Dispatchers.Main) {
+                        PluginErrorHelper.internalFailure(
+                            result = result,
+                            feature = FEATURE,
+                            action = MethodNames.QUERY_USAGE_STATS,
+                            message = "Operation timed out",
+                        )
+                    }
+                    return@launch
+                }
                 withContext(Dispatchers.Main) {
                     result.success(stats.map { it.toChannelMap() })
                 }
@@ -125,11 +139,24 @@ class UsageStatsMethodHandler(
 
         scope.launch {
             try {
-                val stats = usageStatsRepository.queryAppUsageStats(
-                    packageId, startTimeMs, endTimeMs, includeIcons,
-                )
+                val wrapped = withTimeoutOrNull(30_000L) {
+                    usageStatsRepository.queryAppUsageStats(
+                        packageId, startTimeMs, endTimeMs, includeIcons,
+                    ).let { Optional(it) }
+                }
+                if (wrapped == null) {
+                    withContext(Dispatchers.Main) {
+                        PluginErrorHelper.internalFailure(
+                            result = result,
+                            feature = FEATURE,
+                            action = MethodNames.QUERY_APP_USAGE_STATS,
+                            message = "Operation timed out",
+                        )
+                    }
+                    return@launch
+                }
                 withContext(Dispatchers.Main) {
-                    result.success(stats?.toChannelMap())
+                    result.success(wrapped.value?.toChannelMap())
                 }
             } catch (e: SecurityException) {
                 withContext(Dispatchers.Main) {
@@ -167,7 +194,20 @@ class UsageStatsMethodHandler(
 
         scope.launch {
             try {
-                val events = usageEventsRepository.queryUsageEvents(startTimeMs, endTimeMs, eventTypes)
+                val events = withTimeoutOrNull(30_000L) {
+                    usageEventsRepository.queryUsageEvents(startTimeMs, endTimeMs, eventTypes)
+                }
+                if (events == null) {
+                    withContext(Dispatchers.Main) {
+                        PluginErrorHelper.internalFailure(
+                            result = result,
+                            feature = FEATURE,
+                            action = MethodNames.QUERY_USAGE_EVENTS,
+                            message = "Operation timed out",
+                        )
+                    }
+                    return@launch
+                }
                 withContext(Dispatchers.Main) {
                     result.success(events.map { it.toChannelMap() })
                 }
@@ -207,7 +247,20 @@ class UsageStatsMethodHandler(
 
         scope.launch {
             try {
-                val stats = deviceEventStatsRepository.queryEventStats(intervalType, startTimeMs, endTimeMs)
+                val stats = withTimeoutOrNull(30_000L) {
+                    deviceEventStatsRepository.queryEventStats(intervalType, startTimeMs, endTimeMs)
+                }
+                if (stats == null) {
+                    withContext(Dispatchers.Main) {
+                        PluginErrorHelper.internalFailure(
+                            result = result,
+                            feature = FEATURE,
+                            action = MethodNames.QUERY_EVENT_STATS,
+                            message = "Operation timed out",
+                        )
+                    }
+                    return@launch
+                }
                 withContext(Dispatchers.Main) {
                     result.success(stats.map { it.toChannelMap() })
                 }
@@ -245,7 +298,20 @@ class UsageStatsMethodHandler(
 
         scope.launch {
             try {
-                val inactive = appStatusRepository.isAppInactive(packageId)
+                val inactive = withTimeoutOrNull(30_000L) {
+                    appStatusRepository.isAppInactive(packageId)
+                }
+                if (inactive == null) {
+                    withContext(Dispatchers.Main) {
+                        PluginErrorHelper.internalFailure(
+                            result = result,
+                            feature = FEATURE,
+                            action = MethodNames.IS_APP_INACTIVE,
+                            message = "Operation timed out",
+                        )
+                    }
+                    return@launch
+                }
                 withContext(Dispatchers.Main) {
                     result.success(inactive)
                 }
@@ -270,7 +336,20 @@ class UsageStatsMethodHandler(
     private fun handleGetAppStandbyBucket(result: Result) {
         scope.launch {
             try {
-                val bucket = appStatusRepository.getAppStandbyBucket()
+                val bucket = withTimeoutOrNull(30_000L) {
+                    appStatusRepository.getAppStandbyBucket()
+                }
+                if (bucket == null) {
+                    withContext(Dispatchers.Main) {
+                        PluginErrorHelper.internalFailure(
+                            result = result,
+                            feature = FEATURE,
+                            action = MethodNames.GET_APP_STANDBY_BUCKET,
+                            message = "Operation timed out",
+                        )
+                    }
+                    return@launch
+                }
                 withContext(Dispatchers.Main) {
                     result.success(bucket.rawValue)
                 }
@@ -296,6 +375,9 @@ class UsageStatsMethodHandler(
     // ============================================================
     // Helpers
     // ============================================================
+
+    /** Wrapper to distinguish a genuine `null` result from a timeout `null`. */
+    private data class Optional<T>(val value: T)
 
     private fun reportMissingUsageStatsPermission(result: Result, action: String) {
         PluginErrorHelper.missingPermission(

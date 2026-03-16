@@ -93,7 +93,10 @@ class ShieldConfiguration {
     final argb = switch (value) {
       final int v => v,
       final num v => v.toInt(),
-      _ => 0xFF000000,
+      _ => () {
+        assert(value == null, 'Expected int/num for color ARGB32, got ${value.runtimeType}');
+        return 0xFF000000;
+      }(),
     };
     return Color(argb);
   }

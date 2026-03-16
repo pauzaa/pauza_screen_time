@@ -177,7 +177,7 @@ final class RestrictionsMethodHandler {
         }
         let durationMs: Int64?
         if let rawDuration = args["durationMs"] {
-            guard let parsedDurationMs = parseStartSessionDurationMs(rawValue: rawDuration, result: result) else {
+            guard let parsedDurationMs = parseDurationMs(rawValue: rawDuration, action: MethodNames.startSession, label: "Session", result: result) else {
                 return
             }
             durationMs = parsedDurationMs
@@ -207,7 +207,7 @@ final class RestrictionsMethodHandler {
         let args = call.arguments as? [String: Any]
         let durationMs: Int64?
         if let rawDuration = args?["durationMs"] {
-            guard let parsedDurationMs = parseEndSessionDurationMs(rawValue: rawDuration, result: result) else {
+            guard let parsedDurationMs = parseDurationMs(rawValue: rawDuration, action: MethodNames.endSession, label: "Session end", result: result) else {
                 return
             }
             durationMs = parsedDurationMs
@@ -269,7 +269,19 @@ final class RestrictionsMethodHandler {
             return
         }
         lifecycleQueue.async {
-            let error = LifecycleEventsUseCase.ackLifecycleEvents(throughEventId: throughEventId)
+            let ackResult = RestrictionStateStore.ackLifecycleEvents(throughEventId: throughEventId)
+            let error: FlutterError?
+            switch ackResult {
+            case .success:
+                error = nil
+            case .appGroupUnavailable(let resolvedGroupId):
+                error = PluginErrors.internalFailure(
+                    feature: Self.featureRestrictions,
+                    action: MethodNames.ackLifecycleEvents,
+                    message: PluginErrorMessage.appGroupUnavailable,
+                    diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                )
+            }
             DispatchQueue.main.async {
                 if let error {
                     result(error)
@@ -468,11 +480,11 @@ final class RestrictionsMethodHandler {
         return true
     }
 
-    private func parseStartSessionDurationMs(rawValue: Any, result: @escaping FlutterResult) -> Int64? {
+    private func parseDurationMs(rawValue: Any, action: String, label: String, result: @escaping FlutterResult) -> Int64? {
         guard let durationValue = rawValue as? NSNumber else {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.startSession,
+                action: action,
                 message: "Missing or invalid 'durationMs' argument"
             ))
             return nil
@@ -481,7 +493,7 @@ final class RestrictionsMethodHandler {
         if durationMs <= 0 {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.startSession,
+                action: action,
                 message: "Missing or invalid 'durationMs' argument"
             ))
             return nil
@@ -489,37 +501,8 @@ final class RestrictionsMethodHandler {
         if durationMs >= PlatformConstants.maxReliablePauseDurationMs {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.startSession,
-                message: "Session duration must be less than 24 hours on iOS"
-            ))
-            return nil
-        }
-        return durationMs
-    }
-
-    private func parseEndSessionDurationMs(rawValue: Any, result: @escaping FlutterResult) -> Int64? {
-        guard let durationValue = rawValue as? NSNumber else {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.endSession,
-                message: "Missing or invalid 'durationMs' argument"
-            ))
-            return nil
-        }
-        let durationMs = durationValue.int64Value
-        if durationMs <= 0 {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.endSession,
-                message: "Missing or invalid 'durationMs' argument"
-            ))
-            return nil
-        }
-        if durationMs >= PlatformConstants.maxReliablePauseDurationMs {
-            result(PluginErrors.invalidArguments(
-                feature: Self.featureRestrictions,
-                action: MethodNames.endSession,
-                message: "Session end duration must be less than 24 hours on iOS"
+                action: action,
+                message: "\(label) duration must be less than 24 hours on iOS"
             ))
             return nil
         }

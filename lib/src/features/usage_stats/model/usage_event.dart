@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:pauza_screen_time/src/core/map_helpers.dart' as helpers;
 
 /// Represents a single raw usage event from Android's UsageEvents API.
 ///
@@ -25,10 +26,10 @@ class UsageEvent {
   /// Constructs a [UsageEvent] from the map returned by the method channel.
   factory UsageEvent.fromMap(Map<String, dynamic> map) {
     return UsageEvent(
-      timestamp: DateTime.fromMillisecondsSinceEpoch(_asInt(map['timestampMs'])),
+      timestamp: DateTime.fromMillisecondsSinceEpoch(helpers.asInt(map['timestampMs'])),
       packageName: map['packageName'] as String,
       className: map['className'] as String?,
-      eventType: UsageEventType.fromRawValue(_asInt(map['eventType'])),
+      eventType: UsageEventType.fromRawValue(helpers.asInt(map['eventType'])),
     );
   }
 
@@ -57,13 +58,6 @@ class UsageEvent {
 
   @override
   String toString() => 'UsageEvent(timestamp: $timestamp, package: $packageName, type: $eventType)';
-
-  /// Safe numeric-to-int cast for platform channel payloads.
-  static int _asInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    throw ArgumentError.value(value, 'value', 'Expected a numeric type, got ${value.runtimeType}');
-  }
 }
 
 /// Event types from [Android's UsageEvents.Event](https://developer.android.com/reference/android/app/usage/UsageEvents.Event).

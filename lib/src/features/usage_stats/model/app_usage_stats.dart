@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:pauza_screen_time/src/core/app_identifier.dart';
+import 'package:pauza_screen_time/src/core/map_helpers.dart' as helpers;
 import 'package:pauza_screen_time/src/features/installed_apps/model/app_info.dart';
 
 /// Usage statistics for an application over a time period.
@@ -60,8 +61,8 @@ class UsageStats {
         category: map['category'] as String?,
         isSystemApp: map['isSystemApp'] as bool? ?? false,
       ),
-      totalDuration: Duration(milliseconds: _asInt(map['totalDurationMs'])),
-      totalLaunchCount: _asInt(map['totalLaunchCount']),
+      totalDuration: Duration(milliseconds: helpers.asInt(map['totalDurationMs'])),
+      totalLaunchCount: helpers.asInt(map['totalLaunchCount']),
       bucketStart: _optionalDateTime(map['bucketStartMs'] ?? map['firstTimeStampMs']),
       bucketEnd: _optionalDateTime(map['bucketEndMs'] ?? map['lastTimeStampMs']),
       lastTimeUsed: _optionalDateTime(map['lastTimeUsedMs']),
@@ -90,17 +91,9 @@ class UsageStats {
   // Private helpers
   // ============================================================
 
-  /// Safe numeric-to-int cast. The Flutter platform channel may deliver
-  /// 64-bit integers as [int] on Android but as [num] in some edge cases.
-  static int _asInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    throw ArgumentError.value(value, 'value', 'Expected a numeric type, got ${value.runtimeType}');
-  }
-
   static DateTime? _optionalDateTime(dynamic ms) {
     if (ms == null) return null;
-    return DateTime.fromMillisecondsSinceEpoch(_asInt(ms));
+    return DateTime.fromMillisecondsSinceEpoch(helpers.asInt(ms));
   }
 
   @override

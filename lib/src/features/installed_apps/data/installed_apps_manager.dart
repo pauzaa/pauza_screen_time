@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/services.dart';
 import 'package:pauza_screen_time/src/core/core.dart';
 import 'package:pauza_screen_time/src/features/installed_apps/installed_apps_platform.dart';
@@ -28,12 +26,7 @@ class InstalledAppsManager {
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    if (!Platform.isAndroid) {
-      throw const PauzaUnsupportedError(
-        message: 'getAndroidInstalledApps is only available on Android',
-        rawCode: 'UNSUPPORTED',
-      );
-    }
+    assertAndroid('getAndroidInstalledApps');
 
     final result = await _platform
         .getInstalledApps(includeSystemApps, includeIcons: includeIcons, cancelToken: cancelToken, timeout: timeout)
@@ -66,12 +59,7 @@ class InstalledAppsManager {
     CancelToken? cancelToken,
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    if (!Platform.isAndroid) {
-      throw const PauzaUnsupportedError(
-        message: 'getAndroidAppInfo is only available on Android',
-        rawCode: 'UNSUPPORTED',
-      );
-    }
+    assertAndroid('getAndroidAppInfo');
 
     final result = await _platform
         .getAppInfo(packageId.raw, includeIcons: includeIcons, cancelToken: cancelToken, timeout: timeout)
@@ -96,12 +84,7 @@ class InstalledAppsManager {
   /// [packageId] - Package identifier of the app.
   /// Returns true if the app is installed, false otherwise.
   Future<bool> isAndroidAppInstalled(AppIdentifier packageId) async {
-    if (!Platform.isAndroid) {
-      throw const PauzaUnsupportedError(
-        message: 'isAndroidAppInstalled is only available on Android',
-        rawCode: 'UNSUPPORTED',
-      );
-    }
+    assertAndroid('isAndroidAppInstalled');
 
     final appInfo = await getAndroidAppInfo(packageId);
     return appInfo != null;
@@ -124,9 +107,7 @@ class InstalledAppsManager {
   /// iOS does not allow enumerating installed apps. Persist these tokens yourself
   /// if you want to re-open the picker with a previous selection.
   Future<List<IOSAppInfo>> selectIOSApps({List<IOSAppInfo>? preSelectedApps}) async {
-    if (!Platform.isIOS) {
-      throw const PauzaUnsupportedError(message: 'selectIOSApps is only available on iOS', rawCode: 'UNSUPPORTED');
-    }
+    assertIOS('selectIOSApps');
 
     // Extract tokens from pre-selected apps
     final preSelectedTokens = preSelectedApps?.map((app) => app.applicationToken.raw).toList();

@@ -2,7 +2,8 @@
 enum RestrictionModeSource {
   none('none'),
   manual('manual'),
-  schedule('schedule');
+  schedule('schedule'),
+  unknown('unknown');
 
   const RestrictionModeSource(this.wireValue);
 
@@ -10,11 +11,11 @@ enum RestrictionModeSource {
   final String wireValue;
 
   /// Parses from the wire string representation.
-  /// Throws [ArgumentError] for unknown values.
+  /// Returns [unknown] for unrecognised values (forward compatibility).
   static RestrictionModeSource fromWire(String raw) => switch (raw) {
     'none' => RestrictionModeSource.none,
     'manual' => RestrictionModeSource.manual,
     'schedule' => RestrictionModeSource.schedule,
-    _ => throw ArgumentError.value(raw, 'activeModeSource', 'Unsupported mode source'),
+    _ => RestrictionModeSource.unknown,
   };
 }

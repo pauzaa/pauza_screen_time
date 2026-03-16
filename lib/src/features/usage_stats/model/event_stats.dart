@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:pauza_screen_time/src/core/map_helpers.dart' as helpers;
 import 'package:pauza_screen_time/src/features/usage_stats/model/usage_event.dart';
 
 /// Aggregated event statistics for a device-level event type over a time period.
@@ -46,12 +47,12 @@ class DeviceEventStats {
   /// Constructs a [DeviceEventStats] from the map returned by the method channel.
   factory DeviceEventStats.fromMap(Map<String, dynamic> map) {
     return DeviceEventStats(
-      eventType: UsageEventType.fromRawValue(_asInt(map['eventType'])),
-      count: _asInt(map['count']),
-      totalTime: Duration(milliseconds: _asInt(map['totalTimeMs'])),
-      firstTimestamp: DateTime.fromMillisecondsSinceEpoch(_asInt(map['firstTimestampMs'])),
-      lastTimestamp: DateTime.fromMillisecondsSinceEpoch(_asInt(map['lastTimestampMs'])),
-      lastEventTime: DateTime.fromMillisecondsSinceEpoch(_asInt(map['lastEventTimeMs'])),
+      eventType: UsageEventType.fromRawValue(helpers.asInt(map['eventType'])),
+      count: helpers.asInt(map['count']),
+      totalTime: Duration(milliseconds: helpers.asInt(map['totalTimeMs'])),
+      firstTimestamp: DateTime.fromMillisecondsSinceEpoch(helpers.asInt(map['firstTimestampMs'])),
+      lastTimestamp: DateTime.fromMillisecondsSinceEpoch(helpers.asInt(map['lastTimestampMs'])),
+      lastEventTime: DateTime.fromMillisecondsSinceEpoch(helpers.asInt(map['lastEventTimeMs'])),
     );
   }
 
@@ -81,11 +82,4 @@ class DeviceEventStats {
 
   @override
   String toString() => 'DeviceEventStats(eventType: $eventType, count: $count, totalTime: $totalTime)';
-
-  /// Safe numeric-to-int cast for platform channel payloads.
-  static int _asInt(dynamic value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    throw ArgumentError.value(value, 'value', 'Expected a numeric type, got ${value.runtimeType}');
-  }
 }
