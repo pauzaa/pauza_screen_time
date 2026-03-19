@@ -28,6 +28,7 @@ object LockVisibilityState {
         val isLockVisible: Boolean = false,
         val currentBlockedPackage: String? = null,
         val lastLaunchTimestamp: Long = 0L,
+        val isActivityStopped: Boolean = false,
     )
 
     private val state = AtomicReference(Snapshot())
@@ -55,12 +56,16 @@ object LockVisibilityState {
 
     /** Called from [LockActivity.onCreate] / [LockActivity.onResume]. */
     fun markVisible(packageId: String) {
-        state.updateAndGet { it.copy(isLockVisible = true, currentBlockedPackage = packageId) }
+        state.updateAndGet {
+            it.copy(isLockVisible = true, currentBlockedPackage = packageId, isActivityStopped = false)
+        }
     }
 
     /** Called from [LockActivity.onDestroy] and [LockActivity.finishAndGoHome]. */
     fun markHidden() {
-        state.updateAndGet { it.copy(isLockVisible = false, currentBlockedPackage = null) }
+        state.updateAndGet {
+            it.copy(isLockVisible = false, currentBlockedPackage = null, isActivityStopped = false)
+        }
     }
 
     /** Called immediately after [startActivity] for the lock intent. */
@@ -104,8 +109,14 @@ object LockVisibilityState {
      */
     fun isWithinLaunchGracePeriod(gracePeriodMs: Long): Boolean {
         val snap = state.get()
+        if (snap.isActivityStopped) return false
         return snap.isLockVisible &&
             (System.currentTimeMillis() - snap.lastLaunchTimestamp) < gracePeriodMs
+    }
+
+    /** Called from [LockActivity.onStop] to signal the activity has been stopped (e.g. HOME press). */
+    fun markStopped() {
+        state.updateAndGet { it.copy(isActivityStopped = true) }
     }
 
     /**

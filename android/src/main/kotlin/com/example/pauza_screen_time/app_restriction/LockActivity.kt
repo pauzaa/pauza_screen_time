@@ -3,6 +3,8 @@ package com.example.pauza_screen_time.app_restriction
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -38,7 +40,12 @@ class LockActivity : ComponentActivity() {
 
         /** Minimum interval between self-relaunch attempts from [onStop]. */
         private const val RELAUNCH_THROTTLE_MS = 1_000L
+
+        /** Delay before self-relaunch to allow accessibility service to dismiss if needed. */
+        private const val RELAUNCH_DELAY_MS = 400L
     }
+
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
 
     private var blockedPackageId: String? = null
 
@@ -123,36 +130,44 @@ class LockActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        // If we're not finishing (e.g. notification shade pulled down), re-launch
-        // self to force back to foreground. This prevents bypass via notifications.
-        // Throttle to prevent infinite relaunch loops.
+        // If we're not finishing (e.g. notification shade pulled down), schedule a
+        // delayed self re-launch. The delay allows the accessibility service to detect
+        // the launcher (HOME press) and dismiss the lock before we relaunch.
         if (!isFinishing) {
+            LockVisibilityState.markStopped()
             val now = System.currentTimeMillis()
             if (now - lastRelaunchTimestamp < RELAUNCH_THROTTLE_MS) {
                 Log.d(TAG, "onStop: relaunch throttled (too recent)")
                 return
             }
             lastRelaunchTimestamp = now
-            Log.d(TAG, "onStop without finishing — scheduling self re-launch")
-            val relaunchIntent = Intent(this, LockActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_NO_ANIMATION
-                putExtra(EXTRA_BLOCKED_PACKAGE, blockedPackageId)
-            }
-            try {
-                startActivity(relaunchIntent)
-            } catch (e: Exception) {
-                Log.w(
-                    TAG,
-                    "Failed to re-launch self from onStop " +
-                        "(API ${Build.VERSION.SDK_INT}, ${e.javaClass.simpleName}: ${e.message})",
-                )
-            }
+            Log.d(TAG, "onStop without finishing — scheduling delayed self re-launch")
+            mainHandler.postDelayed({
+                if (isFinishing || !LockVisibilityState.isLockVisible) {
+                    Log.d(TAG, "onStop: lock dismissed or finishing; skipping relaunch")
+                    return@postDelayed
+                }
+                val relaunchIntent = Intent(this, LockActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_NO_ANIMATION
+                    putExtra(EXTRA_BLOCKED_PACKAGE, blockedPackageId)
+                }
+                try {
+                    startActivity(relaunchIntent)
+                } catch (e: Exception) {
+                    Log.w(
+                        TAG,
+                        "Failed to re-launch self from onStop " +
+                            "(API ${Build.VERSION.SDK_INT}, ${e.javaClass.simpleName}: ${e.message})",
+                    )
+                }
+            }, RELAUNCH_DELAY_MS)
         }
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacksAndMessages(null)
         super.onDestroy()
         LockVisibilityState.onDismissRequest = null
         // markHidden is idempotent — safe even if finishAndGoHome already called it.
