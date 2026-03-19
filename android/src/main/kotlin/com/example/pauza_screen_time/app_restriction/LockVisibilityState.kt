@@ -98,6 +98,17 @@ object LockVisibilityState {
     }
 
     /**
+     * Returns `true` when the lock is visible and was launched within the given
+     * [gracePeriodMs]. Used to prevent launcher-detection from dismissing the
+     * lock during task-transition flicker.
+     */
+    fun isWithinLaunchGracePeriod(gracePeriodMs: Long): Boolean {
+        val snap = state.get()
+        return snap.isLockVisible &&
+            (System.currentTimeMillis() - snap.lastLaunchTimestamp) < gracePeriodMs
+    }
+
+    /**
      * Resets all state. Intended for testing only.
      */
     internal fun reset() {

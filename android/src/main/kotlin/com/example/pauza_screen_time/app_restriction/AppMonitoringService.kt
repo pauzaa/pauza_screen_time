@@ -17,7 +17,8 @@ class AppMonitoringService : AccessibilityService() {
     companion object {
         private const val TAG = "AppMonitoringService"
         private const val EVENT_DEBOUNCE_MS = 500L
-        private const val LOCK_LAUNCH_THROTTLE_MS = 800L
+        private const val LOCK_LAUNCH_THROTTLE_MS = 500L
+        private const val LOCK_LAUNCH_GRACE_PERIOD_MS = 1500L
         private const val MONITORING_EVENT_TYPES =
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED or AccessibilityEvent.TYPE_WINDOWS_CHANGED
         private const val MONITORING_FLAGS =
@@ -91,7 +92,10 @@ class AppMonitoringService : AccessibilityService() {
         if (now - lastEventTimestamp < EVENT_DEBOUNCE_MS) return
         lastEventTimestamp = now
 
-        if (packageName == lastForegroundPackage) return
+        if (packageName == lastForegroundPackage) {
+            val snap = LockVisibilityState.snapshot()
+            if (snap.isLockVisible && snap.currentBlockedPackage == packageName) return
+        }
 
         evaluateForegroundPackage(packageName, trigger = "accessibility_event")
     }
@@ -205,17 +209,7 @@ class AppMonitoringService : AccessibilityService() {
             return
         }
 
-        // Step 1: Send user HOME
-        val homeSuccess = performGlobalAction(GLOBAL_ACTION_HOME)
-        Log.d(TAG, "GLOBAL_ACTION_HOME result=$homeSuccess")
-
-        // Step 2: Launch LockActivity immediately (don't wait for HOME)
         launchLockActivity(packageName)
-
-        // Step 3: Fallback BACK action if HOME failed
-        if (!homeSuccess) {
-            performGlobalAction(GLOBAL_ACTION_BACK)
-        }
     }
 
     private fun launchLockActivity(packageId: String) {
@@ -246,7 +240,10 @@ class AppMonitoringService : AccessibilityService() {
         }
 
         if (isLauncherPackage(packageName)) {
-            // User is on home screen -- dismiss lock if visible
+            if (LockVisibilityState.isWithinLaunchGracePeriod(LOCK_LAUNCH_GRACE_PERIOD_MS)) {
+                Log.d(TAG, "Launcher detected within grace period; keeping lock visible")
+                return
+            }
             dismissLockIfVisible()
             return
         }

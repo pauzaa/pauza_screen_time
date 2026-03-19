@@ -135,7 +135,9 @@ class LockActivity : ComponentActivity() {
             lastRelaunchTimestamp = now
             Log.d(TAG, "onStop without finishing — scheduling self re-launch")
             val relaunchIntent = Intent(this, LockActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_NO_ANIMATION
                 putExtra(EXTRA_BLOCKED_PACKAGE, blockedPackageId)
             }
             try {
