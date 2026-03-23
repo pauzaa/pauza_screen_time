@@ -25,7 +25,7 @@ object MethodNames {
     const val CONFIGURE_SHIELD = "configureShield"
     const val UPSERT_MODE = "upsertMode"
     const val REMOVE_MODE = "removeMode"
-    const val SET_MODES_ENABLED = "setModesEnabled"
+    const val SET_SCHEDULE_ENFORCEMENT_ENABLED = "setScheduleEnforcementEnabled"
     const val GET_MODES_CONFIG = "getModesConfig"
     const val IS_RESTRICTION_SESSION_ACTIVE_NOW = "isRestrictionSessionActiveNow"
     const val PAUSE_ENFORCEMENT = "pauseEnforcement"

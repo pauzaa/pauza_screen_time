@@ -21,7 +21,7 @@ internal class RestrictionsMethodHandlerPreflightTest {
 
         val methods = listOf(
             MethodNames.UPSERT_MODE,
-            MethodNames.SET_MODES_ENABLED,
+            MethodNames.SET_SCHEDULE_ENFORCEMENT_ENABLED,
             MethodNames.START_SESSION,
             MethodNames.PAUSE_ENFORCEMENT,
             MethodNames.RESUME_ENFORCEMENT,
@@ -45,7 +45,7 @@ internal class RestrictionsMethodHandlerPreflightTest {
     }
 
     @Test
-    fun setModesEnabled_reachesValidationWhenAccessibilityIsGranted() {
+    fun setScheduleEnforcementEnabled_reachesValidationWhenAccessibilityIsGranted() {
         val context = Mockito.mock(Context::class.java)
         val handler = RestrictionsMethodHandler(
             contextProvider = { context },
@@ -53,11 +53,11 @@ internal class RestrictionsMethodHandlerPreflightTest {
         )
 
         val result = RecordingResult()
-        handler.onMethodCall(MethodCall(MethodNames.SET_MODES_ENABLED, emptyMap<String, Any?>()), result)
+        handler.onMethodCall(MethodCall(MethodNames.SET_SCHEDULE_ENFORCEMENT_ENABLED, emptyMap<String, Any?>()), result)
 
         assertEquals("INVALID_ARGUMENT", result.errorCode)
         val details = assertIs<Map<*, *>>(result.errorDetails)
-        assertEquals(MethodNames.SET_MODES_ENABLED, details["action"])
+        assertEquals(MethodNames.SET_SCHEDULE_ENFORCEMENT_ENABLED, details["action"])
         assertEquals(0, result.successCalls)
     }
 }

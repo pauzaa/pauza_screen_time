@@ -29,8 +29,8 @@ class AppRestrictionManager {
   }
 
   /// Enables or disables schedule-based mode enforcement globally.
-  Future<void> setModesEnabled(bool enabled) {
-    return _platform.setModesEnabled(enabled).throwTypedPauzaError();
+  Future<void> setScheduleEnforcementEnabled(bool enabled) {
+    return _platform.setScheduleEnforcementEnabled(enabled).throwTypedPauzaError();
   }
 
   /// Loads modes configuration.

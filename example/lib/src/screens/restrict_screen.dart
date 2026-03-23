@@ -132,7 +132,7 @@ class _RestrictScreenState extends State<RestrictScreen> {
         blockedAppIds: selected.toList(),
       );
       await widget.deps.appRestrictionManager.upsertMode(mode);
-      await widget.deps.appRestrictionManager.setModesEnabled(true);
+      await widget.deps.appRestrictionManager.setScheduleEnforcementEnabled(true);
       final applied = mode.blockedAppIds;
 
       widget.deps.logController.info(

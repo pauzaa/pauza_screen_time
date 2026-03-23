@@ -39,7 +39,7 @@ class RestrictionsMethodHandler(
                 MethodNames.CONFIGURE_SHIELD -> handleConfigureShield(call, result)
                 MethodNames.UPSERT_MODE -> handleUpsertMode(call, result)
                 MethodNames.REMOVE_MODE -> handleRemoveMode(call, result)
-                MethodNames.SET_MODES_ENABLED -> handleSetModesEnabled(call, result)
+                MethodNames.SET_SCHEDULE_ENFORCEMENT_ENABLED -> handleSetScheduleEnforcementEnabled(call, result)
                 MethodNames.GET_MODES_CONFIG -> handleGetModesConfig(result)
                 MethodNames.IS_RESTRICTION_SESSION_ACTIVE_NOW -> handleIsRestrictionSessionActiveNow(result)
                 MethodNames.PAUSE_ENFORCEMENT -> handlePauseEnforcement(call, result)
@@ -126,19 +126,19 @@ class RestrictionsMethodHandler(
         }
     }
 
-    private fun handleSetModesEnabled(call: MethodCall, result: Result) {
-        val context = contextProvider() ?: return noContext(result, MethodNames.SET_MODES_ENABLED)
-        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.SET_MODES_ENABLED, result)) return
+    private fun handleSetScheduleEnforcementEnabled(call: MethodCall, result: Result) {
+        val context = contextProvider() ?: return noContext(result, MethodNames.SET_SCHEDULE_ENFORCEMENT_ENABLED)
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.SET_SCHEDULE_ENFORCEMENT_ENABLED, result)) return
         val enabled = (call.arguments as? Map<*, *>)?.get("enabled") as? Boolean
         if (enabled == null) {
-            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.SET_MODES_ENABLED, "Missing or invalid 'enabled' argument")
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.SET_SCHEDULE_ENFORCEMENT_ENABLED, "Missing or invalid 'enabled' argument")
             return
         }
         try {
-            ManageModesUseCase(context).setModesEnabled(enabled)
+            ManageModesUseCase(context).setScheduleEnforcementEnabled(enabled)
             result.success(null)
         } catch (e: Exception) {
-            internalFailure(result, MethodNames.SET_MODES_ENABLED, "Failed to update modes toggle", e)
+            internalFailure(result, MethodNames.SET_SCHEDULE_ENFORCEMENT_ENABLED, "Failed to update schedule enforcement toggle", e)
         }
     }
 

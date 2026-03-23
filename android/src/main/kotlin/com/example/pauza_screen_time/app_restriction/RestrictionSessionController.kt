@@ -119,7 +119,7 @@ internal class RestrictionSessionController(
         if (activeSession != null) {
             if (activeSession.source == RestrictionModeSource.MANUAL) {
                 return SessionState(
-                    isScheduleEnabled = modesConfig.enabled,
+                    isScheduleEnabled = modesConfig.scheduleEnforcementEnabled,
                     isInScheduleNow = scheduleResolution.isInScheduleNow,
                     blockedAppIds = activeSession.blockedAppIds,
                     activeModeId = activeSession.modeId,
@@ -132,7 +132,7 @@ internal class RestrictionSessionController(
                 activeSession.modeId == scheduleResolution.activeModeId
             ) {
                 return SessionState(
-                    isScheduleEnabled = modesConfig.enabled,
+                    isScheduleEnabled = modesConfig.scheduleEnforcementEnabled,
                     isInScheduleNow = true,
                     blockedAppIds = activeSession.blockedAppIds,
                     activeModeId = activeSession.modeId,
@@ -153,7 +153,7 @@ internal class RestrictionSessionController(
                 )
             }
             return SessionState(
-                isScheduleEnabled = modesConfig.enabled,
+                isScheduleEnabled = modesConfig.scheduleEnforcementEnabled,
                 isInScheduleNow = true,
                 blockedAppIds = scheduleResolution.blockedAppIds,
                 activeModeId = scheduleResolution.activeModeId,
@@ -164,7 +164,7 @@ internal class RestrictionSessionController(
 
         if (scheduleResolution.isInScheduleNow && shouldSuppressCurrentMode) {
             return SessionState(
-                isScheduleEnabled = modesConfig.enabled,
+                isScheduleEnabled = modesConfig.scheduleEnforcementEnabled,
                 isInScheduleNow = true,
                 blockedAppIds = emptyList(),
                 activeModeId = null,
@@ -174,7 +174,7 @@ internal class RestrictionSessionController(
         }
 
         return SessionState(
-            isScheduleEnabled = modesConfig.enabled,
+            isScheduleEnabled = modesConfig.scheduleEnforcementEnabled,
             isInScheduleNow = false,
             blockedAppIds = emptyList(),
             activeModeId = null,

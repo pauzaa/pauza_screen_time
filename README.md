@@ -72,7 +72,7 @@ await restrictions.upsertMode(
     blockedAppIds: blocked,
   ),
 );
-await restrictions.setModesEnabled(true);
+await restrictions.setScheduleEnforcementEnabled(true);
 await restrictions.startSession(
   RestrictionMode(
     modeId: 'focus-mode',
@@ -110,7 +110,7 @@ final session = await restrictions.getRestrictionSession();
 ## Breaking API map (mode redesign)
 
 - `restrictApps` / `restrictApp` / `unrestrictApp` / `clearAllRestrictions` -> `upsertMode` + `removeMode`
-- `upsertScheduledMode` / `removeScheduledMode` / `setScheduledModesEnabled` / `getScheduledModesConfig` -> `upsertMode` / `removeMode` / `setModesEnabled` / `getModesConfig`
+- `upsertScheduledMode` / `removeScheduledMode` / `setScheduledModesEnabled` / `getScheduledModesConfig` -> `upsertMode` / `removeMode` / `setScheduleEnforcementEnabled` / `getModesConfig`
 - `startRestrictionSession` / `endRestrictionSession` -> `startSession(mode, {duration})` / `endSession({duration})`
 
 ## Session payload

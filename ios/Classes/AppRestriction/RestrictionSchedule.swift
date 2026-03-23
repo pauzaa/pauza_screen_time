@@ -220,12 +220,12 @@ struct RestrictionScheduledMode {
 }
 
 struct RestrictionScheduledModesConfig {
-    let enabled: Bool
+    let scheduleEnforcementEnabled: Bool
     let modes: [RestrictionScheduledMode]
 
     func toChannelMap() -> [String: Any] {
         return [
-            "enabled": enabled,
+            "scheduleEnforcementEnabled": scheduleEnforcementEnabled,
             "modes": modes.map { $0.toChannelMap() },
         ]
     }
@@ -272,7 +272,7 @@ enum RestrictionScheduledModeEvaluator {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Resolution {
-        guard config.enabled else {
+        guard config.scheduleEnforcementEnabled else {
             return Resolution(
                 isInScheduleNow: false,
                 activeModeId: nil,

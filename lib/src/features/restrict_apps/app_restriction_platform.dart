@@ -27,8 +27,8 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
   }
 
   /// Enables or disables schedule-based mode enforcement globally.
-  Future<void> setModesEnabled(bool enabled) {
-    throw UnimplementedError('setModesEnabled() has not been implemented.');
+  Future<void> setScheduleEnforcementEnabled(bool enabled) {
+    throw UnimplementedError('setScheduleEnforcementEnabled() has not been implemented.');
   }
 
   /// Returns the currently stored modes config.

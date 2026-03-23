@@ -65,7 +65,7 @@ await restrictions.upsertMode(
     blockedAppIds: blocked,
   ),
 );
-await restrictions.setModesEnabled(true);
+await restrictions.setScheduleEnforcementEnabled(true);
 ```
 
 3. Start session:
@@ -136,7 +136,7 @@ await restrictions.upsertMode(
     blockedAppIds: blocked,
   ),
 );
-await restrictions.setModesEnabled(true);
+await restrictions.setScheduleEnforcementEnabled(true);
 ```
 
 4. Pause and resume:

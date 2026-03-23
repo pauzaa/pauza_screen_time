@@ -47,7 +47,7 @@ layers are treated as `INTERNAL_FAILURE` and surfaced as typed
 
 For restrictions, enforcement mutation APIs preflight permissions and fail fast:
 - `upsertMode(...)`
-- `setModesEnabled(...)`
+- `setScheduleEnforcementEnabled(...)`
 - `startSession(...)`
 - `pauseEnforcement(...)`
 - `resumeEnforcement()`

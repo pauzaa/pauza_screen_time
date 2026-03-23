@@ -8,7 +8,7 @@ void main() {
   group('RestrictionModesConfig', () {
     test('is valid for non-overlapping scheduled modes', () {
       const config = RestrictionModesConfig(
-        enabled: true,
+        scheduleEnforcementEnabled: true,
         modes: [
           RestrictionMode(
             modeId: 'mode_a',
@@ -28,7 +28,7 @@ void main() {
 
     test('rejects overlapping schedules across modes', () {
       const config = RestrictionModesConfig(
-        enabled: true,
+        scheduleEnforcementEnabled: true,
         modes: [
           RestrictionMode(
             modeId: 'mode_a',
@@ -48,7 +48,7 @@ void main() {
 
     test('allows non-scheduled mode alongside scheduled mode', () {
       const config = RestrictionModesConfig(
-        enabled: true,
+        scheduleEnforcementEnabled: true,
         modes: [
           RestrictionMode(modeId: 'manual_only', blockedAppIds: [AppIdentifier('com.example.manual')]),
           RestrictionMode(
@@ -64,7 +64,7 @@ void main() {
 
     test('serializes and parses mode config', () {
       const config = RestrictionModesConfig(
-        enabled: true,
+        scheduleEnforcementEnabled: true,
         modes: [
           RestrictionMode(
             modeId: 'focus',
@@ -75,7 +75,7 @@ void main() {
       );
 
       final roundTrip = RestrictionModesConfig.fromMap(config.toMap());
-      expect(roundTrip.enabled, isTrue);
+      expect(roundTrip.scheduleEnforcementEnabled, isTrue);
       expect(roundTrip.modes, hasLength(1));
       expect(roundTrip.modes.first.modeId, 'focus');
       expect(roundTrip.modes.first.blockedAppIds.first.value, 'com.example.app');

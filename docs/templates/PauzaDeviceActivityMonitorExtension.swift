@@ -12,7 +12,7 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
     private let appGroupInfoPlistKey = "AppGroupIdentifier"
     private let pausedUntilEpochMsKey = "pausedUntilEpochMs"
     private let activeSessionKey = "activeSession"
-    private let modesEnabledKey = "modesEnabled"
+    private let scheduleEnforcementEnabledKey = "scheduleEnforcementEnabled"
     private let modesKey = "modes"
     private let lifecycleEventsKey = "lifecycleEvents"
     private let lifecycleEventSeqKey = "lifecycleEventSeq"
@@ -145,7 +145,7 @@ final class PauzaDeviceActivityMonitorExtension: DeviceActivityMonitor {
         guard rawName.hasPrefix(scheduleActivityPrefix) else {
             return nil
         }
-        guard defaults.bool(forKey: modesEnabledKey) else {
+        guard defaults.bool(forKey: scheduleEnforcementEnabledKey) else {
             return nil
         }
 

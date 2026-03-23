@@ -23,7 +23,7 @@ Restriction prerequisites are not satisfied. For Android restrictions, this mean
 
 Affected methods:
 - `upsertMode(...)`
-- `setModesEnabled(...)`
+- `setScheduleEnforcementEnabled(...)`
 - `startSession(...)`
 - `pauseEnforcement(...)`
 - `resumeEnforcement()`
@@ -125,7 +125,7 @@ Screen Time authorization has not been granted yet (`notDetermined`).
 
 Affected methods:
 - `upsertMode(...)`
-- `setModesEnabled(...)`
+- `setScheduleEnforcementEnabled(...)`
 - `startSession(...)`
 - `pauseEnforcement(...)`
 - `resumeEnforcement()`

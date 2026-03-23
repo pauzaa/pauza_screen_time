@@ -172,7 +172,7 @@ internal class RestrictionAlarmOrchestrator(
 
         val modesConfig = modesStore.getConfig()
         val config = RestrictionScheduleConfig(
-            enabled = modesConfig.enabled,
+            enabled = modesConfig.scheduleEnforcementEnabled,
             schedules = modesConfig
                 .modes
                 .filter { it.schedule != null }

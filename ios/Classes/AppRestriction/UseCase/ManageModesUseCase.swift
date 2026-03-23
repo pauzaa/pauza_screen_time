@@ -145,15 +145,15 @@ struct ManageModesUseCase {
         return nil
     }
 
-    static func setModesEnabled(enabled: Bool) -> FlutterError? {
+    static func setScheduleEnforcementEnabled(enabled: Bool) -> FlutterError? {
         let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
-        switch RestrictionStateStore.storeModesEnabled(enabled) {
+        switch RestrictionStateStore.storeScheduleEnforcementEnabled(enabled) {
         case .success:
             break
         case .appGroupUnavailable(let resolvedGroupId):
             return PluginErrors.internalFailure(
                 feature: featureRestrictions,
-                action: MethodNames.setModesEnabled,
+                action: MethodNames.setScheduleEnforcementEnabled,
                 message: PluginErrorMessage.appGroupUnavailable,
                 diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
             )
@@ -164,7 +164,7 @@ struct ManageModesUseCase {
         } catch {
             return PluginErrors.internalFailure(
                 feature: featureRestrictions,
-                action: MethodNames.setModesEnabled,
+                action: MethodNames.setScheduleEnforcementEnabled,
                 message: "Failed to schedule iOS boundary monitors",
                 diagnostic: "error=\(String(describing: error))"
             )
@@ -179,7 +179,7 @@ struct ManageModesUseCase {
 
     static func getModesConfig() -> RestrictionScheduledModesConfig {
         return RestrictionScheduledModesConfig(
-            enabled: RestrictionStateStore.loadModesEnabled(),
+            scheduleEnforcementEnabled: RestrictionStateStore.loadScheduleEnforcementEnabled(),
             modes: RestrictionStateStore.loadModes()
         )
     }

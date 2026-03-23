@@ -7,7 +7,7 @@ enum RestrictionStateStore {
     static let pendingEndSessionEpochMsKey = "pendingEndSessionEpochMs"
     static let activeSessionKey = "activeSession"
     static let scheduleMonitorNamesKey = "scheduleMonitorNames"
-    static let modesEnabledKey = "modesEnabled"
+    static let scheduleEnforcementEnabledKey = "scheduleEnforcementEnabled"
     static let modesKey = "modes"
     static let lifecycleEventsKey = "lifecycleEvents"
     static let activeSessionLifecycleEventsKey = "activeSessionLifecycleEvents"
@@ -470,20 +470,20 @@ enum RestrictionStateStore {
         return .success
     }
 
-    static func loadModesEnabled() -> Bool {
+    static func loadScheduleEnforcementEnabled() -> Bool {
         guard let defaults = AppGroupStore.sharedDefaults() else {
             return false
         }
-        return defaults.bool(forKey: modesEnabledKey)
+        return defaults.bool(forKey: scheduleEnforcementEnabledKey)
     }
 
     @discardableResult
-    static func storeModesEnabled(_ enabled: Bool) -> StoreResult {
+    static func storeScheduleEnforcementEnabled(_ enabled: Bool) -> StoreResult {
         let resolvedGroupId = AppGroupStore.effectiveGroupIdentifier()
         guard let defaults = UserDefaults(suiteName: resolvedGroupId) else {
             return .appGroupUnavailable(resolvedGroupId: resolvedGroupId)
         }
-        defaults.set(enabled, forKey: modesEnabledKey)
+        defaults.set(enabled, forKey: scheduleEnforcementEnabledKey)
         return .success
     }
 

@@ -21,10 +21,10 @@ void main() {
     );
   });
 
-  test('manager throws typed PauzaError for setModesEnabled', () async {
+  test('manager throws typed PauzaError for setScheduleEnforcementEnabled', () async {
     final manager = AppRestrictionManager(platform: _FailingRestrictionPlatform());
 
-    await expectLater(manager.setModesEnabled(true), throwsA(isA<PauzaMissingPermissionError>()));
+    await expectLater(manager.setScheduleEnforcementEnabled(true), throwsA(isA<PauzaMissingPermissionError>()));
   });
 
   test('manager throws typed PauzaError for startSession', () async {
@@ -72,7 +72,7 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   Future<void> configureShield(ShieldConfiguration configuration) async {}
 
   @override
-  Future<RestrictionModesConfig> getModesConfig() async => const RestrictionModesConfig(enabled: false, modes: []);
+  Future<RestrictionModesConfig> getModesConfig() async => const RestrictionModesConfig(scheduleEnforcementEnabled: false, modes: []);
 
   @override
   Future<RestrictionState> getRestrictionSession() async => const RestrictionState(
@@ -99,7 +99,7 @@ class _FailingRestrictionPlatform extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> setModesEnabled(bool enabled) async {
+  Future<void> setScheduleEnforcementEnabled(bool enabled) async {
     throw PlatformException(code: 'MISSING_PERMISSION', message: 'missing');
   }
 

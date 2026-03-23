@@ -1,12 +1,12 @@
 package com.example.pauza_screen_time.app_restriction.schedule
 
 internal data class RestrictionScheduledModesConfig(
-    val enabled: Boolean,
+    val scheduleEnforcementEnabled: Boolean,
     val modes: List<RestrictionScheduledModeEntry>,
 ) {
     fun toChannelMap(): Map<String, Any?> {
         return mapOf(
-            "enabled" to enabled,
+            "scheduleEnforcementEnabled" to scheduleEnforcementEnabled,
             "modes" to modes.map { it.toChannelMap() },
         )
     }

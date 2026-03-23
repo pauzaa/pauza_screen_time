@@ -49,7 +49,7 @@ await restrictions.upsertMode(
   ),
 );
 
-await restrictions.setModesEnabled(true);
+await restrictions.setScheduleEnforcementEnabled(true);
 ```
 
 Notes:
@@ -117,7 +117,7 @@ restriction prerequisites are missing.
 Methods that can throw permission errors (`MISSING_PERMISSION`,
 `PERMISSION_DENIED`, `SYSTEM_RESTRICTED` where applicable):
 - `upsertMode(...)`
-- `setModesEnabled(...)`
+- `setScheduleEnforcementEnabled(...)`
 - `startSession(...)`
 - `pauseEnforcement(...)`
 - `resumeEnforcement()`
@@ -158,7 +158,7 @@ final config = await restrictions.getModesConfig();
 ```
 
 Returns:
-- `enabled`: global schedule engine flag
+- `scheduleEnforcementEnabled`: global schedule engine flag
 - `modes`: only persisted scheduled modes used for background enforcement (`schedule != null && blockedAppIds.isNotEmpty`)
 
 The plugin persists only enforceable scheduled modes and the current active session snapshot. Host apps should store the full user mode catalog separately and represent disabled schedules by removing the schedule-backed mode from plugin storage.

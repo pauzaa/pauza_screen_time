@@ -17,14 +17,14 @@ internal class RestrictionScheduledModesStore(
             storeModes(filteredModes)
         }
         return RestrictionScheduledModesConfig(
-            enabled = preferences.getBoolean(RestrictionStorageKeys.KEY_SCHEDULED_MODES_ENABLED, false),
+            scheduleEnforcementEnabled = preferences.getBoolean(RestrictionStorageKeys.KEY_SCHEDULE_ENFORCEMENT_ENABLED, false),
             modes = filteredModes,
         )
     }
 
     fun setEnabled(enabled: Boolean) {
         preferences.edit()
-            .putBoolean(RestrictionStorageKeys.KEY_SCHEDULED_MODES_ENABLED, enabled)
+            .putBoolean(RestrictionStorageKeys.KEY_SCHEDULE_ENFORCEMENT_ENABLED, enabled)
             .apply()
     }
 

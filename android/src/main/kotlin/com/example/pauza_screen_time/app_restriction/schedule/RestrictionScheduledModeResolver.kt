@@ -12,7 +12,7 @@ internal object RestrictionScheduledModeResolver {
         config: RestrictionScheduledModesConfig,
         scheduleCalculator: RestrictionScheduleCalculator = RestrictionScheduleCalculator(),
     ): Resolution {
-        if (!config.enabled) {
+        if (!config.scheduleEnforcementEnabled) {
             return Resolution(
                 isInScheduleNow = false,
                 activeModeId = null,

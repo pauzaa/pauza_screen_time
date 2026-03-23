@@ -22,6 +22,6 @@ internal object RestrictionStorageKeys {
     const val KEY_LIFECYCLE_EVENT_SEQ = "lifecycle_event_seq"
 
     // ---- Keys in SCHEDULE_PREFS_NAME ----
-    const val KEY_SCHEDULED_MODES_ENABLED = "modes_enabled"
+    const val KEY_SCHEDULE_ENFORCEMENT_ENABLED = "schedule_enforcement_enabled"
     const val KEY_SCHEDULED_MODES = "modes"
 }

@@ -3,13 +3,13 @@ import 'package:pauza_screen_time/src/features/restrict_apps/model/restriction_s
 
 /// Restriction modes config used for mode-based enforcement.
 class RestrictionModesConfig {
-  const RestrictionModesConfig({required this.enabled, required this.modes});
+  const RestrictionModesConfig({required this.scheduleEnforcementEnabled, required this.modes});
 
-  final bool enabled;
+  final bool scheduleEnforcementEnabled;
   final List<RestrictionMode> modes;
 
   factory RestrictionModesConfig.fromMap(Map<String, dynamic> map) {
-    final enabled = map['enabled'] as bool? ?? false;
+    final scheduleEnforcementEnabled = map['scheduleEnforcementEnabled'] as bool? ?? false;
     final modes = switch (map['modes']) {
       final List<dynamic> value =>
         value
@@ -20,11 +20,11 @@ class RestrictionModesConfig {
       _ => const <RestrictionMode>[],
     };
 
-    return RestrictionModesConfig(enabled: enabled, modes: modes);
+    return RestrictionModesConfig(scheduleEnforcementEnabled: scheduleEnforcementEnabled, modes: modes);
   }
 
   Map<String, dynamic> toMap() {
-    return <String, dynamic>{'enabled': enabled, 'modes': modes.map((mode) => mode.toMap()).toList()};
+    return <String, dynamic>{'scheduleEnforcementEnabled': scheduleEnforcementEnabled, 'modes': modes.map((mode) => mode.toMap()).toList()};
   }
 
   bool get isValid {

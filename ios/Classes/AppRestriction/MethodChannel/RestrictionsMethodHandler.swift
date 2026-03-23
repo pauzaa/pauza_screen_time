@@ -18,8 +18,8 @@ final class RestrictionsMethodHandler {
             handleUpsertMode(call: call, result: result)
         case MethodNames.removeMode:
             handleRemoveMode(call: call, result: result)
-        case MethodNames.setModesEnabled:
-            handleSetModesEnabled(call: call, result: result)
+        case MethodNames.setScheduleEnforcementEnabled:
+            handleSetScheduleEnforcementEnabled(call: call, result: result)
         case MethodNames.getModesConfig:
             handleGetModesConfig(result: result)
         case MethodNames.isRestrictionSessionActiveNow:
@@ -373,16 +373,16 @@ final class RestrictionsMethodHandler {
         }
     }
 
-    private func handleSetModesEnabled(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    private func handleSetScheduleEnforcementEnabled(call: FlutterMethodCall, result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
             result(PluginErrors.unsupported(
                 feature: Self.featureRestrictions,
-                action: MethodNames.setModesEnabled,
+                action: MethodNames.setScheduleEnforcementEnabled,
                 message: PluginErrorMessage.restrictionsUnsupported
             ))
             return
         }
-        if let preflightError = restrictionPreflightError(action: MethodNames.setModesEnabled) {
+        if let preflightError = restrictionPreflightError(action: MethodNames.setScheduleEnforcementEnabled) {
             result(preflightError)
             return
         }
@@ -390,12 +390,12 @@ final class RestrictionsMethodHandler {
               let enabled = args["enabled"] as? Bool else {
             result(PluginErrors.invalidArguments(
                 feature: Self.featureRestrictions,
-                action: MethodNames.setModesEnabled,
+                action: MethodNames.setScheduleEnforcementEnabled,
                 message: "Missing or invalid 'enabled' argument"
             ))
             return
         }
-        if let error = ManageModesUseCase.setModesEnabled(enabled: enabled) {
+        if let error = ManageModesUseCase.setScheduleEnforcementEnabled(enabled: enabled) {
             result(error)
         } else {
             result(nil)
@@ -404,7 +404,7 @@ final class RestrictionsMethodHandler {
 
     private func handleGetModesConfig(result: @escaping FlutterResult) {
         guard #available(iOS 16.0, *) else {
-            result(RestrictionScheduledModesConfig(enabled: false, modes: []).toChannelMap())
+            result(RestrictionScheduledModesConfig(scheduleEnforcementEnabled: false, modes: []).toChannelMap())
             return
         }
         let config = ManageModesUseCase.getModesConfig()

@@ -356,10 +356,10 @@ struct SessionEnforcementUseCase {
 
     static func resolveSessionState() -> SessionState {
         let modes = RestrictionStateStore.loadModes()
-        let modesEnabled = RestrictionStateStore.loadModesEnabled()
+        let scheduleEnforcementEnabled = RestrictionStateStore.loadScheduleEnforcementEnabled()
 
         let config = RestrictionScheduledModesConfig(
-            enabled: modesEnabled,
+            scheduleEnforcementEnabled: scheduleEnforcementEnabled,
             modes: modes
         )
         let resolution = RestrictionScheduledModeEvaluator.resolveNow(config: config)
@@ -412,7 +412,7 @@ struct SessionEnforcementUseCase {
                         }
                     }
                     return SessionState(
-                        isScheduleEnabled: modesEnabled,
+                        isScheduleEnabled: scheduleEnforcementEnabled,
                         isInScheduleNow: resolution.isInScheduleNow,
                         blockedAppIds: activeSession.blockedAppIds,
                         activeModeId: activeSession.modeId,
@@ -429,7 +429,7 @@ struct SessionEnforcementUseCase {
                resolution.isInScheduleNow,
                activeSession.modeId == resolution.activeModeId {
                 return SessionState(
-                    isScheduleEnabled: modesEnabled,
+                    isScheduleEnabled: scheduleEnforcementEnabled,
                     isInScheduleNow: true,
                     blockedAppIds: activeSession.blockedAppIds,
                     activeModeId: activeSession.modeId,
@@ -457,7 +457,7 @@ struct SessionEnforcementUseCase {
                 )
             )
             return SessionState(
-                isScheduleEnabled: modesEnabled,
+                isScheduleEnabled: scheduleEnforcementEnabled,
                 isInScheduleNow: true,
                 blockedAppIds: resolution.blockedAppIds,
                 activeModeId: activeModeId,
@@ -468,7 +468,7 @@ struct SessionEnforcementUseCase {
 
         if shouldSuppressCurrentMode, resolution.isInScheduleNow {
             return SessionState(
-                isScheduleEnabled: modesEnabled,
+                isScheduleEnabled: scheduleEnforcementEnabled,
                 isInScheduleNow: true,
                 blockedAppIds: [],
                 activeModeId: nil,
@@ -478,7 +478,7 @@ struct SessionEnforcementUseCase {
         }
 
         return SessionState(
-            isScheduleEnabled: modesEnabled,
+            isScheduleEnabled: scheduleEnforcementEnabled,
             isInScheduleNow: false,
             blockedAppIds: [],
             activeModeId: nil,

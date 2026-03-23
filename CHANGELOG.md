@@ -29,7 +29,7 @@
 
 * BREAKING: Restriction APIs are now mode-centric. Added `RestrictionMode` and `RestrictionModesConfig`; removed global app-list restriction entry points from manager/channel contracts.
 * BREAKING: Manual session APIs changed from `startRestrictionSession`/`endRestrictionSession` to `startModeSession(modeId)`/`endModeSession()`.
-* BREAKING: Scheduled mode APIs were replaced with unified mode APIs: `upsertMode`, `removeMode`, `setModesEnabled`, `getModesConfig`.
+* BREAKING: Scheduled mode APIs were replaced with unified mode APIs: `upsertMode`, `removeMode`, `setScheduleEnforcementEnabled`, `getModesConfig`.
 * Added `RestrictionSession.activeModeId` and `RestrictionSession.activeModeSource` (`none`, `manual`, `schedule`) to expose active mode identity directly.
 * Android and iOS runtime resolution now uses a shared active-mode model: manual mode id override first, then scheduled mode resolution.
 

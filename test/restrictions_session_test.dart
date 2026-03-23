@@ -44,7 +44,7 @@ void main() {
                 'modeId': 'focus',
                 'action': 'START',
                 'source': 'schedule',
-                'reason': 'schedule_start',
+                'reason': 'schedule',
                 'occurredAtEpochMs': 1,
               },
             ],
@@ -84,7 +84,7 @@ void main() {
                 'modeId': 'focus',
                 'action': 'START',
                 'source': 'manual',
-                'reason': 'start',
+                'reason': 'manual',
                 'occurredAtEpochMs': 1,
               },
               {
@@ -93,7 +93,7 @@ void main() {
                 'modeId': 'focus',
                 'action': 'PAUSE',
                 'source': 'manual',
-                'reason': 'pause',
+                'reason': 'manual',
                 'occurredAtEpochMs': 2,
               },
             ],
@@ -148,7 +148,7 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
         if (call.method == RestrictionsMethodNames.getModesConfig) {
           return {
-            'enabled': true,
+            'scheduleEnforcementEnabled': true,
             'modes': [
               {'modeId': 123},
             ],
@@ -257,7 +257,7 @@ void main() {
               'modeId': 'focus',
               'action': 'START',
               'source': 'manual',
-              'reason': 'test',
+              'reason': 'manual',
               'occurredAtEpochMs': 1,
             },
           ];
@@ -304,7 +304,7 @@ void main() {
         const RestrictionMode(modeId: 'focus', blockedAppIds: [AppIdentifier('com.example.app')]),
       );
       await manager.removeMode('focus');
-      await manager.setModesEnabled(true);
+      await manager.setScheduleEnforcementEnabled(true);
       final modesConfig = await manager.getModesConfig();
       await manager.pauseEnforcement(const Duration(seconds: 30));
       await manager.resumeEnforcement();
@@ -319,7 +319,7 @@ void main() {
 
       expect(fakePlatform.upsertModeCalled, isTrue);
       expect(fakePlatform.removeModeCalled, isTrue);
-      expect(fakePlatform.setModesEnabledCalled, isTrue);
+      expect(fakePlatform.setScheduleEnforcementEnabledCalled, isTrue);
       expect(fakePlatform.getModesConfigCalled, isTrue);
       expect(fakePlatform.pauseEnforcementCalled, isTrue);
       expect(fakePlatform.resumeEnforcementCalled, isTrue);
@@ -330,7 +330,7 @@ void main() {
       expect(fakePlatform.getPendingLifecycleEventsCalled, isTrue);
       expect(fakePlatform.ackLifecycleEventsCalled, isTrue);
       expect(fakePlatform.getRestrictionSessionCalled, isTrue);
-      expect(modesConfig.enabled, isTrue);
+      expect(modesConfig.scheduleEnforcementEnabled, isTrue);
       expect(lifecycleEvents, hasLength(1));
       expect(session.activeMode?.modeId, 'focus');
       expect(session.activeModeSource, RestrictionModeSource.manual);
@@ -374,7 +374,7 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(channel, (call) async {
         if (call.method == RestrictionsMethodNames.getModesConfig) {
           return {
-            'enabled': true,
+            'scheduleEnforcementEnabled': true,
             'modes': [
               {'modeId': 1},
             ],
@@ -497,7 +497,7 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   final List<String> calls = <String>[];
   bool upsertModeCalled = false;
   bool removeModeCalled = false;
-  bool setModesEnabledCalled = false;
+  bool setScheduleEnforcementEnabledCalled = false;
   bool getModesConfigCalled = false;
   bool pauseEnforcementCalled = false;
   bool resumeEnforcementCalled = false;
@@ -515,7 +515,7 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   @override
   Future<RestrictionModesConfig> getModesConfig() async {
     getModesConfigCalled = true;
-    return const RestrictionModesConfig(enabled: true, modes: []);
+    return const RestrictionModesConfig(scheduleEnforcementEnabled: true, modes: []);
   }
 
   @override
@@ -580,9 +580,9 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> setModesEnabled(bool enabled) async {
-    setModesEnabledCalled = true;
-    calls.add('setModesEnabled:$enabled');
+  Future<void> setScheduleEnforcementEnabled(bool enabled) async {
+    setScheduleEnforcementEnabledCalled = true;
+    calls.add('setScheduleEnforcementEnabled:$enabled');
   }
 
   @override
