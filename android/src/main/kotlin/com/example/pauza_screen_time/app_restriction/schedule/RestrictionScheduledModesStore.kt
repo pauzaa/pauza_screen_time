@@ -22,6 +22,9 @@ internal class RestrictionScheduledModesStore(
         )
     }
 
+    fun isEnabled(): Boolean =
+        preferences.getBoolean(RestrictionStorageKeys.KEY_SCHEDULE_ENFORCEMENT_ENABLED, false)
+
     fun setEnabled(enabled: Boolean) {
         preferences.edit()
             .putBoolean(RestrictionStorageKeys.KEY_SCHEDULE_ENFORCEMENT_ENABLED, enabled)

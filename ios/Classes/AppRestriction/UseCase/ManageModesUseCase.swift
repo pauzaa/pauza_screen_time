@@ -146,6 +146,7 @@ struct ManageModesUseCase {
     }
 
     static func setScheduleEnforcementEnabled(enabled: Bool) -> FlutterError? {
+        if RestrictionStateStore.loadScheduleEnforcementEnabled() == enabled { return nil }
         let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
         switch RestrictionStateStore.storeScheduleEnforcementEnabled(enabled) {
         case .success:

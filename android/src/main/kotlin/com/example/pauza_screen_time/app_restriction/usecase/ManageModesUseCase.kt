@@ -80,7 +80,9 @@ internal class ManageModesUseCase(private val context: Context) {
     }
 
     fun setScheduleEnforcementEnabled(enabled: Boolean) {
-        RestrictionScheduledModesStore(context).setEnabled(enabled)
+        val store = RestrictionScheduledModesStore(context)
+        if (store.isEnabled() == enabled) return
+        store.setEnabled(enabled)
         RestrictionAlarmOrchestrator(context).rescheduleAll()
         RestrictionSessionController(context).applyCurrentEnforcementState(trigger = LifecycleReasonConstants.MANUAL)
     }
