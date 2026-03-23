@@ -10,6 +10,7 @@ import com.example.pauza_screen_time.app_restriction.schedule.RestrictionSchedul
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleConfig
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduledModesStore
+import com.example.pauza_screen_time.app_restriction.lifecycle.LifecycleReasonConstants
 import com.example.pauza_screen_time.app_restriction.usecase.SessionEnforcementUseCase
 
 internal class RestrictionAlarmOrchestrator(
@@ -48,14 +49,14 @@ internal class RestrictionAlarmOrchestrator(
             val previousSnapshot = sessionController.captureLifecycleSnapshot()
             restrictionManager.clearPause()
             sessionController.applyCurrentEnforcementState(
-                trigger = "pause_end_alarm",
+                trigger = LifecycleReasonConstants.TIMER,
                 previousLifecycleSnapshot = previousSnapshot,
             )
             rescheduleScheduleBoundary()
             return
         }
 
-        sessionController.applyCurrentEnforcementState(trigger = "pause_end_alarm")
+        sessionController.applyCurrentEnforcementState(trigger = LifecycleReasonConstants.TIMER)
         rescheduleScheduleBoundary()
     }
 
@@ -108,11 +109,11 @@ internal class RestrictionAlarmOrchestrator(
         if (activeSession?.source == RestrictionModeSource.MANUAL) {
             sessionController.endSession(
                 source = RestrictionModeSource.MANUAL,
-                trigger = "manual_session_duration_elapsed",
+                trigger = LifecycleReasonConstants.TIMER,
                 rescheduleAlarms = false,
             )
         } else {
-            sessionController.applyCurrentEnforcementState(trigger = "manual_session_duration_elapsed_noop")
+            sessionController.applyCurrentEnforcementState(trigger = LifecycleReasonConstants.TIMER)
         }
         rescheduleScheduleBoundary()
     }
@@ -130,10 +131,10 @@ internal class RestrictionAlarmOrchestrator(
             try {
                 SessionEnforcementUseCase(appContext).endSessionNow()
             } catch (_: IllegalStateException) {
-                sessionController.applyCurrentEnforcementState(trigger = "delayed_end_session_noop")
+                sessionController.applyCurrentEnforcementState(trigger = LifecycleReasonConstants.MANUAL)
             }
         } else {
-            sessionController.applyCurrentEnforcementState(trigger = "delayed_end_session_noop")
+            sessionController.applyCurrentEnforcementState(trigger = LifecycleReasonConstants.MANUAL)
         }
         rescheduleScheduleBoundary()
     }
@@ -196,7 +197,7 @@ internal class RestrictionAlarmOrchestrator(
             scheduleCalculator = scheduleCalculator,
         )
         if (!resolution.isInScheduleNow || resolution.activeModeId == null || resolution.blockedAppIds.isEmpty()) {
-            sessionController.applyCurrentEnforcementState(trigger = "schedule_boundary_start_noop")
+            sessionController.applyCurrentEnforcementState(trigger = LifecycleReasonConstants.SCHEDULE)
             return
         }
 
@@ -204,7 +205,7 @@ internal class RestrictionAlarmOrchestrator(
             modeId = resolution.activeModeId,
             blockedAppIds = resolution.blockedAppIds,
             source = RestrictionModeSource.SCHEDULE,
-            trigger = "schedule_boundary_start",
+            trigger = LifecycleReasonConstants.SCHEDULE,
             rescheduleAlarms = false,
         )
     }
@@ -212,7 +213,7 @@ internal class RestrictionAlarmOrchestrator(
     private fun applyScheduleEnd() {
         sessionController.endSession(
             source = RestrictionModeSource.SCHEDULE,
-            trigger = "schedule_boundary_end",
+            trigger = LifecycleReasonConstants.SCHEDULE,
             rescheduleAlarms = false,
         )
     }

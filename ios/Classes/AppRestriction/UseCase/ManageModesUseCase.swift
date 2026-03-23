@@ -86,7 +86,7 @@ struct ManageModesUseCase {
         }
 
         SessionEnforcementUseCase.applyDesiredRestrictionsIfNeeded(
-            trigger: "upsert_mode",
+            trigger: LifecycleReasonConstants.manual,
             previousLifecycleSnapshot: previousSnapshot
         )
         return nil
@@ -139,7 +139,7 @@ struct ManageModesUseCase {
         }
 
         SessionEnforcementUseCase.applyDesiredRestrictionsIfNeeded(
-            trigger: "remove_mode",
+            trigger: LifecycleReasonConstants.manual,
             previousLifecycleSnapshot: previousSnapshot
         )
         return nil
@@ -171,7 +171,7 @@ struct ManageModesUseCase {
         }
 
         SessionEnforcementUseCase.applyDesiredRestrictionsIfNeeded(
-            trigger: "set_modes_enabled",
+            trigger: LifecycleReasonConstants.manual,
             previousLifecycleSnapshot: previousSnapshot
         )
         return nil

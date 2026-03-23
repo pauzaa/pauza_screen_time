@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
 import com.example.pauza_screen_time.app_restriction.RestrictionSessionController
 import com.example.pauza_screen_time.app_restriction.alarm.RestrictionAlarmOrchestrator
+import com.example.pauza_screen_time.app_restriction.lifecycle.LifecycleReasonConstants
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeDto
 import com.example.pauza_screen_time.app_restriction.model.RestrictionModeSource
 import com.example.pauza_screen_time.app_restriction.model.RestrictionSessionDto
@@ -35,7 +36,7 @@ internal class SessionEnforcementUseCase(private val context: Context) {
         // Note: dismiss is handled inside applyCurrentEnforcementState when
         // enforcement is no longer active, so no separate requestDismiss() needed.
         sessionController.applyCurrentEnforcementState(
-            trigger = "pause_enforcement",
+            trigger = LifecycleReasonConstants.MANUAL,
             previousLifecycleSnapshot = previousSnapshot,
         )
     }
@@ -56,7 +57,7 @@ internal class SessionEnforcementUseCase(private val context: Context) {
         restrictionManager.clearPause()
         RestrictionAlarmOrchestrator(context).rescheduleAll()
         sessionController.applyCurrentEnforcementState(
-            trigger = "resume_enforcement",
+            trigger = LifecycleReasonConstants.MANUAL,
             previousLifecycleSnapshot = previousSnapshot,
         )
     }
@@ -76,16 +77,16 @@ internal class SessionEnforcementUseCase(private val context: Context) {
             modeId = modeId,
             blockedAppIds = blockedAppIds,
             source = RestrictionModeSource.MANUAL,
-            trigger = "start_session_manual",
+            trigger = LifecycleReasonConstants.MANUAL,
         )
     }
 
-    fun endSession(durationMs: Long? = null) {
+    fun endSession(durationMs: Long? = null, reason: String? = null) {
         if (durationMs != null) {
             scheduleEndSession(durationMs)
             return
         }
-        endSessionNow()
+        endSessionNow(reason)
     }
 
     private fun scheduleEndSession(durationMs: Long) {
@@ -98,7 +99,7 @@ internal class SessionEnforcementUseCase(private val context: Context) {
         RestrictionAlarmOrchestrator(context).rescheduleAll()
     }
 
-    fun endSessionNow() {
+    fun endSessionNow(reason: String? = null) {
         val restrictionManager = RestrictionManager.getInstance(context)
         val sessionController = RestrictionSessionController(context)
         val state = sessionController.resolveSessionState()
@@ -118,7 +119,7 @@ internal class SessionEnforcementUseCase(private val context: Context) {
         restrictionManager.clearPendingEndSessionEpochMs()
         sessionController.endSession(
             source = RestrictionModeSource.MANUAL,
-            trigger = "end_session_manual",
+            trigger = reason ?: LifecycleReasonConstants.MANUAL,
         )
     }
 

@@ -15,7 +15,7 @@ class RestrictionLifecycleEvent {
   final String modeId;
   final RestrictionLifecycleAction action;
   final RestrictionLifecycleSource source;
-  final String reason;
+  final RestrictionLifecycleReason reason;
   final DateTime occurredAt;
 
   factory RestrictionLifecycleEvent.fromMap(Map<String, dynamic> map) {
@@ -24,7 +24,7 @@ class RestrictionLifecycleEvent {
     final modeId = (map['modeId'] as String? ?? '').trim();
     final actionRaw = (map['action'] as String? ?? '').trim();
     final sourceRaw = (map['source'] as String? ?? '').trim();
-    final reason = (map['reason'] as String? ?? '').trim();
+    final reasonRaw = (map['reason'] as String? ?? '').trim();
     final occurredAtEpochMs = switch (map['occurredAtEpochMs']) {
       final int value => value,
       final num value => value.toInt(),
@@ -42,9 +42,7 @@ class RestrictionLifecycleEvent {
     }
     final action = RestrictionLifecycleAction.fromWire(actionRaw);
     final source = RestrictionLifecycleSource.fromWire(sourceRaw);
-    if (reason.isEmpty) {
-      throw ArgumentError.value(reason, 'reason', 'Reason cannot be empty');
-    }
+    final reason = RestrictionLifecycleReason.fromWire(reasonRaw);
     if (occurredAtEpochMs == null || occurredAtEpochMs <= 0) {
       throw ArgumentError.value(occurredAtEpochMs, 'occurredAtEpochMs', 'Timestamp must be positive');
     }
@@ -67,7 +65,7 @@ class RestrictionLifecycleEvent {
       'modeId': modeId,
       'action': action.wireValue,
       'source': source.wireValue,
-      'reason': reason,
+      'reason': reason.wireValue,
       'occurredAtEpochMs': occurredAt.toUtc().millisecondsSinceEpoch,
     };
   }
@@ -107,6 +105,31 @@ enum RestrictionLifecycleSource {
       'manual' => RestrictionLifecycleSource.manual,
       'schedule' => RestrictionLifecycleSource.schedule,
       _ => throw ArgumentError.value(raw, 'source', 'Unsupported source'),
+    };
+  }
+}
+
+enum RestrictionLifecycleReason {
+  manual('manual'),
+  nfc('nfc'),
+  qr('qr'),
+  timer('timer'),
+  emergency('emergency'),
+  schedule('schedule');
+
+  const RestrictionLifecycleReason(this.wireValue);
+
+  final String wireValue;
+
+  static RestrictionLifecycleReason fromWire(String raw) {
+    return switch (raw) {
+      'manual' => RestrictionLifecycleReason.manual,
+      'nfc' => RestrictionLifecycleReason.nfc,
+      'qr' => RestrictionLifecycleReason.qr,
+      'timer' => RestrictionLifecycleReason.timer,
+      'emergency' => RestrictionLifecycleReason.emergency,
+      'schedule' => RestrictionLifecycleReason.schedule,
+      _ => throw ArgumentError.value(raw, 'reason', 'Unsupported reason'),
     };
   }
 }

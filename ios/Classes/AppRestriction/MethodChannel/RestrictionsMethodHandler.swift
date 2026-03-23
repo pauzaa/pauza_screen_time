@@ -215,7 +215,9 @@ final class RestrictionsMethodHandler {
             durationMs = nil
         }
 
-        if let error = SessionEnforcementUseCase.endSession(durationMs: durationMs) {
+        let reason = args?["reason"] as? String
+
+        if let error = SessionEnforcementUseCase.endSession(durationMs: durationMs, reason: reason) {
             result(error)
         } else {
             result(nil)

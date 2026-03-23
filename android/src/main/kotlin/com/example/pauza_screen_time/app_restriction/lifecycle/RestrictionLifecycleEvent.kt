@@ -70,6 +70,16 @@ internal data class RestrictionLifecycleEvent(
     }
 }
 
+/// Server-compatible reason values stored in lifecycle events.
+internal object LifecycleReasonConstants {
+    const val MANUAL = "manual"
+    const val NFC = "nfc"
+    const val QR = "qr"
+    const val TIMER = "timer"
+    const val EMERGENCY = "emergency"
+    const val SCHEDULE = "schedule"
+}
+
 internal fun RestrictionModeSource.toLifecycleSourceOrNull(): RestrictionLifecycleSource? {
     return when (this) {
         RestrictionModeSource.MANUAL -> RestrictionLifecycleSource.MANUAL

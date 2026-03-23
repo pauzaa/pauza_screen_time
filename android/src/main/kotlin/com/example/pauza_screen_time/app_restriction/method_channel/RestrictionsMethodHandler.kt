@@ -231,11 +231,13 @@ class RestrictionsMethodHandler(
 
     private fun handleEndSession(call: MethodCall, result: Result) {
         val context = contextProvider() ?: return noContext(result, MethodNames.END_SESSION)
-        val durationMs = (call.arguments as? Map<*, *>)?.get("durationMs")?.let { rawDuration ->
+        val args = call.arguments as? Map<*, *>
+        val durationMs = args?.get("durationMs")?.let { rawDuration ->
             parseEndSessionDurationMs(rawDuration, result) ?: return
         }
+        val reason = args?.get("reason") as? String
         try {
-            SessionEnforcementUseCase(context).endSession(durationMs)
+            SessionEnforcementUseCase(context).endSession(durationMs, reason)
             result.success(null)
         } catch (e: IllegalStateException) {
             PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.END_SESSION, e.message ?: "No active restriction session to end")

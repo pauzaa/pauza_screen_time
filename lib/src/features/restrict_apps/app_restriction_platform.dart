@@ -61,7 +61,8 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
   /// Ends the current active restriction session.
   ///
   /// If [duration] is provided, the current session is ended after it elapses.
-  Future<void> endSession({Duration? duration}) {
+  /// If [reason] is provided, it overrides the default lifecycle event reason.
+  Future<void> endSession({Duration? duration, RestrictionLifecycleReason? reason}) {
     throw UnimplementedError('endSession() has not been implemented.');
   }
 

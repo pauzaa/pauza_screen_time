@@ -4,6 +4,7 @@ import android.content.Context
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
 import com.example.pauza_screen_time.app_restriction.RestrictionSessionController
 import com.example.pauza_screen_time.app_restriction.alarm.RestrictionAlarmOrchestrator
+import com.example.pauza_screen_time.app_restriction.lifecycle.LifecycleReasonConstants
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleCalculator
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleConfig
 import com.example.pauza_screen_time.app_restriction.schedule.RestrictionScheduleEntry
@@ -64,7 +65,7 @@ internal class ManageModesUseCase(private val context: Context) {
         }
 
         RestrictionAlarmOrchestrator(context).rescheduleAll()
-        RestrictionSessionController(context).applyCurrentEnforcementState(trigger = "upsert_mode")
+        RestrictionSessionController(context).applyCurrentEnforcementState(trigger = LifecycleReasonConstants.MANUAL)
     }
 
     fun removeMode(modeId: String) {
@@ -75,13 +76,13 @@ internal class ManageModesUseCase(private val context: Context) {
             restrictionManager.clearActiveSession()
         }
         RestrictionAlarmOrchestrator(context).rescheduleAll()
-        RestrictionSessionController(context).applyCurrentEnforcementState(trigger = "remove_mode")
+        RestrictionSessionController(context).applyCurrentEnforcementState(trigger = LifecycleReasonConstants.MANUAL)
     }
 
     fun setModesEnabled(enabled: Boolean) {
         RestrictionScheduledModesStore(context).setEnabled(enabled)
         RestrictionAlarmOrchestrator(context).rescheduleAll()
-        RestrictionSessionController(context).applyCurrentEnforcementState(trigger = "set_modes_enabled")
+        RestrictionSessionController(context).applyCurrentEnforcementState(trigger = LifecycleReasonConstants.MANUAL)
     }
 
     fun getModesConfig(): RestrictionScheduledModesConfig {

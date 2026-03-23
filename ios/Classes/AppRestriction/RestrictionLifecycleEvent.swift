@@ -1,5 +1,15 @@
 import Foundation
 
+/// Server-compatible reason values stored in lifecycle events.
+enum LifecycleReasonConstants {
+    static let manual = "manual"
+    static let nfc = "nfc"
+    static let qr = "qr"
+    static let timer = "timer"
+    static let emergency = "emergency"
+    static let schedule = "schedule"
+}
+
 enum RestrictionLifecycleAction: String {
     case start = "START"
     case pause = "PAUSE"

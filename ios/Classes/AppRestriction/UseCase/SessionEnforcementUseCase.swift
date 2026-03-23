@@ -17,7 +17,7 @@ struct SessionEnforcementUseCase {
     static let featureRestrictions = "restrictions"
 
     static func isRestrictionSessionActiveNow(isPrerequisitesMet: Bool) -> Bool {
-        applyDesiredRestrictionsIfNeeded(trigger: "is_restriction_session_active_now")
+        applyDesiredRestrictionsIfNeeded(trigger: LifecycleReasonConstants.manual)
         let state = resolveSessionState()
         let isPausedNow = RestrictionStateStore.loadPausedUntilEpochMs() > 0
         let shouldEnforceSession = state.activeModeSource != .none
@@ -59,7 +59,7 @@ struct SessionEnforcementUseCase {
             try PauseAutoResumeMonitor.startMonitoring(untilEpochMs: pausedUntilEpochMs)
         } catch {
             _ = RestrictionStateStore.storePausedUntilEpochMs(0)
-            applyDesiredRestrictionsIfNeeded(trigger: "pause_enforcement_rollback")
+            applyDesiredRestrictionsIfNeeded(trigger: LifecycleReasonConstants.manual)
             return PluginErrors.internalFailure(
                 feature: featureRestrictions,
                 action: MethodNames.pauseEnforcement,
@@ -70,7 +70,7 @@ struct SessionEnforcementUseCase {
 
         ShieldManager.shared.clearRestrictions()
         applyDesiredRestrictionsIfNeeded(
-            trigger: "pause_enforcement",
+            trigger: LifecycleReasonConstants.manual,
             previousLifecycleSnapshot: previousSnapshot
         )
         return nil
@@ -108,7 +108,7 @@ struct SessionEnforcementUseCase {
 
         PauseAutoResumeMonitor.stopMonitoring()
         applyDesiredRestrictionsIfNeeded(
-            trigger: "resume_enforcement",
+            trigger: LifecycleReasonConstants.manual,
             previousLifecycleSnapshot: previousSnapshot
         )
         return nil
@@ -181,17 +181,17 @@ struct SessionEnforcementUseCase {
         }
 
         applyDesiredRestrictionsIfNeeded(
-            trigger: "start_session_manual",
+            trigger: LifecycleReasonConstants.manual,
             previousLifecycleSnapshot: previousSnapshot
         )
         return nil
     }
 
-    static func endSession(durationMs: Int64? = nil) -> FlutterError? {
+    static func endSession(durationMs: Int64? = nil, reason: String? = nil) -> FlutterError? {
         if let durationMs {
             return scheduleEndSession(durationMs: durationMs)
         }
-        return endSessionNow()
+        return endSessionNow(reason: reason)
     }
 
     private static func scheduleEndSession(durationMs: Int64) -> FlutterError? {
@@ -231,7 +231,7 @@ struct SessionEnforcementUseCase {
         return nil
     }
 
-    private static func endSessionNow() -> FlutterError? {
+    private static func endSessionNow(reason: String? = nil) -> FlutterError? {
         let state = resolveSessionState()
         guard state.activeModeSource != .none, let activeModeId = state.activeModeId else {
             return PluginErrors.invalidArguments(
@@ -273,7 +273,7 @@ struct SessionEnforcementUseCase {
         switch storeResult {
         case .success:
             applyDesiredRestrictionsIfNeeded(
-                trigger: "end_session_manual",
+                trigger: reason ?? LifecycleReasonConstants.manual,
                 previousLifecycleSnapshot: previousSnapshot
             )
             return nil
@@ -288,7 +288,7 @@ struct SessionEnforcementUseCase {
     }
 
     static func getRestrictionSession() -> RestrictionSessionSnapshot {
-        applyDesiredRestrictionsIfNeeded(trigger: "get_restriction_session")
+        applyDesiredRestrictionsIfNeeded(trigger: LifecycleReasonConstants.manual)
         let state = resolveSessionState()
         let pausedUntilEpochMs = RestrictionStateStore.loadPausedUntilEpochMs()
         let isPausedNow = pausedUntilEpochMs > 0

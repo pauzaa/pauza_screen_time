@@ -528,7 +528,7 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
         modeId: 'focus',
         action: RestrictionLifecycleAction.start,
         source: RestrictionLifecycleSource.manual,
-        reason: 'test',
+        reason: RestrictionLifecycleReason.manual,
         occurredAt: DateTime.utc(1970, 1, 1, 0, 0, 0, 1),
       ),
     ];
@@ -567,7 +567,7 @@ class _FakeAppRestrictionPlatform extends AppRestrictionPlatform {
   }
 
   @override
-  Future<void> endSession({Duration? duration}) async {
+  Future<void> endSession({Duration? duration, RestrictionLifecycleReason? reason}) async {
     endSessionCalled = true;
     endSessionDuration = duration;
     calls.add('endSession');
