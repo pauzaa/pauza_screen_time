@@ -11,6 +11,15 @@ import com.example.pauza_screen_time.usage_stats.model.UsageStatsDto
 import com.example.pauza_screen_time.utils.AppIconExtractor
 import com.example.pauza_screen_time.utils.AppInfoUtils
 
+private data class AggregatedStats(
+    val packageName: String,
+    val totalTimeInForeground: Long,
+    val firstTimeStamp: Long,
+    val lastTimeStamp: Long,
+    val lastTimeUsed: Long,
+    val lastTimeVisible: Long,
+)
+
 /**
  * Repository for per-app and all-app usage statistics.
  *
@@ -63,12 +72,14 @@ class UsageStatsRepository(private val context: Context) {
         // Single events scan to count launches — avoids O(N_apps × N_events).
         val launchCountsByPackage = calculateLaunchCounts(startTimeMs, endTimeMs)
 
+        val aggregated = aggregateStats(stats)
+
         val result = mutableListOf<UsageStatsDto>()
-        for (usageStats in stats) {
-            if (usageStats.totalTimeInForeground <= 0) continue
+        for (agg in aggregated) {
+            if (agg.totalTimeInForeground <= 0) continue
             val dto = extractUsageStatsData(
-                usageStats = usageStats,
-                launchCount = launchCountsByPackage[usageStats.packageName] ?: 0,
+                aggregated = agg,
+                launchCount = launchCountsByPackage[agg.packageName] ?: 0,
                 includeIcons = includeIcons,
             )
             if (dto != null) result.add(dto)
@@ -102,11 +113,22 @@ class UsageStatsRepository(private val context: Context) {
             endTimeMs,
         ) ?: return null
 
-        val usageStats = stats.firstOrNull { it.packageName == packageId } ?: return null
-        if (usageStats.totalTimeInForeground <= 0) return null
+        val matching = stats.filter { it.packageName == packageId }
+        if (matching.isEmpty()) return null
+
+        val aggregated = AggregatedStats(
+            packageName = packageId,
+            totalTimeInForeground = matching.sumOf { it.totalTimeInForeground },
+            firstTimeStamp = matching.minOf { it.firstTimeStamp },
+            lastTimeStamp = matching.maxOf { it.lastTimeStamp },
+            lastTimeUsed = matching.maxOf { it.lastTimeUsed },
+            lastTimeVisible = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                matching.maxOf { it.lastTimeVisible } else 0L,
+        )
+        if (aggregated.totalTimeInForeground <= 0) return null
 
         val launchCount = calculateLaunchCountForPackage(packageId, startTimeMs, endTimeMs)
-        return extractUsageStatsData(usageStats, launchCount, includeIcons)
+        return extractUsageStatsData(aggregated, launchCount, includeIcons)
     }
 
     // ============================================================
@@ -164,15 +186,33 @@ class UsageStatsRepository(private val context: Context) {
     }
 
     /**
-     * Builds a [UsageStatsDto] from an Android [UsageStats] and enriches it with
+     * Groups raw [UsageStats] entries by package name, summing durations and
+     * taking min/max timestamps.
+     */
+    private fun aggregateStats(stats: List<UsageStats>): List<AggregatedStats> {
+        return stats.groupBy { it.packageName }.map { (packageName, entries) ->
+            AggregatedStats(
+                packageName = packageName,
+                totalTimeInForeground = entries.sumOf { it.totalTimeInForeground },
+                firstTimeStamp = entries.minOf { it.firstTimeStamp },
+                lastTimeStamp = entries.maxOf { it.lastTimeStamp },
+                lastTimeUsed = entries.maxOf { it.lastTimeUsed },
+                lastTimeVisible = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
+                    entries.maxOf { it.lastTimeVisible } else 0L,
+            )
+        }
+    }
+
+    /**
+     * Builds a [UsageStatsDto] from [AggregatedStats] and enriches it with
      * app metadata. Returns null if the app is no longer installed.
      */
     private fun extractUsageStatsData(
-        usageStats: UsageStats,
+        aggregated: AggregatedStats,
         launchCount: Int,
         includeIcons: Boolean,
     ): UsageStatsDto? {
-        val packageId = usageStats.packageName
+        val packageId = aggregated.packageName
         val appInfo = try {
             packageManager.getApplicationInfo(packageId, 0)
         } catch (e: PackageManager.NameNotFoundException) {
@@ -186,16 +226,12 @@ class UsageStatsRepository(private val context: Context) {
             appIcon = if (includeIcons) AppIconExtractor.extractOrNull(appInfo, packageManager) else null,
             category = AppInfoUtils.getAppCategory(appInfo),
             isSystemApp = AppInfoUtils.isSystemApp(appInfo),
-            totalDurationMs = usageStats.totalTimeInForeground,
+            totalDurationMs = aggregated.totalTimeInForeground,
             totalLaunchCount = launchCount,
-            bucketStartMs = usageStats.firstTimeStamp.takeIf { it > 0 },
-            bucketEndMs = usageStats.lastTimeStamp.takeIf { it > 0 },
-            lastTimeUsedMs = usageStats.lastTimeUsed.takeIf { it > 0 },
-            lastTimeVisibleMs = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                usageStats.lastTimeVisible.takeIf { it > 0 }
-            } else {
-                null
-            },
+            bucketStartMs = aggregated.firstTimeStamp.takeIf { it > 0 },
+            bucketEndMs = aggregated.lastTimeStamp.takeIf { it > 0 },
+            lastTimeUsedMs = aggregated.lastTimeUsed.takeIf { it > 0 },
+            lastTimeVisibleMs = aggregated.lastTimeVisible.takeIf { it > 0 },
         )
     }
 
