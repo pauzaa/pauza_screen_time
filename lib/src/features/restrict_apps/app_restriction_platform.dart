@@ -26,6 +26,11 @@ abstract class AppRestrictionPlatform extends PlatformInterface {
     throw UnimplementedError('removeMode() has not been implemented.');
   }
 
+  /// Atomically replaces all stored modes with [modes].
+  Future<void> replaceAllModes(List<RestrictionMode> modes) {
+    throw UnimplementedError('replaceAllModes() has not been implemented.');
+  }
+
   /// Enables or disables schedule-based mode enforcement globally.
   Future<void> setScheduleEnforcementEnabled(bool enabled) {
     throw UnimplementedError('setScheduleEnforcementEnabled() has not been implemented.');

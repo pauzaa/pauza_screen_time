@@ -39,6 +39,7 @@ class RestrictionsMethodHandler(
                 MethodNames.CONFIGURE_SHIELD -> handleConfigureShield(call, result)
                 MethodNames.UPSERT_MODE -> handleUpsertMode(call, result)
                 MethodNames.REMOVE_MODE -> handleRemoveMode(call, result)
+                MethodNames.REPLACE_ALL_MODES -> handleReplaceAllModes(call, result)
                 MethodNames.SET_SCHEDULE_ENFORCEMENT_ENABLED -> handleSetScheduleEnforcementEnabled(call, result)
                 MethodNames.GET_MODES_CONFIG -> handleGetModesConfig(result)
                 MethodNames.IS_RESTRICTION_SESSION_ACTIVE_NOW -> handleIsRestrictionSessionActiveNow(result)
@@ -123,6 +124,28 @@ class RestrictionsMethodHandler(
             result.success(null)
         } catch (e: Exception) {
             internalFailure(result, MethodNames.REMOVE_MODE, "Failed to remove mode", e)
+        }
+    }
+
+    private fun handleReplaceAllModes(call: MethodCall, result: Result) {
+        val context = contextProvider() ?: return noContext(result, MethodNames.REPLACE_ALL_MODES)
+        if (emitRestrictionPreflightErrorIfAny(context, MethodNames.REPLACE_ALL_MODES, result)) return
+
+        val args = call.arguments as? Map<*, *>
+        val rawModes = args?.get("modes") as? List<*>
+        if (rawModes == null) {
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.REPLACE_ALL_MODES, "Missing or invalid 'modes' argument")
+            return
+        }
+
+        try {
+            val modes = rawModes.map { RestrictionScheduledModeEntry.fromMap(it as Map<*, *>) }
+            ManageModesUseCase(context).replaceAllModes(modes)
+            result.success(null)
+        } catch (e: IllegalArgumentException) {
+            PluginErrorHelper.invalidArgument(result, FEATURE, MethodNames.REPLACE_ALL_MODES, e.message ?: "Invalid modes payload")
+        } catch (e: Exception) {
+            internalFailure(result, MethodNames.REPLACE_ALL_MODES, "Failed to replace all modes", e)
         }
     }
 

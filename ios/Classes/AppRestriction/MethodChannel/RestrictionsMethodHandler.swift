@@ -18,6 +18,8 @@ final class RestrictionsMethodHandler {
             handleUpsertMode(call: call, result: result)
         case MethodNames.removeMode:
             handleRemoveMode(call: call, result: result)
+        case MethodNames.replaceAllModes:
+            handleReplaceAllModes(call: call, result: result)
         case MethodNames.setScheduleEnforcementEnabled:
             handleSetScheduleEnforcementEnabled(call: call, result: result)
         case MethodNames.getModesConfig:
@@ -367,6 +369,44 @@ final class RestrictionsMethodHandler {
             return
         }
         if let error = ManageModesUseCase.removeMode(modeId: modeId) {
+            result(error)
+        } else {
+            result(nil)
+        }
+    }
+
+    private func handleReplaceAllModes(call: FlutterMethodCall, result: @escaping FlutterResult) {
+        guard #available(iOS 16.0, *) else {
+            result(PluginErrors.unsupported(
+                feature: Self.featureRestrictions,
+                action: MethodNames.replaceAllModes,
+                message: PluginErrorMessage.restrictionsUnsupported
+            ))
+            return
+        }
+        if let preflightError = restrictionPreflightError(action: MethodNames.replaceAllModes) {
+            result(preflightError)
+            return
+        }
+        guard let args = call.arguments as? [String: Any],
+              let rawModes = args["modes"] as? [[String: Any]] else {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.replaceAllModes,
+                message: "Missing or invalid 'modes' argument"
+            ))
+            return
+        }
+        let modes = rawModes.compactMap(RestrictionScheduledMode.init(channelMap:))
+        if modes.count != rawModes.count {
+            result(PluginErrors.invalidArguments(
+                feature: Self.featureRestrictions,
+                action: MethodNames.replaceAllModes,
+                message: "One or more modes failed to parse"
+            ))
+            return
+        }
+        if let error = ManageModesUseCase.replaceAllModes(modes: modes) {
             result(error)
         } else {
             result(nil)

@@ -17,6 +17,7 @@ enum MethodNames {
     static let configureShield = "configureShield"
     static let upsertMode = "upsertMode"
     static let removeMode = "removeMode"
+    static let replaceAllModes = "replaceAllModes"
     static let setScheduleEnforcementEnabled = "setScheduleEnforcementEnabled"
     static let getModesConfig = "getModesConfig"
     static let isRestrictionSessionActiveNow = "isRestrictionSessionActiveNow"

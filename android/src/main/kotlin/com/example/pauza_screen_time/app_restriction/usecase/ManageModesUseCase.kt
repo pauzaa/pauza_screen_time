@@ -64,8 +64,38 @@ internal class ManageModesUseCase(private val context: Context) {
             }
         }
 
-        RestrictionAlarmOrchestrator(context).rescheduleAll()
-        RestrictionSessionController(context).applyCurrentEnforcementState(trigger = LifecycleReasonConstants.MANUAL)
+        rescheduleAndApply()
+    }
+
+    fun replaceAllModes(modes: List<RestrictionScheduledModeEntry>) {
+        val scheduleCalculator = RestrictionScheduleCalculator()
+        val enforceable = modes.filter { it.schedule != null && it.blockedAppIds.isNotEmpty() }
+
+        val shapeIsValid = scheduleCalculator.isScheduleShapeValid(
+            RestrictionScheduleConfig(
+                enabled = true,
+                schedules = enforceable.mapNotNull { it.schedule },
+            ),
+        )
+        if (!shapeIsValid) {
+            throw IllegalArgumentException("Replacement modes contain overlapping schedules")
+        }
+
+        val store = RestrictionScheduledModesStore(context)
+        store.replaceAllModes(enforceable)
+
+        val restrictionManager = RestrictionManager.getInstance(context)
+        val activeSession = restrictionManager.getActiveSession()
+        if (activeSession != null) {
+            val matchingMode = enforceable.firstOrNull { it.modeId == activeSession.modeId }
+            if (matchingMode != null) {
+                restrictionManager.setActiveSession(matchingMode.modeId, matchingMode.blockedAppIds, activeSession.source)
+            } else {
+                restrictionManager.clearActiveSession()
+            }
+        }
+
+        rescheduleAndApply()
     }
 
     fun removeMode(modeId: String) {
@@ -75,14 +105,17 @@ internal class ManageModesUseCase(private val context: Context) {
         if (restrictionManager.getActiveSession()?.modeId == modeId) {
             restrictionManager.clearActiveSession()
         }
-        RestrictionAlarmOrchestrator(context).rescheduleAll()
-        RestrictionSessionController(context).applyCurrentEnforcementState(trigger = LifecycleReasonConstants.MANUAL)
+        rescheduleAndApply()
     }
 
     fun setScheduleEnforcementEnabled(enabled: Boolean) {
         val store = RestrictionScheduledModesStore(context)
         if (store.isEnabled() == enabled) return
         store.setEnabled(enabled)
+        rescheduleAndApply()
+    }
+
+    private fun rescheduleAndApply() {
         RestrictionAlarmOrchestrator(context).rescheduleAll()
         RestrictionSessionController(context).applyCurrentEnforcementState(trigger = LifecycleReasonConstants.MANUAL)
     }

@@ -48,16 +48,7 @@ struct ManageModesUseCase {
                 )
             }
 
-            do {
-                try RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()
-            } catch {
-                return PluginErrors.internalFailure(
-                    feature: featureRestrictions,
-                    action: MethodNames.upsertMode,
-                    message: "Failed to schedule iOS boundary monitors",
-                    diagnostic: "error=\(String(describing: error))"
-                )
-            }
+            if let error = tryRescheduleMonitors(action: MethodNames.upsertMode) { return error }
         }
 
         if let activeSession = try? RestrictionStateStore.loadActiveSession(),
@@ -79,6 +70,86 @@ struct ManageModesUseCase {
                 return PluginErrors.internalFailure(
                     feature: featureRestrictions,
                     action: MethodNames.upsertMode,
+                    message: PluginErrorMessage.appGroupUnavailable,
+                    diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+                )
+            }
+        }
+
+        SessionEnforcementUseCase.applyDesiredRestrictionsIfNeeded(
+            trigger: LifecycleReasonConstants.manual,
+            previousLifecycleSnapshot: previousSnapshot
+        )
+        return nil
+    }
+
+    static func replaceAllModes(modes: [RestrictionScheduledMode]) -> FlutterError? {
+        let enforceable = modes.filter(\.shouldPersistForScheduleEnforcement)
+
+        let schedules = enforceable.compactMap(\.schedule)
+        if !RestrictionScheduleEvaluator.isScheduleShapeValid(schedules) {
+            return PluginErrors.invalidArguments(
+                feature: featureRestrictions,
+                action: MethodNames.replaceAllModes,
+                message: "Replacement modes contain overlapping schedules"
+            )
+        }
+
+        for mode in enforceable {
+            if !mode.blockedAppIds.isEmpty {
+                let decodeResult = ShieldManager.shared.decodeTokens(base64Tokens: mode.blockedAppIds)
+                if !decodeResult.invalidTokens.isEmpty {
+                    return PluginErrors.invalidArguments(
+                        feature: featureRestrictions,
+                        action: MethodNames.replaceAllModes,
+                        message: PluginErrorMessage.unableToDecodeTokens,
+                        diagnostic: "modeId=\(mode.modeId), invalidTokens=\(decodeResult.invalidTokens)"
+                    )
+                }
+            }
+        }
+
+        let existing = RestrictionStateStore.loadModes()
+        let previousSnapshot = RestrictionStateStore.snapshotLifecycleState()
+        let shouldRescheduleMonitors = scheduleModesSignature(existing) != scheduleModesSignature(enforceable)
+
+        switch RestrictionStateStore.storeModes(enforceable) {
+        case .success:
+            break
+        case .appGroupUnavailable(let resolvedGroupId):
+            return PluginErrors.internalFailure(
+                feature: featureRestrictions,
+                action: MethodNames.replaceAllModes,
+                message: PluginErrorMessage.appGroupUnavailable,
+                diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
+            )
+        }
+
+        if shouldRescheduleMonitors {
+            if let error = tryRescheduleMonitors(action: MethodNames.replaceAllModes) { return error }
+        }
+
+        if let activeSession = try? RestrictionStateStore.loadActiveSession() {
+            let matchingMode = enforceable.first { $0.modeId == activeSession.modeId }
+            let storeResult: RestrictionStateStore.StoreResult
+            if let matchingMode, matchingMode.isStartable {
+                storeResult = RestrictionStateStore.storeActiveSession(
+                    RestrictionStateStore.ActiveSession(
+                        sessionId: activeSession.sessionId,
+                        modeId: matchingMode.modeId,
+                        blockedAppIds: matchingMode.blockedAppIds,
+                        source: activeSession.source
+                    )
+                )
+            } else if matchingMode == nil {
+                storeResult = RestrictionStateStore.clearActiveSession()
+            } else {
+                storeResult = .success
+            }
+            if case .appGroupUnavailable(let resolvedGroupId) = storeResult {
+                return PluginErrors.internalFailure(
+                    feature: featureRestrictions,
+                    action: MethodNames.replaceAllModes,
                     message: PluginErrorMessage.appGroupUnavailable,
                     diagnostic: "resolvedAppGroupId=\(resolvedGroupId)"
                 )
@@ -126,16 +197,7 @@ struct ManageModesUseCase {
         }
 
         if shouldRescheduleMonitors {
-            do {
-                try RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()
-            } catch {
-                return PluginErrors.internalFailure(
-                    feature: featureRestrictions,
-                    action: MethodNames.removeMode,
-                    message: "Failed to schedule iOS boundary monitors",
-                    diagnostic: "error=\(String(describing: error))"
-                )
-            }
+            if let error = tryRescheduleMonitors(action: MethodNames.removeMode) { return error }
         }
 
         SessionEnforcementUseCase.applyDesiredRestrictionsIfNeeded(
@@ -160,16 +222,7 @@ struct ManageModesUseCase {
             )
         }
 
-        do {
-            try RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()
-        } catch {
-            return PluginErrors.internalFailure(
-                feature: featureRestrictions,
-                action: MethodNames.setScheduleEnforcementEnabled,
-                message: "Failed to schedule iOS boundary monitors",
-                diagnostic: "error=\(String(describing: error))"
-            )
-        }
+        if let error = tryRescheduleMonitors(action: MethodNames.setScheduleEnforcementEnabled) { return error }
 
         SessionEnforcementUseCase.applyDesiredRestrictionsIfNeeded(
             trigger: LifecycleReasonConstants.manual,
@@ -183,6 +236,20 @@ struct ManageModesUseCase {
             scheduleEnforcementEnabled: RestrictionStateStore.loadScheduleEnforcementEnabled(),
             modes: RestrictionStateStore.loadModes()
         )
+    }
+
+    private static func tryRescheduleMonitors(action: String) -> FlutterError? {
+        do {
+            try RestrictionScheduleMonitorOrchestrator.rescheduleMonitors()
+        } catch {
+            return PluginErrors.internalFailure(
+                feature: featureRestrictions,
+                action: action,
+                message: "Failed to schedule iOS boundary monitors",
+                diagnostic: "error=\(String(describing: error))"
+            )
+        }
+        return nil
     }
 
     private static func scheduleModesSignature(_ modes: [RestrictionScheduledMode]) -> Int {

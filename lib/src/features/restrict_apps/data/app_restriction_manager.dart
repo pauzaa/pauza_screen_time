@@ -28,6 +28,11 @@ class AppRestrictionManager {
     return _platform.removeMode(modeId).throwTypedPauzaError();
   }
 
+  /// Atomically replaces all stored modes with [modes].
+  Future<void> replaceAllModes(List<RestrictionMode> modes) {
+    return _platform.replaceAllModes(modes).throwTypedPauzaError();
+  }
+
   /// Enables or disables schedule-based mode enforcement globally.
   Future<void> setScheduleEnforcementEnabled(bool enabled) {
     return _platform.setScheduleEnforcementEnabled(enabled).throwTypedPauzaError();

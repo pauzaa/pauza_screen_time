@@ -7,6 +7,7 @@ class RestrictionsMethodNames {
   static const String configureShield = 'configureShield';
   static const String upsertMode = 'upsertMode';
   static const String removeMode = 'removeMode';
+  static const String replaceAllModes = 'replaceAllModes';
   static const String setScheduleEnforcementEnabled = 'setScheduleEnforcementEnabled';
   static const String getModesConfig = 'getModesConfig';
   static const String isRestrictionSessionActiveNow = 'isRestrictionSessionActiveNow';

@@ -36,6 +36,14 @@ class RestrictionsMethodChannel extends AppRestrictionPlatform {
   }
 
   @override
+  Future<void> replaceAllModes(List<RestrictionMode> modes) {
+    return channel.invokeMethod<void>(
+      RestrictionsMethodNames.replaceAllModes,
+      {'modes': modes.map((m) => m.toMap()).toList(growable: false)},
+    );
+  }
+
+  @override
   Future<void> setScheduleEnforcementEnabled(bool enabled) {
     return channel.invokeMethod<void>(RestrictionsMethodNames.setScheduleEnforcementEnabled, {'enabled': enabled});
   }

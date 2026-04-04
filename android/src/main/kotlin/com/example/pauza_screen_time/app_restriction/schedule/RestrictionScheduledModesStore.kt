@@ -52,6 +52,10 @@ internal class RestrictionScheduledModesStore(
         storeModes(filtered)
     }
 
+    fun replaceAllModes(modes: List<RestrictionScheduledModeEntry>) {
+        storeModes(modes)
+    }
+
     fun getMode(modeId: String): RestrictionScheduledModeEntry? {
         return getConfig().modes.firstOrNull { it.modeId == modeId }
     }
