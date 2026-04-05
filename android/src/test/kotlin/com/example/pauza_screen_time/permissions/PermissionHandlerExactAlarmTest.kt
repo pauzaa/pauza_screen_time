@@ -15,7 +15,7 @@ internal class PermissionHandlerExactAlarmTest {
     @Test
     fun checkPermission_exactAlarm_isGrantedOnPreAndroid12() {
         val handler = TestPermissionHandler(
-            context = mockContext(),
+            testContext = mockContext(),
             fakeSdkInt = Build.VERSION_CODES.R,
             exactAlarmsAllowed = false,
         )
@@ -28,12 +28,12 @@ internal class PermissionHandlerExactAlarmTest {
     @Test
     fun checkPermission_exactAlarm_reflectsCapabilityOnAndroid12Plus() {
         val grantedHandler = TestPermissionHandler(
-            context = mockContext(),
+            testContext = mockContext(),
             fakeSdkInt = Build.VERSION_CODES.S,
             exactAlarmsAllowed = true,
         )
         val deniedHandler = TestPermissionHandler(
-            context = mockContext(),
+            testContext = mockContext(),
             fakeSdkInt = Build.VERSION_CODES.S,
             exactAlarmsAllowed = false,
         )
@@ -51,7 +51,7 @@ internal class PermissionHandlerExactAlarmTest {
     @Test
     fun requestPermission_exactAlarm_launchesExactAlarmSettingsOnAndroid12Plus() {
         val handler = TestPermissionHandler(
-            context = mockContext(),
+            testContext = mockContext(),
             fakeSdkInt = Build.VERSION_CODES.S,
             exactAlarmsAllowed = false,
         )
@@ -72,7 +72,7 @@ internal class PermissionHandlerExactAlarmTest {
     @Test
     fun requestPermission_exactAlarm_fallsBackToAppDetailsWhenPrimaryLaunchFails() {
         val handler = TestPermissionHandler(
-            context = mockContext(),
+            testContext = mockContext(),
             fakeSdkInt = Build.VERSION_CODES.S,
             exactAlarmsAllowed = false,
             failExactAlarmLaunch = true,
@@ -96,7 +96,7 @@ internal class PermissionHandlerExactAlarmTest {
     @Test
     fun openPermissionSettings_exactAlarm_fallsBackToAppDetailsWhenPrimaryLaunchFails() {
         val handler = TestPermissionHandler(
-            context = mockContext(),
+            testContext = mockContext(),
             fakeSdkInt = Build.VERSION_CODES.S,
             exactAlarmsAllowed = false,
             failExactAlarmLaunch = true,
@@ -124,23 +124,41 @@ internal class PermissionHandlerExactAlarmTest {
 }
 
 private class TestPermissionHandler(
-    context: Context,
+    private val testContext: Context,
     private val fakeSdkInt: Int,
     private val exactAlarmsAllowed: Boolean,
     private val failExactAlarmLaunch: Boolean = false,
     private val failAppDetailsLaunch: Boolean = false,
-) : PermissionHandler(context) {
+) : PermissionHandler(testContext) {
     val launchedActions = mutableListOf<String>()
     val launchedData = mutableListOf<String?>()
+    private var pendingAction: String? = null
+    private var pendingData: String? = null
 
     override fun sdkInt(): Int = fakeSdkInt
 
     override fun canScheduleExactAlarms(): Boolean = exactAlarmsAllowed
 
+    override fun buildExactAlarmSettingsIntent(): Intent {
+        pendingAction = Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+        pendingData = "package:${testContext.packageName}"
+        return Intent()
+    }
+
+    override fun buildAppDetailsSettingsIntent(): Intent {
+        pendingAction = Settings.ACTION_APPLICATION_DETAILS_SETTINGS
+        pendingData = "package:${testContext.packageName}"
+        return Intent()
+    }
+
     override fun launchIntent(activity: Activity, intent: Intent): Boolean {
-        launchedActions.add(intent.action.orEmpty())
-        launchedData.add(intent.dataString)
-        return when (intent.action) {
+        val action = pendingAction ?: ""
+        val data = pendingData
+        launchedActions.add(action)
+        launchedData.add(data)
+        pendingAction = null
+        pendingData = null
+        return when (action) {
             Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM -> !failExactAlarmLaunch
             Settings.ACTION_APPLICATION_DETAILS_SETTINGS -> !failAppDetailsLaunch
             else -> true

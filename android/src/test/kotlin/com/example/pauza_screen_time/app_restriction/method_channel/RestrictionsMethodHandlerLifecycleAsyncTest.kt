@@ -1,5 +1,6 @@
 package com.example.pauza_screen_time.app_restriction.method_channel
 
+import android.app.AlarmManager
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
@@ -36,6 +37,9 @@ internal class RestrictionsMethodHandlerLifecycleAsyncTest {
         context = Mockito.mock(Context::class.java)
         Mockito.`when`(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt()))
             .thenReturn(preferences)
+        Mockito.`when`(context.getSystemService(Context.ALARM_SERVICE))
+            .thenReturn(Mockito.mock(AlarmManager::class.java))
+        Mockito.`when`(context.applicationContext).thenReturn(context)
     }
 
     @AfterTest
@@ -444,7 +448,19 @@ internal class RestrictionsMethodHandlerLifecycleAsyncTest {
     }
 
     private fun resetRestrictionManagerSingleton() {
-        val field = RestrictionManager::class.java.getDeclaredField("instance")
+        resetSingleton(RestrictionManager::class.java, "instance")
+        resetSingleton(
+            Class.forName("com.example.pauza_screen_time.app_restriction.storage.RestrictionStorageRepository"),
+            "instance",
+        )
+        resetSingleton(
+            Class.forName("com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleLogger"),
+            "instance",
+        )
+    }
+
+    private fun resetSingleton(clazz: Class<*>, fieldName: String) {
+        val field = clazz.getDeclaredField(fieldName)
         field.isAccessible = true
         field.set(null, null)
     }

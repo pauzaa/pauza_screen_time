@@ -107,6 +107,7 @@ class RestrictionManager private constructor(context: Context) {
         storage.clearActiveSession()
         storage.clearManualSessionEndEpochMs()
         storage.clearPendingEndSessionEpochMs()
+        logger.clearActiveSessionLifecycleEvents()
     }
 
     @Synchronized

@@ -1,5 +1,6 @@
 package com.example.pauza_screen_time.app_restriction.usecase
 
+import android.app.AlarmManager
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
@@ -24,6 +25,10 @@ internal class SessionEnforcementUseCasePauseResumeValidationTest {
             Class.forName("com.example.pauza_screen_time.app_restriction.storage.RestrictionStorageRepository"),
             "instance",
         )
+        resetSingleton(
+            Class.forName("com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleLogger"),
+            "instance",
+        )
         context = Mockito.mock(Context::class.java)
         Mockito.`when`(context.applicationContext).thenReturn(context)
         Mockito.`when`(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt()))
@@ -31,6 +36,8 @@ internal class SessionEnforcementUseCasePauseResumeValidationTest {
                 val name = invocation.getArgument<String>(0)
                 prefsByName.getOrPut(name) { PauseResumeInMemorySharedPreferences() }
             }
+        Mockito.`when`(context.getSystemService(Context.ALARM_SERVICE))
+            .thenReturn(Mockito.mock(AlarmManager::class.java))
     }
 
     @AfterTest
@@ -38,6 +45,10 @@ internal class SessionEnforcementUseCasePauseResumeValidationTest {
         resetSingleton(RestrictionManager::class.java, "instance")
         resetSingleton(
             Class.forName("com.example.pauza_screen_time.app_restriction.storage.RestrictionStorageRepository"),
+            "instance",
+        )
+        resetSingleton(
+            Class.forName("com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleLogger"),
             "instance",
         )
     }

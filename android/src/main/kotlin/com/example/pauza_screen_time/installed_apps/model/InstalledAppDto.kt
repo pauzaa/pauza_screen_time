@@ -109,7 +109,7 @@ class InstalledAppDto(
 private fun ByteArray?.contentEquals(other: ByteArray?): Boolean {
     if (this === other) return true
     if (this == null || other == null) return false
-    return this.contentEquals(other)
+    return java.util.Arrays.equals(this, other)
 }
 
-private fun ByteArray?.contentHashCode(): Int = this?.contentHashCode() ?: 0
+private fun ByteArray?.contentHashCode(): Int = if (this != null) java.util.Arrays.hashCode(this) else 0

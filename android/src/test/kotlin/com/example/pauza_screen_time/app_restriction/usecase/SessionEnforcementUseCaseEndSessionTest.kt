@@ -1,5 +1,6 @@
 package com.example.pauza_screen_time.app_restriction.usecase
 
+import android.app.AlarmManager
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.pauza_screen_time.app_restriction.RestrictionManager
@@ -31,6 +32,10 @@ internal class SessionEnforcementUseCaseEndSessionTest {
             Class.forName("com.example.pauza_screen_time.app_restriction.storage.RestrictionStorageRepository"),
             "instance",
         )
+        resetSingleton(
+            Class.forName("com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleLogger"),
+            "instance",
+        )
         context = Mockito.mock(Context::class.java)
         Mockito.`when`(context.applicationContext).thenReturn(context)
         Mockito.`when`(context.getSharedPreferences(Mockito.anyString(), Mockito.anyInt()))
@@ -38,6 +43,8 @@ internal class SessionEnforcementUseCaseEndSessionTest {
                 val name = invocation.getArgument<String>(0)
                 prefsByName.getOrPut(name) { InMemorySharedPreferences() }
             }
+        Mockito.`when`(context.getSystemService(Context.ALARM_SERVICE))
+            .thenReturn(Mockito.mock(AlarmManager::class.java))
     }
 
     @AfterTest
@@ -45,6 +52,10 @@ internal class SessionEnforcementUseCaseEndSessionTest {
         resetSingleton(RestrictionManager::class.java, "instance")
         resetSingleton(
             Class.forName("com.example.pauza_screen_time.app_restriction.storage.RestrictionStorageRepository"),
+            "instance",
+        )
+        resetSingleton(
+            Class.forName("com.example.pauza_screen_time.app_restriction.lifecycle.RestrictionLifecycleLogger"),
             "instance",
         )
     }
@@ -65,12 +76,9 @@ internal class SessionEnforcementUseCaseEndSessionTest {
 
     @Test
     fun endSession_clearsScheduleSession() {
+        val modeId = "schedule-focus"
+        seedActiveScheduleMode(modeId)
         val manager = RestrictionManager.getInstance(context)
-        manager.setActiveSession(
-            modeId = "schedule-focus",
-            blockedAppIds = listOf("com.example.app"),
-            source = RestrictionModeSource.SCHEDULE,
-        )
 
         SessionEnforcementUseCase(context).endSession()
 

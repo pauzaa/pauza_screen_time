@@ -85,10 +85,12 @@ android {
         
         // Test dependencies
         testImplementation("org.jetbrains.kotlin:kotlin-test")
-        testImplementation("org.mockito:mockito-core:5.0.0")
+        testImplementation("org.mockito:mockito-core:5.15.2")
+        testImplementation("org.json:json:20231013")
     }
 
     testOptions {
+        unitTests.returnDefaultValues = true
         unitTests.all {
             useJUnitPlatform()
 

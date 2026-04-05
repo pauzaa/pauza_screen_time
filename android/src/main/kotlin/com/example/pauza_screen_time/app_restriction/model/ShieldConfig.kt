@@ -118,7 +118,11 @@ data class ShieldConfig(
             }
             val iconBytes = if (iconBase64.isNotEmpty()) {
                 try {
-                    Base64.decode(iconBase64, Base64.DEFAULT)
+                    val decoded = Base64.decode(iconBase64, Base64.DEFAULT)
+                    if (decoded == null || decoded.isEmpty()) {
+                        throw IllegalArgumentException("Shield icon bytes are not valid Base64")
+                    }
+                    decoded
                 } catch (e: IllegalArgumentException) {
                     throw IllegalArgumentException("Shield icon bytes are not valid Base64", e)
                 }
